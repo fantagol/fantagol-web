@@ -34,6 +34,13 @@ export default function Home() {
             Scarica l&apos;App
           </a>
         </div>
+
+        <a
+          href="/regolamento"
+          className="mt-6 inline-block text-sm font-semibold text-green-400 hover:text-green-300"
+        >
+          Leggi il Regolamento Completo →
+        </a>
       </section>
 
       <section id="funziona" className="max-w-6xl mx-auto px-6 py-20">
