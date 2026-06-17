@@ -53,7 +53,7 @@ export default function Home() {
 
           <div className="p-6 border border-gray-800 rounded-2xl">
             <h3 className="text-2xl font-semibold mb-3">
-              2. Segui i punti live
+              2. Segui le partite live
             </h3>
             <p className="text-gray-400">
               Ogni gol può cambiare la classifica e le tue sfide.
