@@ -1,8 +1,11 @@
+import Header from "../../components/Header";
+
 export default function RegolamentoPage() {
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="max-w-4xl mx-auto px-6 py-20">
+      <Header />
 
+      <div className="max-w-4xl mx-auto px-6 py-20">
         <h1 className="text-5xl font-black mb-6">
           Regolamento FantaGol
         </h1>
@@ -12,13 +15,10 @@ export default function RegolamentoPage() {
         </p>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">
-            Come si gioca
-          </h2>
+          <h2 className="text-3xl font-bold mb-6">Come si gioca</h2>
 
           <p className="text-gray-300 leading-8">
-            Per ogni partita devi inserire un solo pronostico:
-            il risultato esatto.
+            Per ogni partita devi inserire un solo pronostico: il risultato esatto.
           </p>
 
           <div className="mt-4 p-4 border border-gray-800 rounded-xl">
@@ -32,19 +32,16 @@ export default function RegolamentoPage() {
           <ul className="mt-4 space-y-2 text-gray-300">
             <li>• Risultato Esatto</li>
             <li>• Segno (1-X-2)</li>
-            <li>• Over / Under (2.5)</li>
+            <li>• Over / Under</li>
             <li>• Goal / No Goal</li>
             <li>• Bonus e Malus</li>
           </ul>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">
-            Sistema Punti
-          </h2>
+          <h2 className="text-3xl font-bold mb-6">Sistema Punti</h2>
 
           <div className="space-y-4">
-
             <div className="p-4 border border-gray-800 rounded-xl">
               <strong>Exact</strong> → 11 punti
             </div>
@@ -60,29 +57,24 @@ export default function RegolamentoPage() {
             <div className="p-4 border border-gray-800 rounded-xl">
               <strong>Goal / No Goal corretto</strong> → 1 punto
             </div>
-
           </div>
 
           <p className="mt-6 text-gray-400">
-            L'Exact è il cuore del gioco e rappresenta la massima
+            L&apos;Exact è il cuore del gioco e rappresenta la massima
             espressione di precisione.
           </p>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">
-            Bonus
-          </h2>
+          <h2 className="text-3xl font-bold mb-6">Bonus</h2>
 
           <div className="space-y-4">
-
             <div className="p-4 border border-green-900 rounded-xl">
               <strong>Gol Show (+1)</strong>
 
               <p className="text-gray-400 mt-2">
-                Assegnato quando la somma gol pronosticata coincide
-                con la somma gol reale e il totale gol della partita
-                è pari o superiore a 4.
+                Assegnato quando la somma gol pronosticata coincide con la
+                somma gol reale e il totale gol della partita è pari o superiore a 4.
               </p>
             </div>
 
@@ -90,12 +82,11 @@ export default function RegolamentoPage() {
               <strong>Bonus Sorpresa (+2)</strong>
 
               <p className="text-gray-400 mt-2">
-                Assegnato quando il giocatore indovina un esito
-                considerato particolarmente improbabile dal mercato
-                pre-partita.
-                Il sistema determina automaticamente quali risultati
-                rientrano nella categoria Sorpresa utilizzando una
-                media di quote provenienti da più bookmaker.
+                Assegnato quando il giocatore indovina un esito considerato
+                particolarmente improbabile dal mercato pre-partita. Il sistema
+                determina automaticamente quali risultati rientrano nella
+                categoria Sorpresa utilizzando una media di quote provenienti
+                da più bookmaker.
               </p>
             </div>
 
@@ -103,29 +94,23 @@ export default function RegolamentoPage() {
               <strong>Grand Slam (+1)</strong>
 
               <p className="text-gray-400 mt-2">
-                Bonus speciale ottenuto quando Exact, Gol Show e
-                Bonus Sorpresa si verificano contemporaneamente.
-                Rappresenta il massimo riconoscimento ottenibile
-                in FantaGol.
+                Bonus speciale ottenuto quando Exact, Gol Show e Bonus Sorpresa
+                si verificano contemporaneamente. Rappresenta il massimo
+                riconoscimento ottenibile in FantaGol.
               </p>
             </div>
-
           </div>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">
-            Malus
-          </h2>
+          <h2 className="text-3xl font-bold mb-6">Malus</h2>
 
           <div className="space-y-4">
-
             <div className="p-4 border border-red-900 rounded-xl">
               <strong>Segno Opposto (-1)</strong>
 
               <p className="text-gray-400 mt-2">
-                Quando viene pronosticato 1 e termina 2 oppure
-                viceversa.
+                Quando viene pronosticato 1 e termina 2 oppure viceversa.
               </p>
             </div>
 
@@ -133,34 +118,25 @@ export default function RegolamentoPage() {
               <strong>Cantonata (-2)</strong>
 
               <p className="text-gray-400 mt-2">
-                Quando risultano errati contemporaneamente
-                Segno, Over/Under e Goal/No Goal.
+                Quando risultano errati contemporaneamente Segno, Over/Under e Goal/No Goal.
               </p>
             </div>
-
           </div>
 
           <p className="mt-6 text-gray-400">
-            I punteggi negativi sono consentiti e possono influenzare
-            le classifiche.
+            I punteggi negativi sono consentiti e possono influenzare le classifiche.
           </p>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">
-            Modalità di Gioco
-          </h2>
+          <h2 className="text-3xl font-bold mb-6">Modalità di Gioco</h2>
 
           <div className="space-y-6">
-
             <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">
-                Fantacalcio
-              </h3>
+              <h3 className="text-2xl font-semibold mb-3">Fantacalcio</h3>
 
               <p className="text-gray-300 mb-4">
-                I punti FantaGol vengono convertiti in gol tramite
-                fasce prestabilite.
+                I punti FantaGol vengono convertiti in gol tramite fasce prestabilite.
               </p>
 
               <div className="text-gray-400 space-y-1">
@@ -180,9 +156,7 @@ export default function RegolamentoPage() {
             </div>
 
             <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">
-                One To One
-              </h3>
+              <h3 className="text-2xl font-semibold mb-3">One To One</h3>
 
               <p className="text-gray-300">
                 Ogni partita della giornata diventa una mini-sfida.
@@ -192,17 +166,13 @@ export default function RegolamentoPage() {
             </div>
 
             <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">
-                Punti Puri
-              </h3>
+              <h3 className="text-2xl font-semibold mb-3">Punti Puri</h3>
 
               <p className="text-gray-300">
-                Conta esclusivamente la somma dei punti FantaGol
-                ottenuti durante la stagione.
-                Le giornate negative riducono il totale accumulato.
+                Conta esclusivamente la somma dei punti FantaGol ottenuti
+                durante la stagione. Le giornate negative riducono il totale accumulato.
               </p>
             </div>
-
           </div>
         </section>
 
@@ -212,12 +182,10 @@ export default function RegolamentoPage() {
           </h2>
 
           <p className="text-gray-300 leading-8">
-            Con un unico set di pronostici puoi partecipare
-            contemporaneamente alle classifiche Fantacalcio,
-            One To One e Punti Puri.
+            Con un unico set di pronostici puoi partecipare contemporaneamente
+            alle classifiche Fantacalcio, One To One e Punti Puri.
           </p>
         </section>
-
       </div>
     </main>
   );

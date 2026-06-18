@@ -1,9 +1,23 @@
+"use client";
+
+import { useState } from "react";
 import FantaGolLogo from "./FantaGolLogo";
 
 export default function Header() {
+  const [open, setOpen] = useState(false);
+
   return (
-    <header className="border-b border-gray-800">
+    <header className="border-b border-gray-800 relative z-50">
       <div className="max-w-6xl mx-auto px-6 h-24 flex items-center justify-between overflow-visible">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-label="Apri menu"
+          className="md:hidden text-white text-3xl leading-none"
+        >
+          ☰
+        </button>
+
         <a
           href="/"
           aria-label="Vai alla home FantaGol"
@@ -20,7 +34,35 @@ export default function Header() {
           <a href="/play">Play Online</a>
           <a href="/download">Download</a>
         </nav>
+
+        <div className="md:hidden w-8" />
       </div>
+
+      {open && (
+        <nav className="md:hidden border-t border-gray-800 bg-black px-6 py-6 space-y-4 text-gray-300">
+          <a onClick={() => setOpen(false)} className="block" href="/">
+            Home
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/#funziona">
+            Come Funziona
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/#modalita">
+            Modalità
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/#perche">
+            Perché FantaGol
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/regolamento">
+            Regolamento
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/play">
+            Play Online
+          </a>
+          <a onClick={() => setOpen(false)} className="block" href="/download">
+            Download
+          </a>
+        </nav>
+      )}
     </header>
   );
 }
