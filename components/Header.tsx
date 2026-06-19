@@ -9,7 +9,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-green-500/25 bg-gradient-to-r from-[#171717] via-[#0b0b0b] to-[#171717] shadow-xl shadow-black/80 backdrop-blur">
-      <div className="mx-auto flex h-18 max-w-6xl items-center justify-between px-4 md:px-6">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
         <a
           href="/"
           aria-label="Vai alla home FantaGol"
