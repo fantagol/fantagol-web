@@ -2,138 +2,55 @@ import Header from "../components/Header";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen overflow-hidden bg-black text-white">
       <Header />
 
-      <section className="max-w-6xl mx-auto px-6 py-24 text-center">
-        <p className="text-sm uppercase tracking-[0.35em] text-gray-500 mb-6">
-          Fantasy pronostici • live score • sfide tra amici
-        </p>
+      <section className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-6xl flex-col items-center justify-center px-6 text-center">
+        <div className="absolute left-1/2 top-1/2 z-0 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500/10 blur-3xl" />
+        <div className="absolute right-10 top-24 z-0 h-64 w-64 rounded-full bg-green-900/20 blur-3xl" />
+        <div className="absolute bottom-10 left-10 z-0 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
 
-        <h1 className="text-6xl md:text-7xl font-black mb-6">
-          FantaGol
-        </h1>
+        <div className="relative z-10">
+          <p className="mb-6 text-sm font-semibold uppercase tracking-[0.35em] text-green-500">
+            L&apos;APP DEL FANTAPRONOSTICO
+          </p>
 
-        <p className="text-2xl text-gray-400 mb-10 max-w-3xl mx-auto">
-          Pronostica le partite, segui i risultati live e sfida la tua lega
-          in più modalità di gioco.
-        </p>
+          <h1 className="mb-6 text-6xl font-black md:text-7xl">
+            FantaGol
+          </h1>
 
-        <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <p className="mx-auto mb-10 max-w-3xl text-2xl font-medium text-gray-300">
+            Un solo pronostico.
+            <br />
+            Tre modalita di gioco.
+            <br />
+            Infinite sfide.
+          </p>
+
+          <div className="flex flex-col justify-center gap-4 md:flex-row">
+            <a
+              href="/play"
+              className="rounded-xl bg-white px-8 py-4 font-semibold text-black shadow-xl shadow-white/10 transition hover:scale-105"
+            >
+              Gioca Online
+            </a>
+
+            <a
+              href="/download"
+              className="rounded-xl border border-green-700 bg-green-950/30 px-8 py-4 font-semibold text-green-200 transition hover:border-green-400 hover:bg-green-900/40"
+            >
+              Scarica l&apos;App
+            </a>
+          </div>
+
           <a
-            href="/play"
-            className="px-8 py-4 bg-white text-black rounded-xl font-semibold"
+            href="/regolamento"
+            className="mt-6 inline-block text-sm font-semibold text-green-400 hover:text-green-300"
           >
-            Gioca Online
-          </a>
-
-          <a
-            href="/download"
-            className="px-8 py-4 border border-gray-600 rounded-xl"
-          >
-            Scarica l&apos;App
+            Come si Gioca &gt;
           </a>
         </div>
-
-        <a
-          href="/regolamento"
-          className="mt-6 inline-block text-sm font-semibold text-green-400 hover:text-green-300"
-        >
-          Leggi il Regolamento Completo →
-        </a>
       </section>
-
-      <section id="funziona" className="max-w-6xl mx-auto px-6 py-20">
-        <h2 className="text-4xl font-bold mb-12 text-center">
-          Come Funziona
-        </h2>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">
-              1. Pronostica i risultati
-            </h3>
-            <p className="text-gray-400">
-              Inserisci il risultato esatto delle partite della giornata.
-            </p>
-          </div>
-
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">
-              2. Segui le partite live
-            </h3>
-            <p className="text-gray-400">
-              Ogni gol può cambiare la classifica e le tue sfide.
-            </p>
-          </div>
-
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">
-              3. Vinci la tua lega
-            </h3>
-            <p className="text-gray-400">
-              Competi contro amici e avversari.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="modalita" className="max-w-6xl mx-auto px-6 py-20">
-        <h2 className="text-4xl font-bold mb-12 text-center">
-          Modalità di Gioco
-        </h2>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">Fantacalcio</h3>
-            <p className="text-gray-400">
-              Sistema punti avanzato basato sulla precisione.
-            </p>
-          </div>
-
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">One-to-One</h3>
-            <p className="text-gray-400">
-              Sfide dirette contro un singolo avversario.
-            </p>
-          </div>
-
-          <div className="p-6 border border-gray-800 rounded-2xl">
-            <h3 className="text-2xl font-semibold mb-3">Punti Puri</h3>
-            <p className="text-gray-400">
-              Classifica generale basata sui punti ottenuti.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section id="perche" className="max-w-6xl mx-auto px-6 py-20">
-        <h2 className="text-4xl font-bold mb-12 text-center">
-          Perché FantaGol?
-        </h2>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="p-6 bg-gray-950 border border-gray-800 rounded-2xl">
-            Risultati live e classifiche automatiche
-          </div>
-
-          <div className="p-6 bg-gray-950 border border-gray-800 rounded-2xl">
-            Pronostici semplici e immediati
-          </div>
-
-          <div className="p-6 bg-gray-950 border border-gray-800 rounded-2xl">
-            Leghe private tra amici
-          </div>
-
-          <div className="p-6 bg-gray-950 border border-gray-800 rounded-2xl">
-            Web, Android e iPhone
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-gray-800 py-10 text-center text-gray-500">
-        © 2026 FantaGol.app
-      </footer>
     </main>
   );
 }
