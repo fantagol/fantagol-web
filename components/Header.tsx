@@ -13,7 +13,7 @@ export default function Header() {
         <a
           href="/"
           aria-label="Vai alla home FantaGol"
-          className="block -translate-x-6 translate-y-4 md:-translate-x-20 md:translate-y-6"
+          className="block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
         >
           <FantaGolLogo />
         </a>
