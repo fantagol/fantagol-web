@@ -3,7 +3,7 @@ export default function FantaGolLogo() {
     <img
       src="/logo/logo-horizontal-v2.png"
       alt="FantaGol"
-      className="h-50 md:h-60 w-auto"
+      className="h-16 md:h-60 w-auto"
     />
   );
 }
