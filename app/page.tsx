@@ -29,7 +29,7 @@ export default function Home() {
 
           <div className="flex flex-col justify-center gap-4 md:flex-row">
             <a
-              href="/play"
+              href="/login"
               className="rounded-xl bg-white px-8 py-4 font-semibold text-black shadow-xl shadow-white/10 transition hover:scale-105"
             >
               Gioca Online

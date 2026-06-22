@@ -50,7 +50,7 @@ export default function Header() {
           </div>
 
           <a
-            href="/leghe"
+            href="/login"
             className="rounded-full border border-gray-600 bg-[#2b2f31] px-5 py-2 text-sm font-semibold text-gray-100 transition hover:border-[#A6E824] hover:text-white"
           >
             Leghe
@@ -77,15 +77,15 @@ export default function Header() {
       {open && (
         <nav className="border-t border-gray-700 bg-[#1a1d1f] px-6 py-6 text-gray-300 md:hidden">
           <div className="space-y-5 text-lg">
-            <a onClick={() => setOpen(false)} className="block" href="/play">
+            <a onClick={() => setOpen(false)} className="block" href="/login">
               Gioca Online
             </a>
 
-            <a onClick={() => setOpen(false)} className="block" href="/leghe">
+            <a onClick={() => setOpen(false)} className="block" href="/login">
               Le mie Leghe
             </a>
 
-            <a onClick={() => setOpen(false)} className="block" href="/crea-lega">
+            <a onClick={() => setOpen(false)} className="block" href="/login">
               Crea Lega
             </a>
 
