@@ -7,7 +7,7 @@ export default function LoginPage() {
 
       <section className="mx-auto flex min-h-[calc(100vh-56px)] max-w-6xl items-center justify-center px-6 py-16">
         <div className="w-full max-w-md rounded-3xl border border-gray-700 bg-gradient-to-b from-[#1f1f1f] to-[#0d0d0d] p-8 shadow-2xl shadow-black/70">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-green-500">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
             FantaGol
           </p>
 
@@ -33,7 +33,7 @@ export default function LoginPage() {
             <input
               type="email"
               placeholder="Email"
-              className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-green-500"
+              className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
             />
 
             <input
@@ -44,7 +44,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-gradient-to-r from-green-700 to-green-600 px-5 py-3 font-semibold text-white transition hover:from-green-600 hover:to-green-500"
+              className="w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
             >
               Accedi
             </button>
@@ -52,7 +52,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-gray-400">
             Non hai un account?{" "}
-            <a href="/registrati" className="font-semibold text-green-400 hover:text-green-300">
+            <a href="/registrati" className="font-semibold text-[#A6E824] hover:brightness-110">
               Registrati
             </a>
           </p>
