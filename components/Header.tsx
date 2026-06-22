@@ -15,7 +15,7 @@ export default function Header() {
         <a
           href="/"
           aria-label="Vai alla home FantaGol"
-          className="block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
+          className="relative z-10 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
         >
           <FantaGolLogo />
         </a>
@@ -75,7 +75,7 @@ export default function Header() {
       </div>
 
       {open && (
-        <nav className="border-t border-gray-700 bg-[#1a1d1f] px-6 py-6 text-gray-300 md:hidden">
+        <nav className="relative z-50 border-t border-gray-700 bg-[#1a1d1f] px-6 py-6 text-gray-300 md:hidden">
           <div className="space-y-5 text-lg">
             <a onClick={() => setOpen(false)} className="block" href="/login">
               Gioca Online
