@@ -3,12 +3,14 @@
 import { useState } from "react";
 import FantaGolLogo from "./FantaGolLogo";
 
+const fantagolGreen = "#A6E824";
+
 export default function Header() {
   const [open, setOpen] = useState(false);
   const [appOpen, setAppOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-green-500/25 bg-gradient-to-r from-[#323232] via-[#242424] to-[#323232] shadow-2xl shadow-black/80 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[#A6E824]/25 bg-gradient-to-r from-[#2a2f32] via-[#1f2427] to-[#2a2f32] shadow-2xl shadow-black/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
         <a
           href="/"
@@ -23,7 +25,7 @@ export default function Header() {
             <button
               type="button"
               onClick={() => setAppOpen(!appOpen)}
-              className="rounded-full bg-gradient-to-r from-green-700 to-green-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-green-900/30 transition hover:from-green-600 hover:to-green-500"
+              className="rounded-full bg-[#A6E824] px-5 py-2 text-sm font-semibold text-black shadow-lg shadow-[#A6E824]/25 transition hover:brightness-110"
             >
               Scarica App ▾
             </button>
@@ -49,14 +51,14 @@ export default function Header() {
 
           <a
             href="/leghe"
-            className="rounded-full border border-gray-600 bg-[#2b2b2b] px-5 py-2 text-sm font-semibold text-gray-100 transition hover:border-green-500 hover:text-white"
+            className="rounded-full border border-gray-600 bg-[#2b2f31] px-5 py-2 text-sm font-semibold text-gray-100 transition hover:border-[#A6E824] hover:text-white"
           >
             Leghe
           </a>
 
           <a
             href="/login"
-            className="rounded-full border border-gray-600 bg-[#2b2b2b] px-5 py-2 text-sm font-semibold text-gray-100 transition hover:border-green-500 hover:text-white"
+            className="rounded-full border border-gray-600 bg-[#2b2f31] px-5 py-2 text-sm font-semibold text-gray-100 transition hover:border-[#A6E824] hover:text-white"
           >
             Accedi
           </a>
@@ -66,74 +68,46 @@ export default function Header() {
           type="button"
           onClick={() => setOpen(!open)}
           aria-label="Apri menu"
-          className="rounded-lg border border-gray-600 bg-[#2b2b2b] px-3 py-2 text-2xl leading-none text-white md:hidden"
+          className="rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white md:hidden"
         >
           ☰
         </button>
       </div>
 
       {open && (
-        <nav className="border-t border-gray-700 bg-[#1a1a1a] px-6 py-6 text-gray-300 md:hidden">
+        <nav className="border-t border-gray-700 bg-[#1a1d1f] px-6 py-6 text-gray-300 md:hidden">
           <div className="space-y-5 text-lg">
-            <a
-              onClick={() => setOpen(false)}
-              className="block"
-              href="/play"
-            >
+            <a onClick={() => setOpen(false)} className="block" href="/play">
               Gioca Online
             </a>
 
-            <a
-              onClick={() => setOpen(false)}
-              className="block"
-              href="/leghe"
-            >
+            <a onClick={() => setOpen(false)} className="block" href="/leghe">
               Le mie Leghe
             </a>
 
-            <a
-              onClick={() => setOpen(false)}
-              className="block"
-              href="/crea-lega"
-            >
+            <a onClick={() => setOpen(false)} className="block" href="/crea-lega">
               Crea Lega
             </a>
 
             <div className="space-y-2">
-              <div className="font-semibold text-white">
+              <div style={{ color: fantagolGreen }} className="font-semibold">
                 Scarica App
               </div>
 
-              <a
-                onClick={() => setOpen(false)}
-                className="block pl-4 text-base"
-                href="/download"
-              >
+              <a onClick={() => setOpen(false)} className="block pl-4 text-base" href="/download">
                 📱 Android
               </a>
 
-              <a
-                onClick={() => setOpen(false)}
-                className="block pl-4 text-base"
-                href="/download"
-              >
+              <a onClick={() => setOpen(false)} className="block pl-4 text-base" href="/download">
                 🍎 iPhone
               </a>
             </div>
 
-            <a
-              onClick={() => setOpen(false)}
-              className="block"
-              href="/login"
-            >
+            <a onClick={() => setOpen(false)} className="block" href="/login">
               Accedi
             </a>
 
-            <a
-              onClick={() => setOpen(false)}
-              className="block"
-              href="/regolamento"
-            >
+            <a onClick={() => setOpen(false)} className="block" href="/regolamento">
               Come si Gioca
             </a>
           </div>

@@ -6,12 +6,12 @@ export default function Home() {
       <Header />
 
       <section className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-6xl flex-col items-center justify-center px-6 text-center">
-        <div className="absolute left-1/2 top-1/2 z-0 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500/10 blur-3xl" />
-        <div className="absolute right-10 top-24 z-0 h-64 w-64 rounded-full bg-green-900/20 blur-3xl" />
+        <div className="absolute left-1/2 top-1/2 z-0 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A6E824]/10 blur-3xl" />
+        <div className="absolute right-10 top-24 z-0 h-64 w-64 rounded-full bg-[#A6E824]/5 blur-3xl" />
         <div className="absolute bottom-10 left-10 z-0 h-56 w-56 rounded-full bg-white/5 blur-3xl" />
 
         <div className="relative z-10">
-          <p className="mb-6 text-sm font-semibold uppercase tracking-[0.35em] text-green-500">
+          <p className="mb-6 text-sm font-semibold uppercase tracking-[0.35em] text-[#A6E824]">
             L&apos;APP DEL FANTAPRONOSTICO
           </p>
 
@@ -37,7 +37,7 @@ export default function Home() {
 
             <a
               href="/download"
-              className="rounded-xl border border-green-700 bg-green-950/30 px-8 py-4 font-semibold text-green-200 transition hover:border-green-400 hover:bg-green-900/40"
+              className="rounded-xl border border-[#A6E824]/50 bg-green-950/30 px-8 py-4 font-semibold text-[#A6E824] transition hover:border-[#A6E824] hover:bg-green-900/40"
             >
               Scarica l&apos;App
             </a>
@@ -45,7 +45,7 @@ export default function Home() {
 
           <a
             href="/regolamento"
-            className="mt-6 inline-block text-sm font-semibold text-green-400 hover:text-green-300"
+            className="mt-6 inline-block text-sm font-semibold text-[#A6E824] hover:brightness-110"
           >
             Come si Gioca &gt;
           </a>
