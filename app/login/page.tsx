@@ -1,6 +1,22 @@
+"use client";
+
 import Header from "../../components/Header";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function LoginPage() {
+  async function handleGoogleLogin() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/leghe`,
+      },
+    });
+
+    if (error) {
+      alert(error.message);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-black text-white">
       <Header />
@@ -16,10 +32,15 @@ export default function LoginPage() {
           </h1>
 
           <p className="mb-8 text-gray-400">
-            Entra nelle tue leghe, crea nuove sfide e gestisci i tuoi pronostici.
+            Entra nelle tue leghe, crea nuove sfide e gestisci i tuoi
+            pronostici.
           </p>
 
-          <button className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200"
+          >
             Continua con Google
           </button>
 
@@ -39,8 +60,15 @@ export default function LoginPage() {
             <input
               type="password"
               placeholder="Password"
-              className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-green-500"
+              className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
             />
+<label className="flex items-center gap-3 text-sm text-gray-400">
+  <input
+    type="checkbox"
+    className="h-4 w-4 rounded border-gray-700 bg-[#111111] accent-[#A6E824]"
+  />
+  Ricordami su questo dispositivo
+</label>
 
             <button
               type="submit"
@@ -48,11 +76,22 @@ export default function LoginPage() {
             >
               Accedi
             </button>
+<div className="py-1 text-center">
+  <a
+    href="/password-reset"
+    className="text-sm font-semibold text-[#A6E824] hover:brightness-110"
+  >
+    Password dimenticata?
+  </a>
+</div>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-400">
             Non hai un account?{" "}
-            <a href="/registrati" className="font-semibold text-[#A6E824] hover:brightness-110">
+            <a
+              href="/registrati"
+              className="font-semibold text-[#A6E824] hover:brightness-110"
+            >
               Registrati
             </a>
           </p>
