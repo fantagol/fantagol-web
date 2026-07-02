@@ -1,85 +1,160 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Header from "../../components/Header";
+import { supabase } from "../../lib/supabaseClient";
+
+type Membership = {
+  id: string;
+  display_name: string;
+  role: string;
+  status: string;
+  leagues: {
+    id: string;
+    name: string;
+    invite_code: string;
+  } | null;
+};
 
 export default function LeghePage() {
-  const leghe = [
-    {
-      nome: "FantaGol Serie A",
-      partecipanti: 12,
-      giornata: 6,
-      modalita: "Fantacalcio • One-to-One • Punti Puri",
-      stato: "Pronostici aperti",
-    },
-    {
-      nome: "Amici del Bar",
-      partecipanti: 8,
-      giornata: 3,
-      modalita: "Punti Puri",
-      stato: "Giornata in corso",
-    },
-  ];
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function loadLeagues() {
+    setLoading(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setMemberships(
+      (data || []).map((row: any) => ({
+        id: row.membership_id,
+        display_name: row.display_name,
+        role: row.role,
+        status: row.status,
+        leagues: {
+          id: row.league_id,
+          name: row.league_name,
+          invite_code: row.invite_code,
+        },
+      }))
+    );
+
+    setLoading(false);
+  }
+
+  async function handleArchiveLeague(leagueId: string, leagueName: string) {
+    const confirmed = window.confirm(
+      `Vuoi archiviare la lega "${leagueName}"?\n\nLa lega non sarà più visibile ai membri, ma i dati resteranno conservati.`
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.rpc("delete_league_rpc", {
+      target_league_id: leagueId,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await loadLeagues();
+  }
+
+  useEffect(() => {
+    loadLeagues();
+  }, []);
 
   return (
     <main className="min-h-screen bg-black text-white">
       <Header />
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="mb-10">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
-            Home Utente
-          </p>
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
+          Le mie leghe
+        </p>
 
-          <h1 className="text-4xl font-black">
-            Le mie Leghe
-          </h1>
+        <h1 className="text-4xl font-black">Scegli la lega</h1>
 
-          <p className="mt-3 max-w-2xl text-gray-400">
-            Scegli la lega in cui vuoi entrare oppure creane una nuova e invita i tuoi amici.
-          </p>
-        </div>
+        <p className="mt-3 text-gray-400">
+          Qui trovi tutte le leghe a cui partecipi.
+        </p>
 
-        <div className="mb-10 grid gap-4 md:grid-cols-2">
-          <a
-            href="/crea-lega"
-            className="rounded-2xl bg-[#A6E824] p-6 font-bold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
-          >
-            + Crea Lega
-          </a>
+        {loading && (
+          <p className="mt-10 text-gray-400">Caricamento leghe...</p>
+        )}
 
-          <a
-            href="/invito/FG-ABCD1234"
-            className="rounded-2xl border border-[#A6E824]/50 bg-[#111111] p-6 font-bold text-[#A6E824] transition hover:border-[#A6E824]"
-          >
-            Hai ricevuto un invito?
-          </a>
-        </div>
+        {!loading && memberships.length === 0 && (
+          <div className="mt-10 rounded-3xl border border-gray-700 bg-[#111111] p-6">
+            <p className="text-gray-300">Non partecipi ancora a nessuna lega.</p>
 
-        <div className="space-y-5">
-          {leghe.map((lega) => (
             <a
-              key={lega.nome}
-              href="/leghe/fantagol-serie-a"
-              className="block rounded-3xl border border-gray-700 bg-gradient-to-b from-[#1f2427] to-[#0d0d0d] p-6 shadow-xl shadow-black/50 transition hover:border-[#A6E824]/60"
+              href="/crea-lega"
+              className="mt-5 inline-block rounded-xl bg-[#A6E824] px-6 py-3 font-semibold text-black transition hover:brightness-110"
             >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-2xl font-black">{lega.nome}</h2>
-
-                  <p className="mt-2 text-sm text-gray-400">
-                    {lega.partecipanti} partecipanti • Giornata {lega.giornata}
-                  </p>
-
-                  <p className="mt-2 text-sm text-gray-500">
-                    {lega.modalita}
-                  </p>
-                </div>
-
-                <div className="rounded-full border border-[#A6E824]/40 px-4 py-2 text-sm font-semibold text-[#A6E824]">
-                  {lega.stato}
-                </div>
-              </div>
+              Crea la tua prima lega
             </a>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {!loading && memberships.length > 0 && (
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            {memberships.map((membership) => (
+              <div
+                key={membership.id}
+                className="rounded-3xl border border-gray-700 bg-gradient-to-b from-[#1f2427] to-[#0d0d0d] p-6 transition hover:border-[#A6E824]"
+              >
+                <a href={`/leghe/${membership.leagues?.id}`}>
+                  <h2 className="text-2xl font-black">
+                    {membership.leagues?.name}
+                  </h2>
+
+                  <p className="mt-2 text-gray-400">
+                    Nome nella lega: {membership.display_name}
+                  </p>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Ruolo: {membership.role}
+                  </p>
+
+                  <p className="mt-4 text-sm font-semibold text-[#A6E824]">
+                    Entra nella lega →
+                  </p>
+                </a>
+
+                {membership.role === "owner" && membership.leagues && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleArchiveLeague(
+                        membership.leagues!.id,
+                        membership.leagues!.name
+                      )
+                    }
+                    className="mt-5 w-full rounded-xl border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-400 transition hover:border-red-400 hover:bg-red-950/30"
+                  >
+                    Archivia lega
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
