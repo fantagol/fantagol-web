@@ -1,6 +1,11 @@
+"use client";
+
+import { useState } from "react";
 import Header from "../components/Header";
 
 export default function Home() {
+  const [downloadOpen, setDownloadOpen] = useState(false);
+
   return (
     <main className="min-h-screen overflow-hidden bg-black text-white">
       <Header />
@@ -35,12 +40,32 @@ export default function Home() {
               Gioca Online
             </a>
 
-            <a
-              href="/download"
-              className="rounded-xl border border-[#A6E824]/50 bg-green-950/30 px-8 py-4 font-semibold text-[#A6E824] transition hover:border-[#A6E824] hover:bg-green-900/40"
-            >
-              Scarica l&apos;App
-            </a>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDownloadOpen((value) => !value)}
+                className="w-full rounded-xl border border-[#A6E824]/50 bg-green-950/30 px-8 py-4 font-semibold text-[#A6E824] transition hover:border-[#A6E824] hover:bg-green-900/40 md:w-auto"
+              >
+                Scarica l&apos;App
+              </button>
+
+              {downloadOpen ? (
+                <div className="mt-2 overflow-hidden rounded-xl border border-[#A6E824]/30 bg-black/95 text-left shadow-2xl shadow-black/50 md:absolute md:left-0 md:top-full md:w-full">
+                  <a
+                    href="/download/android"
+                    className="block px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A6E824]/10 hover:text-[#A6E824]"
+                  >
+                    Android
+                  </a>
+                  <a
+                    href="/download/iphone"
+                    className="block border-t border-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A6E824]/10 hover:text-[#A6E824]"
+                  >
+                    iPhone
+                  </a>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <a

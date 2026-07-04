@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
-import ProgressBar from "../../../components/ui/ProgressBar";
 import QuickActionCard from "../../../components/ui/QuickActionCard";
 import BottomNav from "../../../components/app/BottomNav";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
@@ -21,7 +20,53 @@ type League = {
   role: string;
 };
 
+const currentRoundMatches = [
+  { home: "Milan", away: "Napoli", time: "Sab 22 · 20:45" },
+  { home: "Lazio", away: "Roma", time: "Dom 23 · 12:30" },
+  { home: "Frosinone", away: "Juventus", time: "Dom 23 · 13:45" },
+  { home: "Genoa", away: "Napoli", time: "Dom 23 · 15:00" },
+  { home: "Inter", away: "Monza", time: "Dom 23 · 15:00" },
+  { home: "Parma", away: "Cagliari", time: "Dom 23 · 18:00" },
+  { home: "Roma", away: "Fiorentina", time: "Dom 23 · 18:00" },
+  { home: "Torino", away: "Milan", time: "Dom 23 · 20:45" },
+  { home: "Udinese", away: "Como", time: "Dom 23 · 20:45" },
+  { home: "Pisa", away: "Cremonese", time: "Lun 24 · 20:45" },
+];
+
+function MatchMiniRow({
+  home,
+  away,
+  time,
+  index,
+}: {
+  home: string;
+  away: string;
+  time: string;
+  index: number;
+}) {
+  return (
+    <div className="grid grid-cols-[22px_1fr_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#A6E824]/10 text-[11px] font-black text-[#A6E824]">
+        {index}
+      </div>
+
+      <div className="min-w-0">
+        <div className="truncate text-sm font-black text-white">
+          {home} - {away}
+        </div>
+        <div className="text-[11px] font-semibold text-gray-500">{time}</div>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-[#0b0d0e] px-2 py-1 text-[10px] font-black text-gray-400">
+        — : —
+      </div>
+    </div>
+  );
+}
+
+
 export default function LeagueDashboardPage() {
+  const router = useRouter();
   const params = useParams();
   const leagueId = params.id as string;
 
@@ -106,24 +151,38 @@ export default function LeagueDashboardPage() {
             <Badge variant="success">Pronostici aperti</Badge>
           </div>
 
-          <h1 className="mt-4 text-4xl font-black leading-tight">
-            Invia pronostico
-          </h1>
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              {currentRoundMatches.slice(0, 5).map((match, index) => (
+                <MatchMiniRow
+                  key={`${match.home}-${match.away}`}
+                  home={match.home}
+                  away={match.away}
+                  time={match.time}
+                  index={index + 1}
+                />
+              ))}
+            </div>
 
-          <p className="mt-3 text-gray-300">
-            Pronostici inseriti:{" "}
-            <span className="font-bold text-white">0 / 10</span>
-          </p>
-
-          <div className="mt-5">
-            <ProgressBar value={0} max={10} />
+            <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              {currentRoundMatches.slice(5, 10).map((match, index) => (
+                <MatchMiniRow
+                  key={`${match.home}-${match.away}`}
+                  home={match.home}
+                  away={match.away}
+                  time={match.time}
+                  index={index + 6}
+                />
+              ))}
+            </div>
           </div>
 
           <button
             type="button"
+            onClick={() => router.push(`/leghe/${leagueId}/giornata`)}
             className="mt-6 w-full rounded-2xl bg-[#A6E824] px-6 py-4 font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
           >
-            Compila giornata
+            Invia pronostici
           </button>
         </DashboardCard>
 
@@ -150,26 +209,47 @@ export default function LeagueDashboardPage() {
         </DashboardCard>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <ModeSummaryCard
-            icon="🏆"
-            title="Fantacalcio"
-            value="0 punti"
-            description="Classifica da avviare"
-          />
+          <button
+            type="button"
+            onClick={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
+            className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
+            aria-label="Apri modalità Fantacalcio"
+          >
+            <ModeSummaryCard
+              icon="🏆"
+              title="Fantacalcio"
+              value="0 punti"
+              description="Classifica da avviare"
+            />
+          </button>
 
-          <ModeSummaryCard
-            icon="⚔️"
-            title="One To One"
-            value="0-0"
-            description="Sfida da generare"
-          />
+          <button
+            type="button"
+            onClick={() => router.push(`/leghe/${leagueId}/onetoone`)}
+            className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
+            aria-label="Apri modalità One To One"
+          >
+            <ModeSummaryCard
+              icon="⚔️"
+              title="One To One"
+              value="0-0"
+              description="Sfida da generare"
+            />
+          </button>
 
-          <ModeSummaryCard
-            icon="⭐"
-            title="Punti Puri"
-            value="0"
-            description="Totale stagione"
-          />
+          <button
+            type="button"
+            onClick={() => router.push(`/leghe/${leagueId}/giornata`)}
+            className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
+            aria-label="Apri modalità Punti Puri"
+          >
+            <ModeSummaryCard
+              icon="⭐"
+              title="Punti Puri"
+              value="0"
+              description="Totale stagione"
+            />
+          </button>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-6">

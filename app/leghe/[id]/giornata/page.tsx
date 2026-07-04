@@ -1,345 +1,415 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import Badge from "../../../../components/ui/Badge";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import BottomNav from "../../../../components/app/BottomNav";
+import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import LeagueTopBar from "../../../../components/app/LeagueTopBar";
+import { supabase } from "../../../../lib/supabaseClient";
+import { getRoundState } from "../../../../lib/roundState";
 
-type RoundPhase = "open" | "submitted" | "live" | "finished";
+type MainTab = "pronostici" | "live" | "classifiche" | "statistiche";
+type Prediction = { home: string; away: string };
 
-type Prediction = {
-  home: string;
-  away: string;
+type LeagueInfo = {
+  name: string;
+  displayName: string;
+  inviteCode: string;
+  role: string;
 };
 
 type Match = {
   home: string;
   away: string;
-  kickoff: string;
   homeBadge: string;
   awayBadge: string;
-  liveScore?: string;
+  kickoffDay: string;
+  kickoffHour: string;
+  liveHome?: number;
+  liveAway?: number;
   minute?: string;
+  bonusActive?: string[];
+  malusActive?: string[];
+};
+
+type RuleItem = {
+  key: string;
+  label: string;
+  short: string;
+  points: string;
+  icon: string;
+  tone: "green" | "orange" | "red" | "muted";
 };
 
 const matches: Match[] = [
-  { home: "Atalanta", away: "Sassuolo", kickoff: "Dom 23 Ago · 13:45", homeBadge: "ATA", awayBadge: "SAS", liveScore: "1 - 0", minute: "62'" },
-  { home: "Bologna", away: "Lazio", kickoff: "Dom 23 Ago · 13:45", homeBadge: "BOL", awayBadge: "LAZ", liveScore: "0 - 0", minute: "HT" },
-  { home: "Frosinone", away: "Juventus", kickoff: "Dom 23 Ago · 13:45", homeBadge: "FRO", awayBadge: "JUV", liveScore: "1 - 2", minute: "77'" },
-  { home: "Genoa", away: "Napoli", kickoff: "Dom 23 Ago · 15:00", homeBadge: "GEN", awayBadge: "NAP", liveScore: "0 - 1", minute: "35'" },
-  { home: "Inter", away: "Monza", kickoff: "Dom 23 Ago · 15:00", homeBadge: "INT", awayBadge: "MON", liveScore: "2 - 0", minute: "68'" },
-  { home: "Parma", away: "Cagliari", kickoff: "Dom 23 Ago · 18:00", homeBadge: "PAR", awayBadge: "CAG" },
-  { home: "Roma", away: "Fiorentina", kickoff: "Dom 23 Ago · 18:00", homeBadge: "ROM", awayBadge: "FIO" },
-  { home: "Torino", away: "Milan", kickoff: "Dom 23 Ago · 20:45", homeBadge: "TOR", awayBadge: "MIL" },
-  { home: "Udinese", away: "Como", kickoff: "Dom 23 Ago · 20:45", homeBadge: "UDI", awayBadge: "COM" },
-  { home: "Pisa", away: "Cremonese", kickoff: "Lun 24 Ago · 20:45", homeBadge: "PIS", awayBadge: "CRE" },
+  { home: "Atalanta", away: "Sassuolo", homeBadge: "ATA", awayBadge: "SAS", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 1, liveAway: 0, minute: "62'", bonusActive: ["sign", "uo", "gg"] },
+  { home: "Bologna", away: "Lazio", homeBadge: "BOL", awayBadge: "LAZ", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 0, liveAway: 0, minute: "HT", malusActive: ["opposite"] },
+  { home: "Frosinone", away: "Juventus", homeBadge: "FRO", awayBadge: "JUV", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 1, liveAway: 2, minute: "77'", bonusActive: ["exact", "sign", "gg"] },
+  { home: "Genoa", away: "Napoli", homeBadge: "GEN", awayBadge: "NAP", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 0, liveAway: 1, minute: "35'", bonusActive: ["exact", "sign"] },
+  { home: "Inter", away: "Monza", homeBadge: "INT", awayBadge: "MON", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 2, liveAway: 0, minute: "68'", bonusActive: ["sign", "uo"] },
+  { home: "Parma", away: "Cagliari", homeBadge: "PAR", awayBadge: "CAG", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", malusActive: ["bad"] },
+  { home: "Roma", away: "Fiorentina", homeBadge: "ROM", awayBadge: "FIO", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["surprise"] },
+  { home: "Torino", away: "Milan", homeBadge: "TOR", awayBadge: "MIL", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["gg"] },
+  { home: "Udinese", away: "Como", homeBadge: "UDI", awayBadge: "COM", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["sign", "show"] },
+  { home: "Pisa", away: "Cremonese", homeBadge: "PIS", awayBadge: "CRE", kickoffDay: "Lun 24 Ago", kickoffHour: "20:45" },
 ];
 
-const bonusMalus = [
-  { key: "exact", icon: "◎", label: "Exact" },
-  { key: "sign", icon: "✓", label: "Segno" },
-  { key: "uo", icon: "%", label: "U/O" },
-  { key: "gg", icon: "▣", label: "G/NG" },
-  { key: "surprise", icon: "☆", label: "Sorpresa" },
-  { key: "show", icon: "✴", label: "Show" },
-  { key: "slam", icon: "◇", label: "Slam" },
-  { key: "bad", icon: "×", label: "Cantonata" },
-  { key: "opposite", icon: "↔", label: "Opposto" },
+const ruleItems: RuleItem[] = [
+  { key: "exact", label: "Exact", short: "EX", points: "+6", icon: "◎", tone: "muted" },
+  { key: "sign", label: "Segno", short: "1X2", points: "+3", icon: "✓", tone: "green" },
+  { key: "uo", label: "Over/Under", short: "U/O", points: "+1", icon: "%", tone: "muted" },
+  { key: "gg", label: "Gol/NoGol", short: "G/NG", points: "+1", icon: "▣", tone: "green" },
+  { key: "surprise", label: "Sorpresa", short: "SOR", points: "+2", icon: "☆", tone: "orange" },
+  { key: "show", label: "Gol Show", short: "SHOW", points: "+1", icon: "✴", tone: "orange" },
+  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "red" },
+  { key: "bad", label: "Cantonata", short: "CAN", points: "-2", icon: "×", tone: "red" },
+  { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
 ];
 
-function clampGoals(value: string) {
+function cleanGoal(value: string) {
   if (!/^\d*$/.test(value)) return null;
   return value.slice(0, 2);
 }
 
-function MatchBadge({ label }: { label: string }) {
+function TeamBadge({ label }: { label: string }) {
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black text-[10px] font-black text-white shadow-inner shadow-white/5">
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-[#1f2d35] to-black text-[6px] font-black text-white shadow-inner shadow-white/10 sm:h-8 sm:w-8 sm:text-[8px] lg:h-11 lg:w-11 lg:text-[10px]">
       {label}
-    </div>
+    </span>
   );
 }
 
-function BonusDots({ active = false }: { active?: boolean }) {
-  return (
-    <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-      {bonusMalus.map((item, index) => {
-        const isActive = active && index < 3;
-        const isMalus = item.key === "bad" || item.key === "opposite";
+function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; active?: boolean; compact?: boolean }) {
+  const toneClass = active
+    ? item.tone === "red"
+      ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
+      : item.tone === "orange"
+        ? "border-orange-400/80 text-orange-300 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
+        : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
+    : "border-white/10 text-gray-600";
 
-        return (
-          <span
-            key={item.key}
-            title={item.label}
-            className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${
-              isActive
-                ? isMalus
-                  ? "border-red-500/70 bg-red-500/10 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
-                  : "border-[#A6E824]/70 bg-[#A6E824]/10 text-[#A6E824] shadow-[0_0_12px_rgba(166,232,36,0.28)]"
-                : "border-white/10 bg-black text-gray-600"
-            }`}
-          >
-            {item.icon}
-          </span>
-        );
-      })}
-    </div>
+  return (
+    <span
+      className={`${compact ? "h-[18px] w-[18px] text-[11px] sm:h-6 sm:w-6 sm:text-sm" : "h-7 w-7 text-base sm:h-8 sm:w-8 sm:text-lg"} flex items-center justify-center rounded-full border bg-black/30 font-black ${toneClass}`}
+      title={item.label}
+    >
+      {item.icon}
+    </span>
   );
+}
+
+function RuleStrip() {
+  return (
+    <section className="mt-3 rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-xl shadow-black/30 sm:mt-4 sm:p-3">
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white sm:text-sm">Bonus & Malus</p>
+        <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Legenda punteggi</p>
+      </div>
+      <div className="grid grid-cols-9 gap-1 sm:gap-2">
+        {ruleItems.map((item) => (
+          <div key={item.key} className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-0.5 py-1.5 sm:px-2 sm:py-2">
+            <RuleIcon item={item} active={item.tone !== "muted" && item.key !== "bad" && item.key !== "opposite"} compact />
+            <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">{item.short}</p>
+            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : "text-[#A6E824]"}`}>{item.points}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function getMatchPoints(activeKeys: Set<string>) {
+  if (activeKeys.has("bad")) return "-2";
+  if (activeKeys.has("exact")) return "11";
+  if (activeKeys.has("sign")) return activeKeys.has("uo") || activeKeys.has("gg") ? "5" : "3";
+  if (activeKeys.has("uo") || activeKeys.has("gg")) return "1";
+  if (activeKeys.has("opposite")) return "-1";
+  return "-";
 }
 
 export default function GiornataPage() {
-  const params = useParams();
-  const leagueId = params.id as string;
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const leagueId = params.id;
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [phase, setPhase] = useState<RoundPhase>("open");
-  const [predictions, setPredictions] = useState<Prediction[]>(
-    matches.map(() => ({ home: "", away: "" }))
-  );
+  const [modeOpen, setModeOpen] = useState(false);
+  const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
+    name: "Lega FantaGol",
+    displayName: "Club FantaGol",
+    inviteCode: leagueId,
+    role: "member",
+  });
 
-  const complete = useMemo(
-    () => predictions.every((prediction) => prediction.home !== "" && prediction.away !== ""),
+  const [mainTab, setMainTab] = useState<MainTab>("pronostici");
+  const [submitted, setSubmitted] = useState(false);
+  const [predictions, setPredictions] = useState<Prediction[]>(matches.map(() => ({ home: "", away: "" })));
+
+  // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
+  const round = getRoundState("2026-08-23T13:44:55");
+
+  useEffect(() => {
+    async function loadLeagueInfo() {
+      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+      if (error) return;
+
+      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      if (!current) return;
+
+      setLeagueInfo({
+        name: current.league_name || "Lega FantaGol",
+        displayName: current.display_name || "Club FantaGol",
+        inviteCode: current.invite_code || leagueId,
+        role: current.role || "member",
+      });
+    }
+
+    loadLeagueInfo();
+  }, [leagueId]);
+
+  const submittedCount = useMemo(
+    () => predictions.filter((prediction) => prediction.home !== "" && prediction.away !== "").length,
     [predictions]
   );
 
-  const submitted = phase !== "open";
-  const live = phase === "live";
-  const finished = phase === "finished";
+  const allComplete = submittedCount === matches.length;
+  const locked = round.isLocked;
+  const canEdit = round.isOpen;
+  const currentPoints = round.isLive ? 38 : round.isFinished ? 57 : 0;
 
   function updatePrediction(index: number, field: keyof Prediction, value: string) {
-    if (submitted) return;
-
-    const cleanValue = clampGoals(value);
-    if (cleanValue === null) return;
-
+    if (!canEdit) return;
     setPredictions((current) =>
-      current.map((prediction, currentIndex) =>
-        currentIndex === index ? { ...prediction, [field]: cleanValue } : prediction
-      )
+      current.map((prediction, currentIndex) => {
+        if (currentIndex !== index) return prediction;
+        const nextGoal = cleanGoal(value);
+        if (nextGoal === null) return prediction;
+        return { ...prediction, [field]: nextGoal };
+      })
     );
   }
 
   function submitPredictions() {
-    if (!complete) {
-      alert("Completa tutti i pronostici prima di inviare.");
+    if (locked) return;
+
+    if (!allComplete) {
+      alert("Completa tutti i 10 pronostici prima di inviare.");
       return;
     }
-
-    setPhase("submitted");
+    setSubmitted(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function editPredictions() {
-    setPhase("open");
-  }
-
   return (
-    <main className="min-h-screen bg-[#071015] pb-28 text-white">
-      <LeagueTopBar
-        leagueName="Amici del Bar"
-        seasonName="Serie A 2026/27"
-        onMenuClick={() => setMenuOpen(true)}
+    <main className="min-h-screen overflow-x-hidden bg-[#061014] pb-24 text-white">
+      <LeagueTopBar leagueName={leagueInfo.name} seasonName="Serie A 2026/27" onMenuClick={() => setMenuOpen(true)} />
+
+      <HamburgerDrawer
+        open={menuOpen}
+        leagueName={leagueInfo.name}
+        displayName={leagueInfo.displayName}
+        inviteCode={leagueInfo.inviteCode}
+        role={leagueInfo.role}
+        onClose={() => setMenuOpen(false)}
       />
 
-      <section className="mx-auto max-w-5xl px-3 py-4">
-        <div className="rounded-[1.7rem] border border-white/10 bg-[#0d171d] p-3 shadow-2xl shadow-black/40">
-          <div className="flex items-center justify-between gap-3">
-            <button className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black text-2xl text-gray-300">
-              ‹
+      <section className="mx-auto max-w-6xl px-2 pt-2 sm:px-5 sm:pt-3">
+        <nav className="grid grid-cols-4 border-b border-white/10 bg-black/20 text-center text-[9px] font-black uppercase tracking-tight text-gray-400 sm:text-sm sm:tracking-wide">
+          {[
+            ["pronostici", "Pronostici"],
+            ["live", "Live"],
+            ["classifiche", "Classifiche"],
+            ["statistiche", "Statistiche"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMainTab(key as MainTab)}
+              className={`relative py-3 transition sm:py-4 ${mainTab === key ? "text-[#A6E824]" : "hover:text-white"}`}
+            >
+              {label}
+              {mainTab === key && <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#A6E824]" />}
             </button>
+          ))}
+        </nav>
 
-            <div className="text-center">
-              <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-[#A6E824]">
-                Serie A
-              </p>
-              <h1 className="mt-1 text-2xl font-black">Giornata 1</h1>
+        <header className="flex items-center justify-between gap-2 border-b border-white/10 py-3 sm:gap-3 sm:py-5">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-base sm:h-9 sm:w-9 sm:text-lg">🏆</div>
+            <div className="flex items-end gap-1.5 sm:gap-2">
+              <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">{currentPoints}</span>
+              <span className="pb-0.5 text-sm font-black text-white sm:pb-1 sm:text-lg">pt</span>
             </div>
-
-            <button className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black text-2xl text-gray-300">
-              ›
-            </button>
           </div>
-        </div>
 
-        <div className="mt-4 rounded-[1.7rem] border border-[#A6E824]/20 bg-gradient-to-br from-[#17242b] via-[#101820] to-[#071015] p-4 shadow-2xl shadow-black/50">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">‹</button>
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-1.5 text-center sm:px-4 sm:py-2">
+              <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
+              <p className="text-lg font-black sm:text-xl">2</p>
+            </div>
+            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">›</button>
+            <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg text-gray-200 sm:h-10 sm:w-10 sm:text-xl">▦</button>
+          </div>
+        </header>
+
+        <section className="relative z-30 mt-3 grid overflow-visible rounded-2xl border border-white/10 bg-[#0b1419] shadow-xl shadow-black/30 sm:mt-4 md:grid-cols-[1.5fr_1fr]">
+          <div className="flex items-center gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-4 md:border-b-0 md:border-r">
+            <div
+              className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border text-2xl shadow-[0_0_28px_rgba(166,232,36,0.18)] sm:h-16 sm:w-16 sm:text-3xl ${
+                locked
+                  ? "border-gray-500/40 bg-gray-500/10 text-gray-400 shadow-[0_0_22px_rgba(156,163,175,0.10)]"
+                  : "border-[#A6E824]/40 bg-[#A6E824]/20 text-[#A6E824]"
+              }`}
+            >
+              <span>✎</span>
+              {locked && (
+                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-gray-500/40 bg-[#071015] text-[13px] shadow-lg sm:h-7 sm:w-7 sm:text-sm">
+                  🔒
+                </span>
+              )}
+            </div>
             <div>
-              <Badge variant={finished ? "success" : live ? "live" : submitted ? "success" : "default"}>
-                {finished
-                  ? "Giornata conclusa"
-                  : live
-                  ? "Giornata in corso"
-                  : submitted
-                  ? "Pronostici inviati"
-                  : "Pronostici aperti"}
-              </Badge>
-
-              <h2 className="mt-3 text-3xl font-black leading-tight">
-                {finished
-                  ? "Punteggio finale"
-                  : live
-                  ? "Punti attuali"
-                  : submitted
-                  ? "Puoi ancora modificarli"
-                  : "Inserisci pronostici"}
-              </h2>
-
-              <p className="mt-2 text-sm text-gray-400">
-                {finished
-                  ? "Tutti gli incontri sono terminati. Il punteggio è definitivo."
-                  : live
-                  ? "Il totale si aggiorna man mano che terminano gli incontri."
-                  : submitted
-                  ? "Ultimo invio salvato. Puoi modificarlo fino al primo fischio d'inizio."
-                  : "Compila le 10 partite. L'ultimo invio sostituisce i precedenti."}
+              <p className="text-sm font-black uppercase sm:text-lg">
+                {locked ? round.label : submitted ? "Pronostici inviati" : round.label}
               </p>
-            </div>
-
-            <div className="text-right">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500">
-                Punti
+              <p className="text-xs text-gray-300 sm:text-sm">
+                {locked ? round.helper : submitted ? "Puoi modificare e reinviare fino al lock ufficiale" : round.helper}
               </p>
-              <p className={`mt-1 text-5xl font-black ${live ? "animate-pulse text-[#A6E824]" : "text-[#A6E824]"}`}>
-                {finished ? "57" : live ? "38" : submitted ? "0" : "—"}
-              </p>
-              <p className="text-sm font-bold text-gray-500">pt</p>
             </div>
           </div>
+          <div className="relative p-3 sm:p-4">
+            <button
+              type="button"
+              onClick={() => setModeOpen((current) => !current)}
+              className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-left transition hover:border-[#A6E824]/50"
+            >
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">Modalità</p>
+                <p className="text-base font-black uppercase sm:text-lg">Punti Puri</p>
+              </div>
+              <span className="text-2xl text-white sm:text-3xl">⌄</span>
+            </button>
 
-          {submitted && !live && !finished && (
-            <div className="mt-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-100">
-              Modalità Mobile: puoi scegliere gli abbinamenti. Se non lo fai, useremo automaticamente quelli fissi.
-            </div>
-          )}
-        </div>
+            {modeOpen && (
+              <div className="absolute left-3 right-3 top-[calc(100%-10px)] z-50 overflow-hidden rounded-2xl border border-white/10 bg-[#10181d] shadow-2xl shadow-black/80">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-white/5"
+                >
+                  <span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità Fantacalcio</span>
+                    <span className="block text-[11px] font-semibold text-gray-500">Vai al duello live</span>
+                  </span>
+                  <span className="text-xl">🏆</span>
+                </button>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          <button
-            onClick={() => setPhase("open")}
-            className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${phase === "open" ? "border-[#A6E824] bg-[#A6E824] text-black" : "border-white/10 bg-[#0d171d] text-gray-400"}`}
-          >
-            Aperta
-          </button>
-          <button
-            onClick={() => complete && setPhase("submitted")}
-            className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${phase === "submitted" ? "border-[#A6E824] bg-[#A6E824] text-black" : "border-white/10 bg-[#0d171d] text-gray-400"}`}
-          >
-            Inviata
-          </button>
-          <button
-            onClick={() => complete && setPhase("live")}
-            className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${phase === "live" ? "border-[#A6E824] bg-[#A6E824] text-black" : "border-white/10 bg-[#0d171d] text-gray-400"}`}
-          >
-            Live mock
-          </button>
-          <button
-            onClick={() => complete && setPhase("finished")}
-            className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${phase === "finished" ? "border-[#A6E824] bg-[#A6E824] text-black" : "border-white/10 bg-[#0d171d] text-gray-400"}`}
-          >
-            Finale mock
-          </button>
-        </div>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/leghe/${leagueId}/onetoone`)}
+                  className="flex w-full items-center justify-between border-t border-white/10 px-4 py-3 text-left transition hover:bg-white/5"
+                >
+                  <span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità One To One</span>
+                    <span className="block text-[11px] font-semibold text-gray-500">Vai alla sfida diretta</span>
+                  </span>
+                  <span className="text-xl">⚔️</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
 
-        <div className="mt-4 overflow-hidden rounded-[1.7rem] border border-white/10 bg-[#101820] shadow-2xl shadow-black/40">
+        <RuleStrip />
+
+        <section className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4">
+          <div className="grid grid-cols-[35%_17%_14%_9%_25%] items-center gap-0 border-b border-white/10 px-1 py-2 text-center text-[8px] font-black uppercase tracking-tight text-gray-500 sm:grid-cols-[1.65fr_150px_150px_100px_190px] sm:px-4 sm:py-3 sm:text-[11px] sm:tracking-wide">
+            <span>Partita</span>
+            <span className="text-[#A6E824]">Pron.</span>
+            <span>Ris.</span>
+            <span className="text-[#A6E824]">Pt</span>
+            <span>Bonus</span>
+          </div>
+
           {matches.map((match, index) => {
             const prediction = predictions[index];
-            const matchIsLive = live && index < 5;
-            const matchIsFinished = finished || (live && index < 3);
+            const activeKeys = new Set([...(match.bonusActive ?? []), ...(match.malusActive ?? [])]);
+            const showLiveScore = round.isLive || round.isFinished;
 
             return (
-              <div
-                key={`${match.home}-${match.away}`}
-                className={`border-b border-white/10 p-3 last:border-b-0 transition ${matchIsFinished ? "bg-black/15" : "bg-transparent"}`}
-              >
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <MatchBadge label={match.homeBadge} />
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-black sm:text-lg">{match.home}</p>
-                      <p className="truncate text-[11px] text-gray-500">{match.kickoff}</p>
+              <article key={`${match.home}-${match.away}`} className="border-b border-white/10 px-1 py-2 last:border-b-0 sm:px-4 sm:py-3">
+                <div className="grid grid-cols-[35%_17%_14%_9%_25%] items-center gap-0 sm:grid-cols-[1.65fr_150px_150px_100px_190px] sm:gap-3">
+                  <div className="min-w-0 pr-1 sm:pr-0">
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                      <TeamBadge label={match.homeBadge} />
+                      <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.home}</p>
+                    </div>
+                    <div className="my-0.5 pl-6 text-[7px] font-bold uppercase leading-none text-gray-500 sm:my-1 sm:pl-10 sm:text-[10px]">
+                      {match.kickoffHour}
+                    </div>
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                      <TeamBadge label={match.awayBadge} />
+                      <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.away}</p>
                     </div>
                   </div>
 
-                  <div className="flex min-w-[122px] flex-col items-center rounded-2xl border border-white/10 bg-[#071015] px-3 py-2">
-                    {live || finished ? (
-                      <>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500">
-                          {matchIsLive ? match.minute : "FT"}
-                        </p>
-                        <p className={`mt-1 text-2xl font-black ${matchIsLive ? "animate-pulse text-[#A6E824]" : "text-white"}`}>
-                          {match.liveScore || "0 - 0"}
-                        </p>
-                      </>
+                  <div className="flex items-center justify-center gap-0.5 sm:gap-2">
+                    <input
+                      value={prediction.home}
+                      disabled={!canEdit}
+                      inputMode="numeric"
+                      onChange={(event) => updatePrediction(index, "home", event.target.value)}
+                      className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
+                      placeholder="-"
+                    />
+                    <span className="text-[10px] font-black text-gray-500 sm:text-base">-</span>
+                    <input
+                      value={prediction.away}
+                      disabled={!canEdit}
+                      inputMode="numeric"
+                      onChange={(event) => updatePrediction(index, "away", event.target.value)}
+                      className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
+                      placeholder="-"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-center">
+                    {showLiveScore ? (
+                      <div className="flex w-full max-w-[42px] flex-col items-center rounded-lg border border-white/10 bg-black/30 px-0.5 py-1 sm:max-w-[120px] sm:rounded-xl sm:px-3 sm:py-2">
+                        <span className="text-[7px] font-bold uppercase leading-none text-[#A6E824] sm:text-[10px]">{match.minute ?? "FT"}</span>
+                        <span className="mt-0.5 text-[12px] font-black leading-none sm:text-xl">{match.liveHome ?? 0}-{match.liveAway ?? 0}</span>
+                      </div>
                     ) : (
-                      <>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500">Pronostico</p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <input
-                            value={prediction.home}
-                            onChange={(event) => updatePrediction(index, "home", event.target.value)}
-                            disabled={submitted}
-                            inputMode="numeric"
-                            placeholder="-"
-                            className="h-11 w-12 rounded-xl border border-white/15 bg-black text-center text-xl font-black text-white outline-none transition focus:border-[#A6E824] disabled:opacity-90"
-                          />
-                          <span className="text-gray-500">-</span>
-                          <input
-                            value={prediction.away}
-                            onChange={(event) => updatePrediction(index, "away", event.target.value)}
-                            disabled={submitted}
-                            inputMode="numeric"
-                            placeholder="-"
-                            className="h-11 w-12 rounded-xl border border-white/15 bg-black text-center text-xl font-black text-white outline-none transition focus:border-[#A6E824] disabled:opacity-90"
-                          />
-                        </div>
-                      </>
+                      <span className="text-lg font-black text-gray-500 sm:text-2xl">-</span>
                     )}
                   </div>
 
-                  <div className="flex min-w-0 items-center justify-end gap-2 text-right">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-black sm:text-lg">{match.away}</p>
-                      <p className="truncate text-[11px] text-gray-500">{match.kickoff}</p>
-                    </div>
-                    <MatchBadge label={match.awayBadge} />
+                  <div className="text-center text-[13px] font-black leading-none text-white sm:text-2xl">
+                    {showLiveScore && activeKeys.size ? getMatchPoints(activeKeys) : "-"}
+                  </div>
+
+                  <div className="grid grid-cols-3 justify-items-center gap-0.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
+                    {ruleItems.map((item) => (
+                      <RuleIcon key={item.key} item={item} active={activeKeys.has(item.key)} compact />
+                    ))}
                   </div>
                 </div>
-
-                {(submitted || live || finished) && (
-                  <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-black/35 px-3 py-2 text-sm">
-                    <span className="text-gray-500">Il tuo pronostico</span>
-                    <span className="font-black text-white">
-                      {prediction.home || "-"} - {prediction.away || "-"}
-                    </span>
-                  </div>
-                )}
-
-                <BonusDots active={live || finished} />
-              </div>
+              </article>
             );
           })}
-        </div>
+        </section>
 
-        <div className="sticky bottom-24 z-40 mt-5">
-          {!submitted ? (
-            <button
-              type="button"
-              onClick={submitPredictions}
-              className="w-full rounded-2xl bg-[#A6E824] px-6 py-4 text-lg font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
-            >
-              Invia pronostici
-            </button>
-          ) : !live && !finished ? (
-            <button
-              type="button"
-              onClick={editPredictions}
-              className="w-full rounded-2xl border border-[#A6E824]/60 bg-[#101820] px-6 py-4 text-lg font-black text-[#A6E824]"
-            >
-              Modifica pronostici
-            </button>
-          ) : null}
-        </div>
+        <section className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={submitPredictions}
+            disabled={locked}
+            className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${locked ? "cursor-not-allowed bg-gray-700 text-gray-300 shadow-black/20" : "bg-[#8cc91e] shadow-[#A6E824]/20 hover:brightness-110"}`}
+          >
+            {locked ? "🔒 Pronostici bloccati" : submitted ? "✎ Reinvia i pronostici" : "✈ Invia i pronostici"}
+          </button>
+        </section>
       </section>
 
       <BottomNav onMenuClick={() => setMenuOpen(true)} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
 type HamburgerDrawerProps = {
@@ -11,6 +12,13 @@ type HamburgerDrawerProps = {
   onClose: () => void;
 };
 
+type DrawerLeagueData = {
+  leagueName: string;
+  displayName: string;
+  inviteCode: string;
+  role: string;
+};
+
 export default function HamburgerDrawer({
   open,
   leagueName,
@@ -19,6 +27,46 @@ export default function HamburgerDrawer({
   role,
   onClose,
 }: HamburgerDrawerProps) {
+  const [drawerLeague, setDrawerLeague] = useState<DrawerLeagueData>({
+    leagueName,
+    displayName,
+    inviteCode,
+    role,
+  });
+
+  useEffect(() => {
+    setDrawerLeague({
+      leagueName,
+      displayName,
+      inviteCode,
+      role,
+    });
+  }, [leagueName, displayName, inviteCode, role]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    async function loadCurrentLeague() {
+      const leagueId = getCurrentLeagueIdFromPath();
+      if (!leagueId) return;
+
+      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+      if (error) return;
+
+      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      if (!current) return;
+
+      setDrawerLeague({
+        leagueName: current.league_name || leagueName,
+        displayName: current.display_name || displayName,
+        inviteCode: current.invite_code || inviteCode,
+        role: current.role || role,
+      });
+    }
+
+    loadCurrentLeague();
+  }, [open, leagueName, displayName, inviteCode, role]);
+
   if (!open) return null;
 
   async function logout() {
@@ -30,7 +78,8 @@ export default function HamburgerDrawer({
   }
 
   function copyInviteLink() {
-    const inviteLink = `${window.location.origin}/invito/${inviteCode}`;
+    const activeInviteCode = drawerLeague.inviteCode || inviteCode;
+    const inviteLink = `${window.location.origin}/invito/${activeInviteCode}`;
     navigator.clipboard.writeText(inviteLink);
     alert("Link invito copiato.");
   }
@@ -40,9 +89,23 @@ export default function HamburgerDrawer({
     window.location.href = path;
   }
 
+  function getCurrentLeagueIdFromPath() {
+    const match = window.location.pathname.match(/\/leghe\/([^\/]+)/);
+    return match?.[1] || "";
+  }
+
+  function getLeagueDashboardPath() {
+    const leagueId = getCurrentLeagueIdFromPath();
+    return leagueId ? `/leghe/${leagueId}` : "/leghe";
+  }
+
+  const activeLeagueName = drawerLeague.leagueName || leagueName;
+  const activeDisplayName = drawerLeague.displayName || displayName;
+  const activeRole = drawerLeague.role || role;
+
   return (
-    <div className="fixed inset-0 z-[100] bg-black/70">
-      <aside className="flex h-full w-[65vw] max-w-[360px] flex-col bg-[#111417] shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-black/70">
+      <aside className="flex h-full w-[65vw] max-w-[360px] flex-col bg-[#111417] shadow-2xl shadow-black/80">
         <div className="border-b border-gray-800 p-6">
           <button
             type="button"
@@ -53,12 +116,20 @@ export default function HamburgerDrawer({
           </button>
 
           <h2 className="text-2xl font-black text-[#A6E824]">
-            {leagueName}
+            {activeLeagueName}
           </h2>
 
           <p className="mt-1 text-sm text-gray-400">
-            Nome nella lega: {displayName}
+            Nome nella lega: {activeDisplayName}
           </p>
+
+          <button
+            type="button"
+            onClick={() => goTo(getLeagueDashboardPath())}
+            className="mt-5 w-full rounded-2xl bg-[#A6E824] px-4 py-3 text-left text-base font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
+          >
+            👥 La mia Lega
+          </button>
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto p-6 text-lg">
@@ -96,10 +167,6 @@ export default function HamburgerDrawer({
             📅 Calendario
           </button>
 
-          <button onClick={() => goTo("#")} className="block text-left">
-            👥 La mia Lega
-          </button>
-
           <div className="my-5 border-t border-gray-700" />
 
           <button onClick={() => goTo("/club")} className="block text-left">
@@ -110,7 +177,7 @@ export default function HamburgerDrawer({
             🏛 Hall of Fame
           </button>
 
-          {role === "owner" && (
+          {activeRole === "owner" && (
             <>
               <div className="my-5 border-t border-gray-700" />
 
