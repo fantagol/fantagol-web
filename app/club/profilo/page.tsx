@@ -165,7 +165,7 @@ export default function ClubProfilePage() {
     setAvatarDragging(false);
   }
 
-  function getTouchDistance(touches: TouchList) {
+  function getTouchDistance(touches: TouchEvent["touches"]) {
     const first = touches[0];
     const second = touches[1];
     const dx = first.clientX - second.clientX;
