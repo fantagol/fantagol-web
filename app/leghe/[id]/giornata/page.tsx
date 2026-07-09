@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import BottomNav from "../../../../components/app/BottomNav";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
-import LeagueTopBar from "../../../../components/app/LeagueTopBar";
+import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
 
-type MainTab = "pronostici" | "live" | "classifiche" | "statistiche";
 type Prediction = { home: string; away: string };
 
 type LeagueInfo = {
@@ -16,6 +14,18 @@ type LeagueInfo = {
   displayName: string;
   inviteCode: string;
   role: string;
+};
+
+type ClubInfo = {
+  name: string;
+  crest_url: string | null;
+  kit_template: string;
+  kit_primary_color: string;
+  kit_secondary_color: string;
+  kit_third_color: string;
+  kit_logo_mode: string;
+  kit_crest_position: string;
+  stars_count: number;
 };
 
 type Match = {
@@ -38,7 +48,7 @@ type RuleItem = {
   short: string;
   points: string;
   icon: string;
-  tone: "green" | "orange" | "red" | "muted";
+  tone: "green" | "orange" | "red" | "violet" | "muted";
 };
 
 const matches: Match[] = [
@@ -61,7 +71,7 @@ const ruleItems: RuleItem[] = [
   { key: "gg", label: "Gol/NoGol", short: "G/NG", points: "+1", icon: "▣", tone: "green" },
   { key: "surprise", label: "Sorpresa", short: "SOR", points: "+2", icon: "☆", tone: "orange" },
   { key: "show", label: "Gol Show", short: "SHOW", points: "+1", icon: "✴", tone: "orange" },
-  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "red" },
+  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "violet" },
   { key: "bad", label: "Cantonata", short: "CAN", points: "-2", icon: "×", tone: "red" },
   { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
 ];
@@ -85,7 +95,9 @@ function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; a
       ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
       : item.tone === "orange"
         ? "border-orange-400/80 text-orange-300 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
-        : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
+        : item.tone === "violet"
+          ? "border-violet-400/80 text-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.24)]"
+          : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
     : "border-white/10 text-gray-600";
 
   return (
@@ -110,7 +122,7 @@ function RuleStrip() {
           <div key={item.key} className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-0.5 py-1.5 sm:px-2 sm:py-2">
             <RuleIcon item={item} active={item.tone !== "muted" && item.key !== "bad" && item.key !== "opposite"} compact />
             <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">{item.short}</p>
-            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : "text-[#A6E824]"}`}>{item.points}</p>
+            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}>{item.points}</p>
           </div>
         ))}
       </div>
@@ -134,6 +146,7 @@ export default function GiornataPage() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
+  const [clubInfo, setClubInfo] = useState<ClubInfo | null>(null);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
     displayName: "Club FantaGol",
@@ -141,7 +154,6 @@ export default function GiornataPage() {
     role: "member",
   });
 
-  const [mainTab, setMainTab] = useState<MainTab>("pronostici");
   const [submitted, setSubmitted] = useState(false);
   const [predictions, setPredictions] = useState<Prediction[]>(matches.map(() => ({ home: "", away: "" })));
 
@@ -162,6 +174,23 @@ export default function GiornataPage() {
         inviteCode: current.invite_code || leagueId,
         role: current.role || "member",
       });
+
+      const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+      const club = (clubData || [])[0];
+
+      if (club) {
+        setClubInfo({
+          name: club.name || current.display_name || "Club FantaGol",
+          crest_url: club.crest_url || null,
+          kit_template: club.kit_template || "solid",
+          kit_primary_color: club.kit_primary_color || "#FFFFFF",
+          kit_secondary_color: club.kit_secondary_color || "#111417",
+          kit_third_color: club.kit_third_color || "#A6E824",
+          kit_logo_mode: club.kit_logo_mode || "center_horizontal",
+          kit_crest_position: club.kit_crest_position || "left_chest",
+          stars_count: club.stars_count || 0,
+        });
+      }
     }
 
     loadLeagueInfo();
@@ -175,7 +204,7 @@ export default function GiornataPage() {
   const allComplete = submittedCount === matches.length;
   const locked = round.isLocked;
   const canEdit = round.isOpen;
-  const currentPoints = round.isLive ? 38 : round.isFinished ? 57 : 0;
+  const currentPoints = 100;
 
   function updatePrediction(index: number, field: keyof Prediction, value: string) {
     if (!canEdit) return;
@@ -201,8 +230,7 @@ export default function GiornataPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#061014] pb-24 text-white">
-      <LeagueTopBar leagueName={leagueInfo.name} seasonName="Serie A 2026/27" onMenuClick={() => setMenuOpen(true)} />
+    <main className="min-h-screen overflow-x-hidden bg-[#061014] text-white">
 
       <HamburgerDrawer
         open={menuOpen}
@@ -213,44 +241,80 @@ export default function GiornataPage() {
         onClose={() => setMenuOpen(false)}
       />
 
-      <section className="mx-auto max-w-6xl px-2 pt-2 sm:px-5 sm:pt-3">
-        <nav className="grid grid-cols-4 border-b border-white/10 bg-black/20 text-center text-[9px] font-black uppercase tracking-tight text-gray-400 sm:text-sm sm:tracking-wide">
-          {[
-            ["pronostici", "Pronostici"],
-            ["live", "Live"],
-            ["classifiche", "Classifiche"],
-            ["statistiche", "Statistiche"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMainTab(key as MainTab)}
-              className={`relative py-3 transition sm:py-4 ${mainTab === key ? "text-[#A6E824]" : "hover:text-white"}`}
-            >
-              {label}
-              {mainTab === key && <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#A6E824]" />}
-            </button>
-          ))}
-        </nav>
-
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 py-3 sm:gap-3 sm:py-5">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-base sm:h-9 sm:w-9 sm:text-lg">🏆</div>
-            <div className="flex items-end gap-1.5 sm:gap-2">
-              <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">{currentPoints}</span>
-              <span className="pb-0.5 text-sm font-black text-white sm:pb-1 sm:text-lg">pt</span>
+      <section className="mx-auto max-w-6xl px-2 pb-12 pt-2 sm:px-5 sm:pb-16 sm:pt-3">
+        <header className="grid grid-cols-[1.35fr_1fr_1fr_1fr] gap-2 border-b border-white/10 py-3 sm:gap-3 sm:py-5">
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+            <div className="flex h-full items-center gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-base">
+                🏆
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase text-gray-500 sm:text-xs">Punti</p>
+                <div className="flex items-end gap-1">
+                  <span className="text-[1.7rem] font-black leading-none text-[#A6E824] sm:text-4xl">
+                    {currentPoints}
+                  </span>
+                  <span className="pb-0.5 text-xs font-black text-white sm:text-sm">pt</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">‹</button>
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-1.5 text-center sm:px-4 sm:py-2">
-              <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
-              <p className="text-lg font-black sm:text-xl">2</p>
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-2">
+            <div className="mx-auto flex h-16 w-12 items-center justify-center overflow-hidden rounded-xl bg-[#111417]">
+              {clubInfo && (
+                <div className="scale-[0.32]">
+                  <KitPreview
+                    primary={clubInfo.kit_primary_color}
+                    secondary={clubInfo.kit_secondary_color}
+                    third={clubInfo.kit_third_color}
+                    template={clubInfo.kit_template}
+                    logoMode={clubInfo.kit_logo_mode}
+                    crestPosition={clubInfo.kit_crest_position}
+                    starsCount={clubInfo.stars_count}
+                  />
+                </div>
+              )}
             </div>
-            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">›</button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg text-gray-200 sm:h-10 sm:w-10 sm:text-xl">▦</button>
+
+            <p className="mt-1 truncate text-center text-[9px] font-black text-white sm:text-xs">
+              {clubInfo?.name || leagueInfo.displayName}
+            </p>
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-3 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <button className="hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-xl text-gray-400 sm:flex">
+                ‹
+              </button>
+
+              <div>
+                <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
+                <p className="text-2xl font-black text-white sm:text-3xl">2</p>
+              </div>
+
+              <button className="hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-xl text-gray-400 sm:flex">
+                ›
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/statistiche")}
+            className="rounded-2xl border border-white/10 bg-black/25 p-3 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
+          >
+            <div className="mx-auto flex h-10 w-14 items-end gap-1 rounded-xl border border-white/10 bg-[#071015] px-2 pb-2 sm:h-12 sm:w-16">
+              <span className="h-3 flex-1 rounded-t bg-[#A6E824]/50 sm:h-4" />
+              <span className="h-6 flex-1 rounded-t bg-[#A6E824] sm:h-7" />
+              <span className="h-4 flex-1 rounded-t bg-[#A6E824]/70 sm:h-5" />
+              <span className="h-8 flex-1 rounded-t bg-[#A6E824]/90 sm:h-9" />
+            </div>
+
+            <p className="mt-1 text-[9px] font-black uppercase text-gray-500 sm:text-xs">
+              Statistiche
+            </p>
+          </button>
         </header>
 
         <section className="relative z-30 mt-3 grid overflow-visible rounded-2xl border border-white/10 bg-[#0b1419] shadow-xl shadow-black/30 sm:mt-4 md:grid-cols-[1.5fr_1fr]">
@@ -412,7 +476,6 @@ export default function GiornataPage() {
         </section>
       </section>
 
-      <BottomNav onMenuClick={() => setMenuOpen(true)} />
     </main>
   );
 }

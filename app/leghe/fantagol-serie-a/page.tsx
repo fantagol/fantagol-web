@@ -1,9 +1,7 @@
-import Header from "../../../components/Header";
 
 export default function LegaHomePage() {
   return (
     <main className="min-h-screen bg-black text-white">
-      <Header />
 
       <section className="mx-auto max-w-6xl px-6 py-16">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">

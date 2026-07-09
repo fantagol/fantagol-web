@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Header from "../../components/Header";
 import { supabase } from "../../lib/supabaseClient";
 
 type Membership = {
@@ -82,7 +81,6 @@ export default function LeghePage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <Header />
 
       <section className="mx-auto max-w-6xl px-6 py-16">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">

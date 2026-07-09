@@ -7,9 +7,7 @@ import { supabase } from "../../../lib/supabaseClient";
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
 import QuickActionCard from "../../../components/ui/QuickActionCard";
-import BottomNav from "../../../components/app/BottomNav";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
-import LeagueTopBar from "../../../components/app/LeagueTopBar";
 import ModeSummaryCard from "../../../components/app/ModeSummaryCard";
 
 type League = {
@@ -114,6 +112,14 @@ export default function LeagueDashboardPage() {
     loadDashboard();
   }, [leagueId]);
 
+  function copyInviteLink() {
+    if (!league?.invite_code) return;
+
+    const inviteLink = `${window.location.origin}/invito/${league.invite_code}`;
+    navigator.clipboard.writeText(inviteLink);
+    alert("Link invito copiato.");
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -125,13 +131,7 @@ export default function LeagueDashboardPage() {
   if (!league) return null;
 
   return (
-    <main className="min-h-screen bg-black pb-24 text-white">
-      <LeagueTopBar
-        leagueName={league.name}
-        seasonName="Serie A 2026/27"
-        onMenuClick={() => setMenuOpen(true)}
-      />
-
+    <main className="min-h-screen bg-black text-white">
       <HamburgerDrawer
         open={menuOpen}
         leagueName={league.name}
@@ -253,16 +253,23 @@ export default function LeagueDashboardPage() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-6">
-          <QuickActionCard icon="🎯" label="Pronostici" href="#" />
-          <QuickActionCard icon="⚽" label="Live" href="#" />
-          <QuickActionCard icon="🏆" label="Classifiche" href="#" />
-          <QuickActionCard icon="📅" label="Calendario" href="#" />
-          <QuickActionCard icon="👥" label="Membri" href="#" />
-          <QuickActionCard icon="📨" label="Invita" href={`/invito/${league.invite_code}`} />
+          <QuickActionCard icon="🎯" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
+          <QuickActionCard icon="⚽" label="Live" href={`/leghe/${leagueId}/giornata`} />
+          <QuickActionCard icon="🏆" label="Classifiche" href="/classifiche" />
+          <QuickActionCard icon="📅" label="Calendario" href="/calendario" />
+          <QuickActionCard icon="👥" label="Membri" href="/membri" />
+
+          <button
+            type="button"
+            onClick={copyInviteLink}
+            className="rounded-2xl border border-white/10 bg-[#111417] p-4 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:border-[#A6E824]/60 hover:brightness-110"
+          >
+            <div className="text-2xl">📨</div>
+            <div className="mt-2 text-sm font-black text-white">Invita</div>
+          </button>
         </div>
       </section>
 
-      <BottomNav onMenuClick={() => setMenuOpen(true)} />
     </main>
   );
 }

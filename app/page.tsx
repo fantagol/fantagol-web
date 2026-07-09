@@ -7,7 +7,7 @@ export default function Home() {
   const [downloadOpen, setDownloadOpen] = useState(false);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-black text-white">
+    <main className="min-h-screen overflow-hidden bg-black pt-[72px] text-white">
       <Header />
 
       <section className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-6xl flex-col items-center justify-center px-6 text-center">

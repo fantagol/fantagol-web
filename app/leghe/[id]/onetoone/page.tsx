@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import BottomNav from "../../../../components/app/BottomNav";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
-import LeagueTopBar from "../../../../components/app/LeagueTopBar";
+import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
 
-type MainTab = "pronostici" | "live" | "classifiche" | "statistiche";
 type Side = "left" | "right";
 
 type LeagueInfo = {
@@ -18,13 +16,25 @@ type LeagueInfo = {
   role: string;
 };
 
+type ClubInfo = {
+  name: string;
+  crest_url: string | null;
+  kit_template: string;
+  kit_primary_color: string;
+  kit_secondary_color: string;
+  kit_third_color: string;
+  kit_logo_mode: string;
+  kit_crest_position: string;
+  stars_count: number;
+};
+
 type RuleItem = {
   key: string;
   label: string;
   short: string;
   points: string;
   icon: string;
-  tone: "green" | "orange" | "red" | "muted";
+  tone: "green" | "orange" | "red" | "violet" | "muted";
 };
 
 type DuelMatch = {
@@ -55,7 +65,7 @@ const ruleItems: RuleItem[] = [
   { key: "gg", label: "Gol/NoGol", short: "G/NG", points: "+1", icon: "▣", tone: "green" },
   { key: "surprise", label: "Sorpresa", short: "SOR", points: "+2", icon: "☆", tone: "orange" },
   { key: "show", label: "Gol Show", short: "SHOW", points: "+1", icon: "✴", tone: "orange" },
-  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "red" },
+  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "violet" },
   { key: "bad", label: "Cantonata", short: "CAN", points: "-2", icon: "×", tone: "red" },
   { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
 ];
@@ -83,10 +93,55 @@ function TeamBadge({ label, large = false }: { label: string; large?: boolean })
   );
 }
 
-function Avatar({ name }: { name: string }) {
+function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
   return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/15 bg-gradient-to-br from-white to-gray-300 text-3xl shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-5xl">
-      🧔🏻
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl">
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={name}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        name.slice(0, 1).toUpperCase()
+      )}
+    </div>
+  );
+}
+
+function ClubKitMini({
+  club,
+  align = "left",
+}: {
+  club: ClubInfo | null;
+  align?: "left" | "right";
+}) {
+  const name = club?.name || (align === "right" ? "Avversario" : "Club FantaGol");
+
+  return (
+    <div className={`flex min-w-0 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : "text-left"}`}>
+      <div className="flex h-20 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#111417] sm:h-24 sm:w-16">
+        <div className="scale-[0.38]">
+          <KitPreview
+            primary={club?.kit_primary_color || "#FFFFFF"}
+            secondary={club?.kit_secondary_color || "#A6E824"}
+            third={club?.kit_third_color || "#FFFFFF"}
+            template={club?.kit_template || "solid"}
+            logoMode={club?.kit_logo_mode || "center_horizontal"}
+            crestPosition={club?.kit_crest_position || "left_chest"}
+            starsCount={club?.stars_count || 0}
+          />
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
+          {align === "right" ? "Avversario" : "Tu"}
+        </p>
+        <p className="mt-1 truncate text-sm font-black text-white sm:text-base">
+          {name}
+        </p>
+      </div>
     </div>
   );
 }
@@ -97,7 +152,9 @@ function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; a
       ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
       : item.tone === "orange"
         ? "border-orange-400/80 text-orange-300 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
-        : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
+        : item.tone === "violet"
+          ? "border-violet-400/80 text-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.24)]"
+          : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
     : "border-white/10 text-gray-600";
 
   return (
@@ -122,7 +179,7 @@ function RuleStrip() {
           <div key={item.key} className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-1 py-1.5 sm:px-2 sm:py-2">
             <RuleIcon item={item} active={item.tone !== "muted" && item.key !== "bad" && item.key !== "opposite"} compact />
             <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">{item.short}</p>
-            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : "text-[#A6E824]"}`}>{item.points}</p>
+            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}>{item.points}</p>
           </div>
         ))}
       </div>
@@ -202,9 +259,10 @@ export default function FantacalcioLivePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
-  const [mainTab, setMainTab] = useState<MainTab>("live");
   const [menuOpen, setMenuOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
+  const [clubInfo, setClubInfo] = useState<ClubInfo | null>(null);
+  const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
     displayName: "Club FantaGol",
@@ -226,6 +284,25 @@ export default function FantacalcioLivePage() {
         inviteCode: current.invite_code || leagueId,
         role: current.role || "member",
       });
+
+      const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+      const club = (clubData || [])[0];
+
+      if (club) {
+        setClubInfo({
+          name: club.name || current.display_name || "Club FantaGol",
+          crest_url: club.crest_url || null,
+          kit_template: club.kit_template || "solid",
+          kit_primary_color: club.kit_primary_color || "#FFFFFF",
+          kit_secondary_color: club.kit_secondary_color || "#A6E824",
+          kit_third_color: club.kit_third_color || "#FFFFFF",
+          kit_logo_mode: club.kit_logo_mode || "center_horizontal",
+          kit_crest_position: club.kit_crest_position || "left_chest",
+          stars_count: club.stars_count || 0,
+        });
+
+        setOpponentClubInfo(null);
+      }
     }
 
     loadLeagueInfo();
@@ -319,8 +396,7 @@ export default function FantacalcioLivePage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#061014] pb-24 text-white">
-      <LeagueTopBar leagueName={leagueInfo.name} seasonName="Serie A 2026/27" onMenuClick={() => setMenuOpen(true)} />
+    <main className="min-h-screen overflow-x-hidden bg-[#061014] text-white">
 
       <HamburgerDrawer
         open={menuOpen}
@@ -331,81 +407,81 @@ export default function FantacalcioLivePage() {
         onClose={() => setMenuOpen(false)}
       />
 
-      <section className="mx-auto max-w-6xl px-2 pt-2 sm:px-5 sm:pt-3">
-        <nav className="grid grid-cols-4 border-b border-white/10 bg-black/20 text-center text-[9px] font-black uppercase tracking-tight text-gray-400 sm:text-sm sm:tracking-wide">
-          {[
-            ["pronostici", "Pronostici"],
-            ["live", "Live"],
-            ["classifiche", "Classifiche"],
-            ["statistiche", "Statistiche"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMainTab(key as MainTab)}
-              className={`relative py-3 transition sm:py-4 ${mainTab === key ? "text-[#A6E824]" : "hover:text-white"}`}
-            >
-              {label}
-              {mainTab === key && <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#A6E824]" />}
-            </button>
-          ))}
-        </nav>
+      <section className="mx-auto max-w-6xl px-2 pb-12 pt-2 sm:px-5 sm:pb-16 sm:pt-3">
+        <header className="grid grid-cols-[1fr_78px_78px] gap-2 border-b border-white/10 py-3 sm:grid-cols-[1fr_120px_120px] sm:gap-3 sm:py-5">
+          <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-2xl shadow-black/40 sm:p-3">
+            <div className="grid grid-cols-[54px_1fr_54px] items-center gap-1 sm:grid-cols-[84px_1fr_84px] sm:gap-2">
+              <div className="flex shrink-0 flex-col items-center">
+                <Avatar name={leagueInfo.displayName} avatarUrl={clubInfo?.crest_url} />
+                <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
+                  {leagueInfo.displayName}
+                </p>
+              </div>
 
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 py-3 sm:gap-3 sm:py-5">
-          <section className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-2xl shadow-black/40 sm:p-3">
-            <div className="grid grid-cols-[1fr_68px_1fr] items-center gap-1 sm:grid-cols-[1fr_112px_1fr] sm:gap-2">
-              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                <div className="flex shrink-0 flex-col items-center">
-                  <Avatar name={leagueInfo.displayName} />
-                  <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
-                    {leagueInfo.displayName}
-                  </p>
+              <div className="flex min-w-0 flex-col items-center justify-center">
+                <div className="grid w-full grid-cols-[1fr_auto_1fr] items-end gap-1 text-center">
+                  <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
+                    {leftPoints}
+                  </span>
+
+                  <span className="pb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
+                    pt
+                  </span>
+
+                  <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
+                    {rightPoints}
+                  </span>
                 </div>
 
-                <div className="min-w-0">
-                  <div className="flex items-end gap-0.5">
-                    <span className="text-xl font-black leading-none text-[#A6E824] sm:text-2xl">{leftPoints}</span>
-                    <span className="pb-0.5 text-[9px] font-black sm:text-xs">pt</span>
-                  </div>
+                <span className="my-1 flex h-6 w-6 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:h-8 sm:w-8 sm:text-[10px]">
+                  VS
+                </span>
+
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">
+                    {leftGoals}
+                  </span>
+                  <span className="text-2xl font-black leading-none text-white sm:text-3xl">
+                    -
+                  </span>
+                  <span className="text-3xl font-black leading-none text-white sm:text-4xl">
+                    {rightGoals}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex flex-col items-center justify-center">
-                <span className="mb-0.5 flex h-6 w-6 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:h-8 sm:w-8 sm:text-[10px]">VS</span>
-                <div className="flex translate-y-[8px] items-center gap-0.5 sm:gap-1">
-                  <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">{leftGoals}</span>
-                  <span className="text-2xl font-black leading-none text-white sm:text-3xl">-</span>
-                  <span className="text-3xl font-black leading-none text-white sm:text-4xl">{rightGoals}</span>
-                </div>
-              </div>
-
-              <div className="flex min-w-0 items-center justify-end gap-1 text-right sm:gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-end justify-end gap-0.5">
-                    <span className="text-xl font-black leading-none text-[#A6E824] sm:text-2xl">{rightPoints}</span>
-                    <span className="pb-0.5 text-[9px] font-black sm:text-xs">pt</span>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 flex-col items-center">
-                  <Avatar name={leagueInfo.displayName} />
-                  <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
-                    {leagueInfo.displayName}
-                  </p>
-                </div>
+              <div className="flex shrink-0 flex-col items-center">
+                <Avatar name={opponentClubInfo?.name || "Avversario"} avatarUrl={opponentClubInfo?.crest_url} />
+                <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
+                  {opponentClubInfo?.name || "Avversario"}
+                </p>
               </div>
             </div>
           </section>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">‹</button>
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-1.5 text-center sm:px-4 sm:py-2">
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
+            <div className="flex h-full flex-col items-center justify-center">
               <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
-              <p className="text-lg font-black sm:text-xl">12</p>
+              <p className="text-2xl font-black text-white sm:text-3xl">12</p>
             </div>
-            <button className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-2xl text-gray-400 sm:flex">›</button>
-            <button className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg text-gray-200 sm:h-10 sm:w-10 sm:text-xl">▦</button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/statistiche")}
+            className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] sm:p-3"
+          >
+            <div className="mx-auto flex h-10 w-14 items-end gap-1 rounded-xl border border-white/10 bg-[#071015] px-2 pb-2 sm:h-12 sm:w-16">
+              <span className="h-3 flex-1 rounded-t bg-[#A6E824]/50 sm:h-4" />
+              <span className="h-6 flex-1 rounded-t bg-[#A6E824] sm:h-7" />
+              <span className="h-4 flex-1 rounded-t bg-[#A6E824]/70 sm:h-5" />
+              <span className="h-8 flex-1 rounded-t bg-[#A6E824]/90 sm:h-9" />
+            </div>
+
+            <p className="mt-1 text-[9px] font-black uppercase text-gray-500 sm:text-xs">
+              Statistiche
+            </p>
+          </button>
         </header>
 
         <section className="relative z-30 mt-3 grid overflow-visible rounded-2xl border border-white/10 bg-[#0b1419] shadow-xl shadow-black/30 sm:mt-4 md:grid-cols-[1.5fr_1fr]">
@@ -481,6 +557,16 @@ export default function FantacalcioLivePage() {
 
 
         <RuleStrip />
+
+        <section className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1419] p-3 shadow-xl shadow-black/30 sm:mt-4 sm:p-4">
+          <ClubKitMini club={clubInfo} align="left" />
+
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/40 text-[10px] font-black text-[#A6E824] sm:h-11 sm:w-11 sm:text-xs">
+            VS
+          </div>
+
+          <ClubKitMini club={opponentClubInfo} align="right" />
+        </section>
 
         <section className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4">
           {liveRows.map((match, index) => {
@@ -614,7 +700,6 @@ export default function FantacalcioLivePage() {
         </section>
       </section>
 
-      <BottomNav onMenuClick={() => setMenuOpen(true)} />
     </main>
   );
 }

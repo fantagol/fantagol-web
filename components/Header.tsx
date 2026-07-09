@@ -42,12 +42,10 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#A6E824]/25 bg-gradient-to-r from-[#2a2f32] via-[#1f2427] to-[#2a2f32] shadow-2xl shadow-black/80 backdrop-blur">
+    <header className="fixed inset-x-0 top-0 z-[100] border-b border-[#A6E824]/25 bg-gradient-to-r from-[#2a2f32] via-[#1f2427] to-[#2a2f32] shadow-2xl shadow-black/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
         <a
-          href="/"
-          aria-label="Vai alla home FantaGol"
-          className="relative z-10 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
+                    className="relative z-10 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
         >
           <FantaGolLogo />
         </a>
