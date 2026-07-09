@@ -6,7 +6,6 @@ import { supabase } from "../../../lib/supabaseClient";
 
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
-import QuickActionCard from "../../../components/ui/QuickActionCard";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import ModeSummaryCard from "../../../components/app/ModeSummaryCard";
 
@@ -63,6 +62,124 @@ function MatchMiniRow({
 }
 
 
+
+function DashboardQuickIcon({ icon }: { icon: string }) {
+  const base =
+    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#071015]";
+
+  if (icon === "control") {
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#A6E824]/35 bg-[#A6E824]/10 shadow-[0_0_16px_rgba(166,232,36,0.18)]">
+        <span className="relative h-7 w-7 rounded-lg border border-[#A6E824]/70 bg-black/40">
+          <span className="absolute left-1 top-1 h-1.5 w-1.5 rounded-full bg-[#A6E824]" />
+          <span className="absolute bottom-1 left-1 right-1 flex items-end gap-0.5">
+            <span className="h-2 flex-1 rounded-t bg-[#A6E824]/50" />
+            <span className="h-4 flex-1 rounded-t bg-[#A6E824]" />
+            <span className="h-3 flex-1 rounded-t bg-[#A6E824]/70" />
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "target") {
+    return (
+      <span className={base}>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#A6E824]/80">
+          <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#A6E824]/70">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#A6E824]" />
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "live") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-6 rounded-full border-2 border-[#A6E824]/80">
+          <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A6E824]" />
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-400" />
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "ranking") {
+    return (
+      <span className={base}>
+        <span className="relative h-7 w-7">
+          <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-[#A6E824]" />
+          <span className="absolute bottom-0 left-1/2 h-5 w-2.5 -translate-x-1/2 rounded-t bg-[#A6E824]" />
+          <span className="absolute bottom-0 left-0 h-3.5 w-2.5 rounded-t bg-[#A6E824]/55" />
+          <span className="absolute bottom-0 right-0 h-4 w-2.5 rounded-t bg-[#A6E824]/75" />
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "calendar") {
+    return (
+      <span className={base}>
+        <span className="h-6 w-6 overflow-hidden rounded-md border border-[#A6E824]/70">
+          <span className="block h-2 bg-[#A6E824]" />
+          <span className="grid grid-cols-3 gap-0.5 p-1">
+            <span className="h-1 rounded bg-white/40" />
+            <span className="h-1 rounded bg-white/40" />
+            <span className="h-1 rounded bg-white/40" />
+            <span className="h-1 rounded bg-white/40" />
+            <span className="h-1 rounded bg-[#A6E824]" />
+            <span className="h-1 rounded bg-white/40" />
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "members") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-7">
+          <span className="absolute left-2 top-0 h-3 w-3 rounded-full bg-[#A6E824]" />
+          <span className="absolute bottom-0 left-1 h-3 w-5 rounded-t-full bg-[#A6E824]/80" />
+          <span className="absolute right-0 top-2 h-2.5 w-2.5 rounded-full bg-white/50" />
+          <span className="absolute bottom-0 right-0 h-2.5 w-4 rounded-t-full bg-white/30" />
+        </span>
+      </span>
+    );
+  }
+
+  return <span className={base} />;
+}
+
+function DashboardQuickAction({
+  icon,
+  label,
+  href,
+  special = false,
+}: {
+  icon: string;
+  label: string;
+  href: string;
+  special?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      className={`rounded-2xl p-4 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:brightness-110 ${
+        special
+          ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80"
+          : "border border-white/10 bg-[#111417] hover:border-[#A6E824]/60"
+      }`}
+    >
+      <DashboardQuickIcon icon={icon} />
+      <div className={`mt-2 text-sm font-black ${special ? "text-[#A6E824]" : "text-white"}`}>
+        {label}
+      </div>
+    </a>
+  );
+}
+
 export default function LeagueDashboardPage() {
   const router = useRouter();
   const params = useParams();
@@ -112,13 +229,7 @@ export default function LeagueDashboardPage() {
     loadDashboard();
   }, [leagueId]);
 
-  function copyInviteLink() {
-    if (!league?.invite_code) return;
 
-    const inviteLink = `${window.location.origin}/invito/${league.invite_code}`;
-    navigator.clipboard.writeText(inviteLink);
-    alert("Link invito copiato.");
-  }
 
   if (loading) {
     return (
@@ -253,20 +364,12 @@ export default function LeagueDashboardPage() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-6">
-          <QuickActionCard icon="🎯" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
-          <QuickActionCard icon="⚽" label="Live" href={`/leghe/${leagueId}/giornata`} />
-          <QuickActionCard icon="🏆" label="Classifiche" href="/classifiche" />
-          <QuickActionCard icon="📅" label="Calendario" href="/calendario" />
-          <QuickActionCard icon="👥" label="Membri" href="/membri" />
-
-          <button
-            type="button"
-            onClick={copyInviteLink}
-            className="rounded-2xl border border-white/10 bg-[#111417] p-4 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:border-[#A6E824]/60 hover:brightness-110"
-          >
-            <div className="text-2xl">📨</div>
-            <div className="mt-2 text-sm font-black text-white">Invita</div>
-          </button>
+          <DashboardQuickAction icon="control" label="Control Room" href="/control-room" special />
+          <DashboardQuickAction icon="target" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
+          <DashboardQuickAction icon="live" label="Live" href={`/leghe/${leagueId}/giornata`} />
+          <DashboardQuickAction icon="ranking" label="Classifiche" href="/classifiche" />
+          <DashboardQuickAction icon="calendar" label="Calendario" href="/calendario" />
+          <DashboardQuickAction icon="members" label="Membri" href="/membri" />
         </div>
       </section>
 

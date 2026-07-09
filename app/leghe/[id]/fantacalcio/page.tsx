@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import KitPreview from "../../../../components/club/KitPreview";
@@ -18,6 +18,7 @@ type LeagueInfo = {
 
 type ClubInfo = {
   name: string;
+  motto?: string | null;
   crest_url: string | null;
   kit_template: string;
   kit_primary_color: string;
@@ -110,6 +111,7 @@ function ClubKitMini({
   align?: "left" | "right";
 }) {
   const name = club?.name || (align === "right" ? "Avversario" : "Club FantaGol");
+  const motto = club?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.";
 
   return (
     <div className={`flex min-w-0 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : "text-left"}`}>
@@ -128,11 +130,11 @@ function ClubKitMini({
       </div>
 
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
-          {align === "right" ? "Avversario" : "Tu"}
-        </p>
-        <p className="mt-1 truncate text-sm font-black text-white sm:text-base">
+        <p className="truncate text-sm font-black text-white sm:text-base">
           {name}
+        </p>
+        <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-gray-500 sm:text-xs">
+          {motto}
         </p>
       </div>
     </div>
@@ -241,6 +243,12 @@ export default function FantacalcioLivePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [clubInfo, setClubInfo] = useState<ClubInfo | null>(null);
+  const [activeSwipeIndex, setActiveSwipeIndex] = useState(0);
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeStartYRef = useRef<number | null>(null);
+  const swipeLockRef = useRef<"x" | "y" | null>(null);
+  const [swipeDragX, setSwipeDragX] = useState(0);
+  const [swipeTransition, setSwipeTransition] = useState(false);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
@@ -270,6 +278,7 @@ export default function FantacalcioLivePage() {
       if (club) {
         const currentClub = {
           name: club.name || current.display_name || "Club FantaGol",
+          motto: club.motto || null,
           crest_url: club.crest_url || null,
           kit_template: club.kit_template || "solid",
           kit_primary_color: club.kit_primary_color || "#FFFFFF",
@@ -298,8 +307,210 @@ export default function FantacalcioLivePage() {
   const round = getRoundState("2026-08-23T13:44:55");
   const locked = round.isLocked;
 
+  const isLiveForSwipe = round.isLive || round.isFinished;
+  const swipeProfiles = useMemo(() => [
+    {
+      id: "me",
+      clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
+      motto: clubInfo?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.",
+      avatarUrl: clubInfo?.crest_url || null,
+      kitTemplate: clubInfo?.kit_template || "solid",
+      kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
+      kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
+      kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
+      kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
+      kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
+      starsCount: clubInfo?.stars_count || 0,
+      isCurrentUser: true,
+    },
+    {
+      id: "demo-1",
+      clubName: "Real Exact",
+      motto: "Precisione, coraggio e pronostici al millimetro.",
+      avatarUrl: null,
+      kitTemplate: "vertical_3",
+      kitPrimaryColor: "#A6E824",
+      kitSecondaryColor: "#111417",
+      kitThirdColor: "#FFFFFF",
+      kitLogoMode: "center_horizontal",
+      kitCrestPosition: "left_chest",
+      starsCount: 2,
+    },
+    {
+      id: "demo-2",
+      clubName: "Bonus Show",
+      motto: "Ogni bonus è una dichiarazione di intenti.",
+      avatarUrl: null,
+      kitTemplate: "diagonal",
+      kitPrimaryColor: "#1f2427",
+      kitSecondaryColor: "#A6E824",
+      kitThirdColor: "#FFFFFF",
+      kitLogoMode: "wordmark_only",
+      kitCrestPosition: "left_chest",
+      starsCount: 1,
+    },
+  ], [clubInfo, leagueInfo.displayName]);
+
+  const activeProfile = swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
+  const isFirstProfile = activeSwipeIndex === 0;
+  const isLastProfile = activeSwipeIndex === swipeProfiles.length - 1;
+  const isViewingSelf = activeProfile?.isCurrentUser === true;
+  const viewedClubInfo: ClubInfo = {
+    name: activeProfile?.clubName || "Club FantaGol",
+    motto: activeProfile?.motto || null,
+    crest_url: activeProfile?.avatarUrl || null,
+    kit_template: activeProfile?.kitTemplate || "solid",
+    kit_primary_color: activeProfile?.kitPrimaryColor || "#FFFFFF",
+    kit_secondary_color: activeProfile?.kitSecondaryColor || "#111417",
+    kit_third_color: activeProfile?.kitThirdColor || "#A6E824",
+    kit_logo_mode: activeProfile?.kitLogoMode || "center_horizontal",
+    kit_crest_position: activeProfile?.kitCrestPosition || "left_chest",
+    stars_count: activeProfile?.starsCount || 0,
+  };
+  const canViewProfileContent = isViewingSelf || isLiveForSwipe;
+  const displayedLeftPoints = canViewProfileContent ? leftPoints : 0;
+  const displayedRightPoints = canViewProfileContent ? rightPoints : 0;
+  const displayedLeftGoals = canViewProfileContent ? leftGoals : 0;
+  const displayedRightGoals = canViewProfileContent ? rightGoals : 0;
+
+  function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
+    const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 420;
+    const exitX = direction === "next" ? -viewportWidth : viewportWidth;
+    const enterX = direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
+
+    setSwipeTransition(true);
+    setSwipeDragX(exitX);
+
+    window.setTimeout(() => {
+      setActiveSwipeIndex(bounded);
+      setSwipeTransition(false);
+      setSwipeDragX(enterX);
+
+      window.requestAnimationFrame(() => {
+        setSwipeTransition(true);
+        setSwipeDragX(0);
+
+        window.setTimeout(() => {
+          setSwipeTransition(false);
+        }, 280);
+      });
+    }, 170);
+  }
+
+  function bounceSwipe() {
+    setSwipeTransition(true);
+    setSwipeDragX(0);
+
+    window.setTimeout(() => {
+      setSwipeTransition(false);
+    }, 240);
+  }
+
+  function goToProfile(nextIndex: number) {
+    const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
+
+    if (bounded === activeSwipeIndex) {
+      bounceSwipe();
+      return;
+    }
+
+    completeProfileSwipe(bounded, bounded > activeSwipeIndex ? "next" : "prev");
+  }
+
+  function goPrevProfile() {
+    if (!isFirstProfile) goToProfile(activeSwipeIndex - 1);
+    else bounceSwipe();
+  }
+
+  function goNextProfile() {
+    if (!isLastProfile) goToProfile(activeSwipeIndex + 1);
+    else bounceSwipe();
+  }
+
+  function handlePageSwipeStart(event: TouchEvent<HTMLElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select")) return;
+
+    swipeStartXRef.current = event.touches[0]?.clientX ?? null;
+    swipeStartYRef.current = event.touches[0]?.clientY ?? null;
+    swipeLockRef.current = null;
+    setSwipeTransition(false);
+  }
+
+  function handlePageSwipeMove(event: TouchEvent<HTMLElement>) {
+    if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+
+    const currentX = event.touches[0]?.clientX ?? swipeStartXRef.current;
+    const currentY = event.touches[0]?.clientY ?? swipeStartYRef.current;
+    const deltaX = currentX - swipeStartXRef.current;
+    const deltaY = currentY - swipeStartYRef.current;
+
+    if (!swipeLockRef.current) {
+      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
+      swipeLockRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.25 ? "x" : "y";
+    }
+
+    if (swipeLockRef.current !== "x") return;
+
+    const blockedAtStart = isFirstProfile && deltaX > 0;
+    const blockedAtEnd = isLastProfile && deltaX < 0;
+    const resistance = blockedAtStart || blockedAtEnd ? 0.22 : 1;
+
+    setSwipeDragX(deltaX * resistance);
+  }
+
+  function handlePageSwipeEnd(event: TouchEvent<HTMLElement>) {
+    if (swipeStartXRef.current === null) return;
+
+    const endX = event.changedTouches[0]?.clientX ?? swipeStartXRef.current;
+    const deltaX = endX - swipeStartXRef.current;
+    const threshold = 70;
+
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+    swipeLockRef.current = null;
+
+    if (Math.abs(deltaX) < threshold) {
+      bounceSwipe();
+      return;
+    }
+
+    if (deltaX < 0 && !isLastProfile) {
+      completeProfileSwipe(activeSwipeIndex + 1, "next");
+      return;
+    }
+
+    if (deltaX > 0 && !isFirstProfile) {
+      completeProfileSwipe(activeSwipeIndex - 1, "prev");
+      return;
+    }
+
+    bounceSwipe();
+  }
+
+  const swipeAbs = Math.min(Math.abs(swipeDragX), 180);
+  const swipeScale = 1 - Math.min(swipeAbs / 7000, 0.026);
+  const swipeOpacity = 1 - Math.min(swipeAbs / 3600, 0.045);
+  const swipeGlowOpacity = Math.min(swipeAbs / 130, 1);
+  const swipeNextPreview =
+    swipeDragX < -8 && !isLastProfile
+      ? swipeProfiles[activeSwipeIndex + 1]
+      : swipeDragX > 8 && !isFirstProfile
+        ? swipeProfiles[activeSwipeIndex - 1]
+        : null;
+
   const [selectedMatchIndex, setSelectedMatchIndex] = useState<number | null>(null);
   const [liveRows, setLiveRows] = useState<DuelMatch[]>(duelMatches);
+  const displayedLiveRows = canViewProfileContent
+    ? liveRows
+    : liveRows.map((match) => ({
+        ...match,
+        leftPrediction: "—",
+        rightPrediction: "—",
+        leftActive: [],
+        rightActive: [],
+      }));
 
   function handleSwapMatch(index: number) {
     if (locked) return;
@@ -337,32 +548,88 @@ export default function FantacalcioLivePage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#061014] text-white">
+    <main
+      className="min-h-screen overflow-x-hidden bg-[#061014] text-white"
+      onTouchStart={handlePageSwipeStart}
+      onTouchMove={handlePageSwipeMove}
+      onTouchEnd={handlePageSwipeEnd}
+    >
 
       <HamburgerDrawer
         open={menuOpen}
         leagueName={leagueInfo.name}
-        displayName={leagueInfo.displayName}
+        displayName={viewedClubInfo.name}
         inviteCode={leagueInfo.inviteCode}
         role={leagueInfo.role}
         onClose={() => setMenuOpen(false)}
       />
 
-      <section className="mx-auto max-w-6xl px-2 pb-12 pt-2 sm:px-5 sm:pb-16 sm:pt-3">
+      {!isFirstProfile && (
+        <button
+          type="button"
+          onClick={goPrevProfile}
+          className="fixed left-4 top-1/2 z-[90] hidden h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/60 text-4xl font-black text-[#A6E824] shadow-2xl shadow-black/70 transition hover:border-[#A6E824] hover:bg-[#A6E824]/10 md:flex"
+          aria-label="Profilo precedente"
+        >
+          ‹
+        </button>
+      )}
+
+      {!isLastProfile && (
+        <button
+          type="button"
+          onClick={goNextProfile}
+          className="fixed right-4 top-1/2 z-[90] hidden h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/60 text-4xl font-black text-[#A6E824] shadow-2xl shadow-black/70 transition hover:border-[#A6E824] hover:bg-[#A6E824]/10 md:flex"
+          aria-label="Profilo successivo"
+        >
+          ›
+        </button>
+      )}
+
+      {swipeNextPreview && (
+        <div
+          className={`pointer-events-none fixed inset-y-0 z-[10] hidden w-[16vw] max-w-[190px] items-center px-3 md:flex ${
+            swipeDragX < 0 ? "right-0 justify-end" : "left-0 justify-start"
+          }`}
+          style={{ opacity: swipeGlowOpacity }}
+        >
+          <div className="w-full rounded-[2rem] border border-[#A6E824]/25 bg-[#0b1419]/80 p-4 shadow-[0_0_50px_rgba(166,232,36,0.10)] backdrop-blur">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A6E824]">
+              {swipeDragX < 0 ? "Prossimo" : "Precedente"}
+            </div>
+            <div className="mt-2 truncate text-sm font-black text-white">
+              {swipeNextPreview.clubName}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section
+        className="mx-auto max-w-6xl px-2 pb-12 pt-2 sm:px-5 sm:pb-16 sm:pt-3"
+        style={{
+          transform: `translate3d(${swipeDragX}px, 0, 0) scale(${swipeScale})`,
+          opacity: swipeOpacity,
+          transition: swipeTransition
+            ? "transform 260ms cubic-bezier(.22,.61,.36,1), opacity 260ms cubic-bezier(.22,.61,.36,1), filter 260ms cubic-bezier(.22,.61,.36,1)"
+            : "none",
+          filter: swipeDragX !== 0 ? "drop-shadow(0 28px 70px rgba(0,0,0,0.55))" : "none",
+          willChange: "transform, opacity, filter",
+        }}
+      >
         <header className="grid grid-cols-[1fr_78px_78px] gap-2 border-b border-white/10 py-3 sm:grid-cols-[1fr_120px_120px] sm:gap-3 sm:py-5">
           <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-2xl shadow-black/40 sm:p-3">
             <div className="grid grid-cols-[54px_1fr_54px] items-center gap-1 sm:grid-cols-[84px_1fr_84px] sm:gap-2">
               <div className="flex shrink-0 flex-col items-center">
-                <Avatar name={leagueInfo.displayName} avatarUrl={clubInfo?.crest_url} />
+                <Avatar name={viewedClubInfo.name} avatarUrl={viewedClubInfo.crest_url} />
                 <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
-                  {leagueInfo.displayName}
+                  {viewedClubInfo.name}
                 </p>
               </div>
 
               <div className="flex min-w-0 flex-col items-center justify-center">
                 <div className="grid w-full grid-cols-[1fr_auto_1fr] items-end gap-1 text-center">
                   <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
-                    {leftPoints}
+                    {displayedLeftPoints}
                   </span>
 
                   <span className="pb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
@@ -370,7 +637,7 @@ export default function FantacalcioLivePage() {
                   </span>
 
                   <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
-                    {rightPoints}
+                    {displayedRightPoints}
                   </span>
                 </div>
 
@@ -380,13 +647,13 @@ export default function FantacalcioLivePage() {
 
                 <div className="flex items-center justify-center gap-0.5 sm:gap-1">
                   <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">
-                    {leftGoals}
+                    {displayedLeftGoals}
                   </span>
                   <span className="text-2xl font-black leading-none text-white sm:text-3xl">
                     -
                   </span>
                   <span className="text-3xl font-black leading-none text-white sm:text-4xl">
-                    {rightGoals}
+                    {displayedRightGoals}
                   </span>
                 </div>
               </div>
@@ -495,12 +762,10 @@ export default function FantacalcioLivePage() {
           </div>
         </section>
 
-
-
         <RuleStrip />
 
         <section className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1419] p-3 shadow-xl shadow-black/30 sm:mt-4 sm:p-4">
-          <ClubKitMini club={clubInfo} align="left" />
+          <ClubKitMini club={viewedClubInfo} align="left" />
 
           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/40 text-[10px] font-black text-[#A6E824] sm:h-11 sm:w-11 sm:text-xs">
             VS
@@ -514,14 +779,14 @@ export default function FantacalcioLivePage() {
             {
               title: "Attacco",
               subtitle: "Partite con bonus aggressivi",
-              rows: liveRows.slice(0, 5),
+              rows: displayedLiveRows.slice(0, 5),
               offset: 0,
               tone: "red",
             },
             {
               title: "Difesa",
               subtitle: "Partite con protezione strategica",
-              rows: liveRows.slice(5, 10),
+              rows: displayedLiveRows.slice(5, 10),
               offset: 5,
               tone: "green",
             },
@@ -610,14 +875,14 @@ export default function FantacalcioLivePage() {
           <button
             type="button"
             onClick={submitPredictions}
-            disabled={locked}
+            disabled={locked || !isViewingSelf}
             className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${
               locked
                 ? "cursor-not-allowed bg-gray-700 text-gray-300 shadow-black/20"
                 : "bg-[#8cc91e] shadow-[#A6E824]/20 hover:brightness-110"
             }`}
           >
-            {locked ? "🔒 Pronostici bloccati" : "✈ Invia i pronostici"}
+            {!isViewingSelf ? "Pronostici visibili dal live" : locked ? "🔒 Pronostici bloccati" : "✈ Invia i pronostici"}
           </button>
         </section>
       </section>

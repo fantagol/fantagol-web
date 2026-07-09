@@ -85,10 +85,26 @@ function MenuIcon({ icon }: { icon: string }) {
   if (icon === "ranking") {
     return (
       <span className={base}>
-        <span className="grid h-6 w-7 grid-cols-3 items-end gap-1">
-          <span className="h-3 rounded-t bg-[#A6E824]/60" />
-          <span className="h-6 rounded-t bg-[#A6E824]" />
-          <span className="h-4 rounded-t bg-[#A6E824]/80" />
+        <span className="relative h-7 w-7">
+          <span className="absolute left-1/2 top-0 h-2 w-2 -translate-x-1/2 rounded-full bg-[#A6E824]" />
+          <span className="absolute bottom-0 left-1/2 h-5 w-2.5 -translate-x-1/2 rounded-t bg-[#A6E824]" />
+          <span className="absolute bottom-0 left-0 h-3.5 w-2.5 rounded-t bg-[#A6E824]/55" />
+          <span className="absolute bottom-0 right-0 h-4 w-2.5 rounded-t bg-[#A6E824]/75" />
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "control") {
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#A6E824]/35 bg-[#A6E824]/10 shadow-[0_0_16px_rgba(166,232,36,0.18)]">
+        <span className="relative h-7 w-7 rounded-lg border border-[#A6E824]/70 bg-black/40">
+          <span className="absolute left-1 top-1 h-1.5 w-1.5 rounded-full bg-[#A6E824]" />
+          <span className="absolute bottom-1 left-1 right-1 flex items-end gap-0.5">
+            <span className="h-2 flex-1 rounded-t bg-[#A6E824]/50" />
+            <span className="h-4 flex-1 rounded-t bg-[#A6E824]" />
+            <span className="h-3 flex-1 rounded-t bg-[#A6E824]/70" />
+          </span>
         </span>
       </span>
     );
@@ -193,21 +209,25 @@ function DrawerMenuItem({
   title,
   subtitle,
   danger = false,
+  special = false,
   onClick,
 }: {
   icon: string;
   title: string;
   subtitle?: string;
   danger?: boolean;
+  special?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 text-left transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] ${
-        danger ? "text-red-400" : "text-white"
-      }`}
+      className={`group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
+        special
+          ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80 hover:bg-[#A6E824]/15"
+          : "border border-white/10 bg-black/25 hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
+      } ${danger ? "text-red-400" : "text-white"}`}
     >
       <MenuIcon icon={icon} />
 
@@ -474,6 +494,14 @@ export default function HamburgerDrawer({
             title="Statistiche"
             subtitle="Schede e approfondimenti membri"
             onClick={() => goTo("/statistiche")}
+          />
+
+          <DrawerMenuItem
+            icon="control"
+            title="CONTROL ROOM"
+            subtitle="Statistiche globali FantaGol"
+            special
+            onClick={() => goTo("/control-room")}
           />
 
           <DrawerMenuItem

@@ -78,6 +78,24 @@ function roleLabel(role: string) {
   return "Membro";
 }
 
+function mapClubToMember(club: any, fallbackDisplayName: string, fallbackRole: string): Member {
+  return {
+    id: club.club_id || "me",
+    clubName: club.name || fallbackDisplayName || "Club FantaGol",
+    realName: club.real_name || null,
+    role: fallbackRole || "member",
+    avatarUrl: club.crest_url || null,
+    kitTemplate: club.kit_template || "solid",
+    kitPrimaryColor: club.kit_primary_color || "#FFFFFF",
+    kitSecondaryColor: club.kit_secondary_color || "#A6E824",
+    kitThirdColor: club.kit_third_color || "#FFFFFF",
+    kitLogoMode: club.kit_logo_mode || "center_horizontal",
+    kitCrestPosition: club.kit_crest_position || "left_chest",
+    starsCount: club.stars_count || 0,
+  };
+}
+
+
 export default function MembriPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [members, setMembers] = useState<Member[]>(demoMembers);
@@ -112,10 +130,26 @@ export default function MembriPage() {
         });
       }
 
+      const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+      const currentClub = (clubData || [])[0];
+
+      if (currentClub) {
+        const realMember = mapClubToMember(
+          currentClub,
+          firstLeague?.display_name || "Club FantaGol",
+          firstLeague?.role || "member"
+        );
+
+        setMembers([
+          realMember,
+          ...demoMembers.filter((member) => member.id !== realMember.id),
+        ]);
+      }
+
       /*
         Collegamento dati definitivo:
         qui useremo una RPC tipo get_current_league_members_rpc()
-        che dovrà restituire:
+        che dovrà restituire tutti i membri reali della lega:
         - club name
         - real name
         - avatar
@@ -130,8 +164,8 @@ export default function MembriPage() {
   return (
     <main className="min-h-screen bg-black pt-14 text-white">
       <header className="fixed inset-x-0 top-0 z-[80] border-b border-[#A6E824]/25 bg-gradient-to-r from-[#2a2f32] via-[#1f2427] to-[#2a2f32] shadow-2xl shadow-black/80 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
-          <div className="pointer-events-none relative z-0 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between overflow-hidden px-4 md:px-6">
+          <div className="pointer-events-none relative z-0 block min-w-0 -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6">
             <FantaGolLogo />
           </div>
 
@@ -139,7 +173,7 @@ export default function MembriPage() {
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="Apri menu"
-            className="rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white transition hover:border-[#A6E824]"
+            className="shrink-0 rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white transition hover:border-[#A6E824]"
           >
             ☰
           </button>
@@ -155,7 +189,7 @@ export default function MembriPage() {
         onClose={() => setMenuOpen(false)}
       />
 
-      <section className="mx-auto max-w-6xl px-6 py-10">
+      <section className="mx-auto w-full max-w-6xl overflow-hidden px-4 py-10 sm:px-6">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#A6E824]">
           Lega
         </p>
@@ -166,15 +200,15 @@ export default function MembriPage() {
           Tutti i Club iscritti alla lega, con maglia, avatar, nome del Club e nome reale.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="mt-8 grid min-w-0 gap-4 md:grid-cols-2">
           {members.map((member) => (
             <article
               key={member.id}
-              className="rounded-3xl border border-gray-700 bg-[#111111] p-5 transition hover:border-[#A6E824]/60"
+              className="min-w-0 overflow-hidden rounded-3xl border border-gray-700 bg-[#111111] p-4 transition hover:border-[#A6E824]/60 sm:p-5"
             >
-              <div className="flex items-center gap-4">
-                <div className="flex h-28 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#171b1d]">
-                  <div className="scale-[0.46]">
+              <div className="grid min-w-0 grid-cols-[64px_1fr] items-center gap-3 sm:grid-cols-[80px_1fr] sm:gap-4">
+                <div className="flex h-24 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#171b1d] sm:h-28 sm:w-20">
+                  <div className="scale-[0.38] sm:scale-[0.46]">
                     <KitPreview
                       primary={member.kitPrimaryColor}
                       secondary={member.kitSecondaryColor}
@@ -188,8 +222,8 @@ export default function MembriPage() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#A6E824]/60 bg-black">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#A6E824]/60 bg-black sm:h-14 sm:w-14">
                       {member.avatarUrl ? (
                         <img
                           src={member.avatarUrl}
@@ -204,7 +238,7 @@ export default function MembriPage() {
                     </div>
 
                     <div className="min-w-0">
-                      <h2 className="truncate text-xl font-black">
+                      <h2 className="max-w-full truncate text-lg font-black sm:text-xl">
                         {member.clubName}
                       </h2>
 
@@ -214,7 +248,7 @@ export default function MembriPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 flex min-w-0 flex-wrap gap-2">
                     <span className="rounded-full border border-[#A6E824]/30 bg-[#A6E824]/10 px-3 py-1 text-xs font-black text-[#A6E824]">
                       {roleLabel(member.role)}
                     </span>
