@@ -644,7 +644,7 @@ export default function FantacalcioLivePage() {
           }`}
           style={{ opacity: swipeGlowOpacity }}
         >
-          <div className="w-full rounded-[2rem] border border-[#A6E824]/25 bg-[#0b1419]/80 p-4 shadow-[0_0_50px_rgba(166,232,36,0.10)] backdrop-blur">
+          <div className="w-full rounded-[2rem] border border-[#A6E824]/25 bg-[#0b1419] p-4 shadow-[0_0_50px_rgba(166,232,36,0.10)]">
             <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A6E824]">
               {swipeDragX < 0 ? "Prossimo" : "Precedente"}
             </div>
@@ -869,7 +869,7 @@ export default function FantacalcioLivePage() {
                           memoryPopupFloating
                             ? "fixed"
                             : "absolute left-1 top-[calc(100%+6px)] w-[106px] sm:left-0 sm:right-0 sm:w-auto"
-                        } z-50 rounded-2xl border border-[#A6E824]/25 bg-[#071015]/95 p-1 shadow-2xl shadow-[#A6E824]/10 backdrop-blur sm:p-1.5`}
+                        } z-50 rounded-2xl border border-[#A6E824]/25 bg-[#071015] p-1 shadow-2xl shadow-[#A6E824]/10 sm:p-1.5`}
                         style={
                           memoryPopupFloating
                             ? { left: memoryPopupPosition.x, top: memoryPopupPosition.y, width: memoryPopupWidth ?? undefined }

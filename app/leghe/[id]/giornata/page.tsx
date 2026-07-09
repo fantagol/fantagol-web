@@ -476,7 +476,7 @@ export default function GiornataPage() {
           }`}
           style={{ opacity: swipeGlowOpacity }}
         >
-          <div className="w-full rounded-[2rem] border border-[#A6E824]/25 bg-[#0b1419]/80 p-4 shadow-[0_0_50px_rgba(166,232,36,0.10)] backdrop-blur">
+          <div className="w-full rounded-[2rem] border border-[#A6E824]/25 bg-[#0b1419] p-4 shadow-[0_0_50px_rgba(166,232,36,0.10)]">
             <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[#A6E824]">
               {swipeDragX < 0 ? "Prossimo" : "Precedente"}
             </div>

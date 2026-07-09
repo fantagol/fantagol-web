@@ -120,6 +120,21 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
+  if (icon === "round") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-6 overflow-hidden rounded-lg border border-[#A6E824]/70 bg-black/30">
+          <span className="block h-1.5 bg-[#A6E824]" />
+          <span className="absolute left-1/2 top-1/2 flex h-3.5 w-3.5 -translate-x-1/2 -translate-y-[35%] items-center justify-center rounded-full border border-[#A6E824] text-[8px] font-black text-[#A6E824]">
+            G
+          </span>
+          <span className="absolute bottom-1 left-1 h-1 w-1 rounded-full bg-white/35" />
+          <span className="absolute bottom-1 right-1 h-1 w-1 rounded-full bg-white/35" />
+        </span>
+      </span>
+    );
+  }
+
   if (icon === "calendar") {
     return (
       <span className={base}>
@@ -469,6 +484,13 @@ export default function HamburgerDrawer({
           <div className="my-4 border-t border-gray-700" />
 
           <DrawerMenuItem
+            icon="round"
+            title="Giornata"
+            subtitle="Dashboard della lega"
+            onClick={() => goTo(getLeagueDashboardPath())}
+          />
+
+          <DrawerMenuItem
             icon="target"
             title="Pronostici"
             subtitle="Inserisci o modifica la giornata"
@@ -568,3 +590,4 @@ export default function HamburgerDrawer({
     </div>
   );
 }
+

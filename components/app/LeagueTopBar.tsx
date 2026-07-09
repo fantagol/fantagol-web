@@ -10,7 +10,7 @@ export default function LeagueTopBar({
   onMenuClick,
 }: LeagueTopBarProps) {
   return (
-    <header className="sticky top-0 z-50 border-b border-[#A6E824]/20 bg-[#101315]/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[#A6E824]/20 bg-[#101315]">
       <div className="mx-auto grid h-16 max-w-5xl grid-cols-[48px_1fr_48px] items-center px-4">
         <button
           type="button"
@@ -37,3 +37,4 @@ export default function LeagueTopBar({
     </header>
   );
 }
+

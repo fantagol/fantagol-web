@@ -167,7 +167,7 @@ export default function CalendarioPage() {
 
   return (
     <main className="min-h-screen bg-black pt-14 text-white">
-      <header className="fixed inset-x-0 top-0 z-[80] border-b border-[#A6E824]/25 bg-gradient-to-r from-[#2a2f32] via-[#1f2427] to-[#2a2f32] shadow-2xl shadow-black/80 backdrop-blur">
+      <header className="fixed inset-x-0 top-0 z-[80] border-b border-[#A6E824]/25 bg-[#1f2427] shadow-2xl shadow-black/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
           <div className="pointer-events-none relative z-0 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6">
             <FantaGolLogo />
@@ -378,3 +378,4 @@ export default function CalendarioPage() {
     </main>
   );
 }
+
