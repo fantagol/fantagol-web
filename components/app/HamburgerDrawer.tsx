@@ -188,6 +188,32 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
+
+  if (icon === "rules") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-6 rounded-md border border-[#A6E824]/75 bg-black/25">
+          <span className="absolute left-1.5 top-1.5 h-0.5 w-3 rounded bg-[#A6E824]" />
+          <span className="absolute left-1.5 top-3 h-0.5 w-3 rounded bg-[#A6E824]/75" />
+          <span className="absolute left-1.5 top-4.5 h-0.5 w-2.5 rounded bg-[#A6E824]/50" />
+          <span className="absolute -right-1 bottom-0 h-3 w-3 rotate-[-35deg] rounded-sm border border-[#A6E824] bg-[#071015]" />
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "donate") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-7">
+          <span className="absolute left-1/2 top-0 h-4 w-4 -translate-x-1/2 rotate-45 rounded-sm border-2 border-[#A6E824]" />
+          <span className="absolute bottom-0 left-0 right-0 mx-auto h-2.5 w-6 rounded-full border border-[#A6E824]/70" />
+          <span className="absolute bottom-1 left-1/2 h-1 w-3 -translate-x-1/2 rounded bg-[#A6E824]" />
+        </span>
+      </span>
+    );
+  }
+
   if (icon === "settings") {
     return (
       <span className={base}>
@@ -556,17 +582,22 @@ export default function HamburgerDrawer({
             onClick={() => goTo("/club?scrollTo=hall-of-fame")}
           />
 
-          {activeRole === "owner" && (
-            <>
-              <div className="my-4 border-t border-gray-700" />
+          <div className="my-4 border-t border-gray-700" />
 
-              <DrawerMenuItem
-                icon="settings"
-                title="Impostazioni Lega"
-                subtitle="Gestione regole e configurazione"
-                onClick={() => goTo("#")}
-              />
-            </>
+          <DrawerMenuItem
+            icon="rules"
+            title="Regolamento"
+            subtitle="Regole ufficiali e modalità di gioco"
+            onClick={() => goTo("/regolamento")}
+          />
+
+          {activeRole === "owner" && (
+            <DrawerMenuItem
+              icon="settings"
+              title="Impostazioni Lega"
+              subtitle="Gestione regole e configurazione"
+              onClick={() => goTo("#")}
+            />
           )}
 
           <div className="my-4 border-t border-gray-700" />
@@ -576,6 +607,13 @@ export default function HamburgerDrawer({
             title="Supporto"
             subtitle="Aiuto e informazioni"
             onClick={() => goTo("#")}
+          />
+
+          <DrawerMenuItem
+            icon="donate"
+            title="Sostieni FantaGol"
+            subtitle="Contributi liberi al progetto"
+            onClick={() => goTo("/donazioni")}
           />
 
           <DrawerMenuItem

@@ -5,183 +5,255 @@ export default function RegolamentoPage() {
     <main className="min-h-screen bg-black text-white">
       <Header />
 
-      <div className="max-w-4xl mx-auto px-6 py-20">
-        <h1 className="text-5xl font-black mb-6">
-          Regolamento FantaGol
+      <div className="mx-auto max-w-4xl px-6 py-20">
+        <h1 className="mb-6 text-5xl font-black">
+          Regolamento Ufficiale FantaGol
         </h1>
 
-        <p className="text-xl text-gray-400 mb-16">
+        <p className="mb-16 text-xl text-gray-400">
           Un solo pronostico. Tre modalità di gioco. Infinite sfide.
         </p>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">Come si gioca</h2>
+          <h2 className="mb-6 text-3xl font-bold">Come si gioca</h2>
 
-          <p className="text-gray-300 leading-8">
+          <p className="leading-8 text-gray-300">
             Per ogni partita devi inserire un solo pronostico: il risultato esatto.
           </p>
 
-          <div className="mt-4 p-4 border border-gray-800 rounded-xl">
+          <div className="mt-4 rounded-xl border border-gray-800 p-4">
             2-1 • 1-1 • 0-0
           </div>
 
-          <p className="text-gray-300 leading-8 mt-6">
+          <p className="mt-6 leading-8 text-gray-300">
             Da questo unico pronostico FantaGol calcola automaticamente:
           </p>
 
           <ul className="mt-4 space-y-2 text-gray-300">
-            <li>• Risultato Esatto</li>
-            <li>• Segno (1-X-2)</li>
-            <li>• Over / Under</li>
+            <li>• Risultato esatto</li>
+            <li>• Segno 1-X-2</li>
+            <li>• Over / Under 2.5</li>
             <li>• Goal / No Goal</li>
-            <li>• Bonus e Malus</li>
+            <li>• Bonus e malus</li>
           </ul>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">Sistema Punti</h2>
+          <h2 className="mb-6 text-3xl font-bold">Sistema Punti</h2>
 
           <div className="space-y-4">
-            <div className="p-4 border border-gray-800 rounded-xl">
-              <strong>Exact</strong> → 11 punti
+            <div className="rounded-xl border border-gray-800 p-4">
+              <strong>Risultato esatto</strong> → 6 punti
             </div>
 
-            <div className="p-4 border border-gray-800 rounded-xl">
+            <div className="rounded-xl border border-gray-800 p-4">
               <strong>Segno corretto</strong> → 3 punti
             </div>
 
-            <div className="p-4 border border-gray-800 rounded-xl">
-              <strong>Over / Under corretto</strong> → 1 punto
+            <div className="rounded-xl border border-gray-800 p-4">
+              <strong>Over / Under 2.5 corretto</strong> → 1 punto
             </div>
 
-            <div className="p-4 border border-gray-800 rounded-xl">
+            <div className="rounded-xl border border-gray-800 p-4">
               <strong>Goal / No Goal corretto</strong> → 1 punto
             </div>
           </div>
 
           <p className="mt-6 text-gray-400">
-            L&apos;Exact è il cuore del gioco e rappresenta la massima
-            espressione di precisione.
+            Un pronostico esatto assegna complessivamente 11 punti: 6 per
+            l&apos;Exact, 3 per il Segno, 1 per Over / Under e 1 per Goal / No Goal.
+            Senza Exact, il massimo ottenibile attraverso i quattro parametri base è
+            di 5 punti.
           </p>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">Bonus</h2>
+          <h2 className="mb-6 text-3xl font-bold">Bonus</h2>
 
           <div className="space-y-4">
-            <div className="p-4 border border-green-900 rounded-xl">
+            <div className="rounded-xl border border-green-900 p-4">
               <strong>Gol Show (+1)</strong>
 
-              <p className="text-gray-400 mt-2">
-                Assegnato quando la somma gol pronosticata coincide con la
-                somma gol reale e il totale gol della partita è pari o superiore a 4.
+              <p className="mt-2 text-gray-400">
+                Assegnato quando la somma dei gol pronosticati coincide con la
+                somma dei gol reali e il totale dei gol della partita è pari o
+                superiore a 4.
               </p>
             </div>
 
-            <div className="p-4 border border-green-900 rounded-xl">
+            <div className="rounded-xl border border-green-900 p-4">
               <strong>Bonus Sorpresa (+2)</strong>
 
-              <p className="text-gray-400 mt-2">
+              <p className="mt-2 text-gray-400">
                 Assegnato quando il giocatore indovina un esito considerato
                 particolarmente improbabile dal mercato pre-partita. Il sistema
-                determina automaticamente quali risultati rientrano nella
-                categoria Sorpresa utilizzando una media di quote provenienti
-                da più bookmaker.
+                determina automaticamente gli esiti Sorpresa utilizzando una
+                media delle quote provenienti da più bookmaker.
               </p>
             </div>
 
-            <div className="p-4 border border-green-900 rounded-xl">
-              <strong>Grand Slam (+1)</strong>
+            <div className="rounded-xl border border-green-900 p-4">
+              <strong>Grande Slam (+1)</strong>
 
-              <p className="text-gray-400 mt-2">
-                Bonus speciale ottenuto quando Exact, Gol Show e Bonus Sorpresa
-                si verificano contemporaneamente. Rappresenta il massimo
-                riconoscimento ottenibile in FantaGol.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">Malus</h2>
-
-          <div className="space-y-4">
-            <div className="p-4 border border-red-900 rounded-xl">
-              <strong>Segno Opposto (-1)</strong>
-
-              <p className="text-gray-400 mt-2">
-                Quando viene pronosticato 1 e termina 2 oppure viceversa.
-              </p>
-            </div>
-
-            <div className="p-4 border border-red-900 rounded-xl">
-              <strong>Cantonata (-2)</strong>
-
-              <p className="text-gray-400 mt-2">
-                Quando risultano errati contemporaneamente Segno, Over/Under e Goal/No Goal.
+              <p className="mt-2 text-gray-400">
+                Assegnato quando Exact, Gol Show e Bonus Sorpresa si verificano
+                contemporaneamente nella stessa partita.
               </p>
             </div>
           </div>
 
           <p className="mt-6 text-gray-400">
-            I punteggi negativi sono consentiti e possono influenzare le classifiche.
+            Il punteggio massimo ottenibile su una singola partita è di 14 punti.
           </p>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-bold mb-6">Modalità di Gioco</h2>
+          <h2 className="mb-6 text-3xl font-bold">Malus</h2>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-red-900 p-4">
+              <strong>Segno Opposto (-1)</strong>
+
+              <p className="mt-2 text-gray-400">
+                Si applica quando viene pronosticata la vittoria della squadra di
+                casa e vince la squadra ospite, oppure viceversa.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-red-900 p-4">
+              <strong>Cantonata (-2)</strong>
+
+              <p className="mt-2 text-gray-400">
+                Si applica quando risultano errati contemporaneamente Segno,
+                Over / Under e Goal / No Goal. Non è cumulabile con il malus
+                Segno Opposto.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-6 text-gray-400">
+            I punteggi negativi sono consentiti e incidono sul punteggio della
+            giornata e sulle classifiche cumulative.
+          </p>
+        </section>
+
+        <section className="mb-16">
+          <h2 className="mb-6 text-3xl font-bold">Modalità di Gioco</h2>
 
           <div className="space-y-6">
-            <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">Fantacalcio</h3>
+            <div className="rounded-2xl border border-gray-800 p-6">
+              <h3 className="mb-3 text-2xl font-semibold">Fantacalcio</h3>
 
-              <p className="text-gray-300 mb-4">
-                I punti FantaGol vengono convertiti in gol tramite fasce prestabilite.
+              <p className="mb-4 text-gray-300">
+                Ogni giocatore utilizza gli stessi 10 pronostici della giornata,
+                ma deve distribuirli obbligatoriamente in due reparti da 5
+                partite ciascuno: Attacco e Difesa.
               </p>
 
-              <div className="text-gray-400 space-y-1">
-                <div>0-20 = 0 gol</div>
-                <div>21-26 = 1 gol</div>
-                <div>27-32 = 2 gol</div>
-                <div>33-38 = 3 gol</div>
-                <div>39-44 = 4 gol</div>
-                <div>45-50 = 5 gol</div>
-                <div>51-56 = 6 gol</div>
-                <div>57-62 = 7 gol</div>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-red-900 p-4">
+                  <strong>Attacco — 5 partite</strong>
+
+                  <p className="mt-2 text-gray-400">
+                    Nelle partite schierate in Attacco l&apos;Exact e il Bonus
+                    Sorpresa valgono il doppio. Anche i malus Segno Opposto e
+                    Cantonata vengono raddoppiati. L&apos;Attacco offre quindi un
+                    potenziale maggiore, ma espone a un rischio più elevato.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-green-900 p-4">
+                  <strong>Difesa — 5 partite</strong>
+
+                  <p className="mt-2 text-gray-400">
+                    Nelle partite schierate in Difesa i bonus mantengono il loro
+                    valore normale, mentre i malus Segno Opposto e Cantonata
+                    vengono dimezzati. La Difesa riduce il rischio senza
+                    aumentare i bonus.
+                  </p>
+                </div>
               </div>
 
-              <p className="text-gray-400 mt-4">
-                Dal primo gol in poi, ogni fascia copre 6 punti.
+              <p className="mt-6 text-gray-400">
+                La composizione dei due reparti può essere modificata fino al
+                blocco dei pronostici. Al termine della giornata, il punteggio
+                complessivo viene convertito in gol secondo le fasce ufficiali
+                della modalità Fantacalcio.
               </p>
             </div>
 
-            <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">One To One</h3>
+            <div className="rounded-2xl border border-gray-800 p-6">
+              <h3 className="mb-3 text-2xl font-semibold">One To One</h3>
 
               <p className="text-gray-300">
-                Ogni partita della giornata diventa una mini-sfida.
-                Chi ottiene più punti FantaGol vince la mini-sfida.
-                Vince la giornata chi conquista più mini-sfide.
+                Ogni giocatore affronta un avversario di giornata attraverso
+                mini-sfide costruite strategicamente sui 10 pronostici.
+              </p>
+
+              <p className="mt-4 text-gray-400">
+                Gli accoppiamenti non sono fissi partita contro la stessa
+                partita. Ogni giocatore decide contro quale pronostico
+                dell&apos;avversario mandare in sfida ciascuno dei propri
+                pronostici, utilizzando ogni pronostico una sola volta.
+              </p>
+
+              <p className="mt-4 text-gray-400">
+                Si generano così due matrici indipendenti da 10 mini-sfide:
+                una costruita dal primo giocatore e una costruita dal secondo.
+                In ogni mini-sfida prevale il pronostico che ottiene più punti
+                FantaGol; in caso di parità la mini-sfida termina in pareggio.
+                La somma dei risultati delle due matrici determina l&apos;esito
+                finale dell&apos;incontro One To One.
+              </p>
+
+              <p className="mt-4 text-gray-400">
+                Le matrici possono essere modificate fino al blocco dei
+                pronostici e restano nascoste all&apos;avversario fino all&apos;inizio
+                della giornata.
               </p>
             </div>
 
-            <div className="p-6 border border-gray-800 rounded-2xl">
-              <h3 className="text-2xl font-semibold mb-3">Punti Puri</h3>
+            <div className="rounded-2xl border border-gray-800 p-6">
+              <h3 className="mb-3 text-2xl font-semibold">Punti Puri</h3>
 
               <p className="text-gray-300">
-                Conta esclusivamente la somma dei punti FantaGol ottenuti
-                durante la stagione. Le giornate negative riducono il totale accumulato.
+                Conta esclusivamente la somma dei punti FantaGol ottenuti durante
+                la stagione. Le giornate negative riducono il totale accumulato.
               </p>
             </div>
           </div>
         </section>
 
+        <section className="mb-16">
+          <h2 className="mb-6 text-3xl font-bold">Strategia</h2>
+
+          <p className="leading-8 text-gray-300">
+            FantaGol non premia soltanto la capacità di prevedere i risultati,
+            ma anche la capacità di organizzare e utilizzare strategicamente i
+            propri pronostici.
+          </p>
+
+          <ul className="mt-6 space-y-3 text-gray-300">
+            <li>• scegliere quali partite schierare in Attacco;</li>
+            <li>• scegliere quali partite proteggere in Difesa;</li>
+            <li>
+              • decidere gli accoppiamenti delle mini-sfide nella modalità One To One.
+            </li>
+          </ul>
+
+          <p className="mt-6 text-gray-400">
+            Le scelte strategiche non modificano il pronostico inserito, ma
+            possono incidere in modo determinante sul risultato finale delle
+            modalità Fantacalcio e One To One.
+          </p>
+        </section>
+
         <section>
-          <h2 className="text-3xl font-bold mb-6">
+          <h2 className="mb-6 text-3xl font-bold">
             Un solo gioco. Tre campionati.
           </h2>
 
-          <p className="text-gray-300 leading-8">
+          <p className="leading-8 text-gray-300">
             Con un unico set di pronostici puoi partecipare contemporaneamente
             alle classifiche Fantacalcio, One To One e Punti Puri.
           </p>
