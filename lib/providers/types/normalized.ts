@@ -1,4 +1,5 @@
 export type ProviderCode =
+  | "football_data"
   | "api_football"
   | "sportmonks_football"
   | "the_odds_api";
@@ -9,7 +10,14 @@ export type NormalizedCompetition = {
   code: string | null;
   name: string;
   countryCode: string | null;
-  competitionType: "league" | "domestic_cup" | "continental_club" | "national_team_tournament" | "qualifier" | "super_cup" | "friendly_tournament";
+  competitionType:
+    | "league"
+    | "domestic_cup"
+    | "continental_club"
+    | "national_team_tournament"
+    | "qualifier"
+    | "super_cup"
+    | "friendly_tournament";
   scope: "domestic" | "continental" | "international";
   raw: unknown;
 };
@@ -23,7 +31,13 @@ export type NormalizedEdition = {
   yearEnd: number | null;
   startsAt: string | null;
   endsAt: string | null;
-  status: "draft" | "scheduled" | "active" | "completed" | "archived" | "cancelled";
+  status:
+    | "draft"
+    | "scheduled"
+    | "active"
+    | "completed"
+    | "archived"
+    | "cancelled";
   raw: unknown;
 };
 
@@ -33,7 +47,23 @@ export type NormalizedStage = {
   editionExternalId: string;
   code: string;
   name: string;
-  stageType: "regular_season" | "league_phase" | "group_stage" | "playoff" | "round_of_128" | "round_of_64" | "round_of_32" | "round_of_16" | "quarter_final" | "semi_final" | "third_place" | "final" | "qualifier" | "preliminary" | "relegation" | "promotion";
+  stageType:
+    | "regular_season"
+    | "league_phase"
+    | "group_stage"
+    | "playoff"
+    | "round_of_128"
+    | "round_of_64"
+    | "round_of_32"
+    | "round_of_16"
+    | "quarter_final"
+    | "semi_final"
+    | "third_place"
+    | "final"
+    | "qualifier"
+    | "preliminary"
+    | "relegation"
+    | "promotion";
   sequence: number;
   raw: unknown;
 };
