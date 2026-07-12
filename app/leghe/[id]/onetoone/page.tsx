@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
+import SubmissionModal from "../../../../components/app/SubmissionModal";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
@@ -535,6 +536,8 @@ export default function FantacalcioLivePage() {
   const [memoryPopupPosition, setMemoryPopupPosition] = useState({ x: 12, y: 250 });
   const [memoryPopupWidth, setMemoryPopupWidth] = useState<number | null>(null);
   const [memoryDragOffset, setMemoryDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
+  const allSlotsComplete = leftSlots.every((slot) => slot !== null);
 
   function removePredictionSlot(index: number) {
     if (locked) return;
@@ -596,6 +599,17 @@ export default function FantacalcioLivePage() {
 
   function stopMemoryPopupDrag() {
     setMemoryDragOffset(null);
+  }
+
+  function submitPredictions() {
+    if (locked || !isViewingSelf) return;
+
+    if (!allSlotsComplete) {
+      alert("Completa tutti gli abbinamenti prima di inviare.");
+      return;
+    }
+
+    setSubmissionModalOpen(true);
   }
 
   return (
@@ -945,6 +959,7 @@ export default function FantacalcioLivePage() {
         <section className="mt-5 flex justify-center">
           <button
             type="button"
+            onClick={submitPredictions}
             disabled={locked || !isViewingSelf}
             className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${
               locked
@@ -957,6 +972,16 @@ export default function FantacalcioLivePage() {
         </section>
       </section>
 
+      <SubmissionModal
+        open={submissionModalOpen}
+        title="Sfida pianificata"
+        description={"Pronostici e abbinamenti salvati.\nPotrai modificarli fino al lock ufficiale."}
+        primaryLabel="Vai ai Punti Puri"
+        secondaryLabel="Vai a Fantacalcio"
+        onPrimary={() => router.push(`/leghe/${leagueId}/giornata`)}
+        onSecondary={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
+        onClose={() => setSubmissionModalOpen(false)}
+      />
     </main>
   );
 }
