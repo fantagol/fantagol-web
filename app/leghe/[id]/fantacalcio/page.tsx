@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
+import SubmissionModal from "../../../../components/app/SubmissionModal";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
@@ -501,6 +502,7 @@ export default function FantacalcioLivePage() {
         : null;
 
   const [selectedMatchIndex, setSelectedMatchIndex] = useState<number | null>(null);
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const [liveRows, setLiveRows] = useState<DuelMatch[]>(duelMatches);
   const displayedLiveRows = canViewProfileContent
     ? liveRows
@@ -544,7 +546,7 @@ export default function FantacalcioLivePage() {
 
   function submitPredictions() {
     if (locked) return;
-    alert("Pronostici inviati. Puoi modificarli e reinviarli fino al lock ufficiale.");
+    setSubmissionModalOpen(true);
   }
 
   return (
@@ -887,6 +889,15 @@ export default function FantacalcioLivePage() {
         </section>
       </section>
 
-    </main>
+    
+      <SubmissionModal
+        open={submissionModalOpen}
+        title="Pronostici e strategia inviati"
+        description={"La disposizione Attacco/Difesa è stata salvata.\nPuoi modificarla e reinviarla fino al lock ufficiale."}
+        primaryLabel="Vai a One To One"
+        onPrimary={() => router.push(`/leghe/${leagueId}/onetoone`)}
+        onClose={() => setSubmissionModalOpen(false)}
+      />
+</main>
   );
 }

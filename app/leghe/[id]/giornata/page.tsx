@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
+import SubmissionModal from "../../../../components/app/SubmissionModal";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
@@ -162,7 +163,9 @@ export default function GiornataPage() {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const [predictions, setPredictions] = useState<Prediction[]>(matches.map(() => ({ home: "", away: "" })));
+  const predictionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
   const round = getRoundState("2026-08-23T13:44:55");
@@ -407,16 +410,46 @@ export default function GiornataPage() {
         ? swipeProfiles[activeSwipeIndex - 1]
         : null;
 
+  function getPredictionInputPosition(index: number, field: keyof Prediction) {
+    return index * 2 + (field === "away" ? 1 : 0);
+  }
+
+  function focusPredictionInput(position: number) {
+    predictionInputRefs.current[position]?.focus();
+    predictionInputRefs.current[position]?.select();
+  }
+
   function updatePrediction(index: number, field: keyof Prediction, value: string) {
     if (!canEdit) return;
+
+    const previousValue = predictions[index]?.[field] ?? "";
+    const nextGoal = cleanGoal(value);
+    if (nextGoal === null) return;
+
     setPredictions((current) =>
-      current.map((prediction, currentIndex) => {
-        if (currentIndex !== index) return prediction;
-        const nextGoal = cleanGoal(value);
-        if (nextGoal === null) return prediction;
-        return { ...prediction, [field]: nextGoal };
-      })
+      current.map((prediction, currentIndex) =>
+        currentIndex === index ? { ...prediction, [field]: nextGoal } : prediction
+      )
     );
+
+    if (previousValue === "" && nextGoal.length === 1) {
+      const nextPosition = getPredictionInputPosition(index, field) + 1;
+      window.requestAnimationFrame(() => focusPredictionInput(nextPosition));
+    }
+  }
+
+  function handlePredictionKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement>,
+    index: number,
+    field: keyof Prediction
+  ) {
+    if (event.key !== "Backspace" || event.currentTarget.value !== "") return;
+
+    const previousPosition = getPredictionInputPosition(index, field) - 1;
+    if (previousPosition < 0) return;
+
+    event.preventDefault();
+    focusPredictionInput(previousPosition);
   }
 
   function submitPredictions() {
@@ -426,8 +459,9 @@ export default function GiornataPage() {
       alert("Completa tutti i 10 pronostici prima di inviare.");
       return;
     }
+
     setSubmitted(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setSubmissionModalOpen(true);
   }
 
   return (
@@ -680,19 +714,29 @@ export default function GiornataPage() {
 
                   <div className="flex items-center justify-center gap-0.5 sm:gap-2">
                     <input
+                      ref={(element) => {
+                        predictionInputRefs.current[getPredictionInputPosition(index, "home")] = element;
+                      }}
                       value={prediction.home}
                       disabled={!canEdit}
                       inputMode="numeric"
+                      maxLength={2}
                       onChange={(event) => updatePrediction(index, "home", event.target.value)}
+                      onKeyDown={(event) => handlePredictionKeyDown(event, index, "home")}
                       className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
                       placeholder="-"
                     />
                     <span className="text-[10px] font-black text-gray-500 sm:text-base">-</span>
                     <input
+                      ref={(element) => {
+                        predictionInputRefs.current[getPredictionInputPosition(index, "away")] = element;
+                      }}
                       value={prediction.away}
                       disabled={!canEdit}
                       inputMode="numeric"
+                      maxLength={2}
                       onChange={(event) => updatePrediction(index, "away", event.target.value)}
+                      onKeyDown={(event) => handlePredictionKeyDown(event, index, "away")}
                       className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
                       placeholder="-"
                     />
@@ -736,6 +780,17 @@ export default function GiornataPage() {
         </section>
       </section>
 
-    </main>
+    
+      <SubmissionModal
+        open={submissionModalOpen}
+        title="Pronostici inviati"
+        description={"Puoi passare alle modalità Fantacalcio e One To One\nper pianificare le tue sfide."}
+        primaryLabel="Vai a Fantacalcio"
+        secondaryLabel="Vai a One To One"
+        onPrimary={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
+        onSecondary={() => router.push(`/leghe/${leagueId}/onetoone`)}
+        onClose={() => setSubmissionModalOpen(false)}
+      />
+</main>
   );
 }
