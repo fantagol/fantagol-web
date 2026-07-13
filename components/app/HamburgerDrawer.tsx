@@ -21,6 +21,35 @@ type DrawerLeagueData = {
   role: string;
 };
 
+type LeagueLifecycleState = {
+  league_id: string;
+  lifecycle_status: string;
+  roster_status: string;
+  first_scored_at: string | null;
+  starts_from_fantagol_round_id: string | null;
+  first_round_lock_at: string | null;
+  active_member_count: number;
+  active_vice_count: number;
+  schedule_version: number | null;
+  schedule_roster_hash: string | null;
+  schedule_member_count: number | null;
+  schedule_has_bye: boolean | null;
+  schedule_generated_at: string | null;
+};
+
+type LeagueActionModal =
+  | { type: "close"; league: DrawerLeagueData; state: LeagueLifecycleState }
+  | {
+      type: "close-existing";
+      league: DrawerLeagueData;
+      state: LeagueLifecycleState;
+      rosterChanged: boolean;
+    }
+  | { type: "reopen"; league: DrawerLeagueData; state: LeagueLifecycleState }
+  | { type: "missing-vice"; league: DrawerLeagueData }
+  | { type: "success"; title: string; message: string }
+  | null;
+
 type DrawerClubData = {
   name: string;
   motto: string | null;
@@ -290,6 +319,290 @@ function DrawerMenuItem({
   );
 }
 
+
+function LeagueLifecycleModal({
+  modal,
+  loading,
+  onCancel,
+  onConfirmClose,
+  onConfirmPreserve,
+  onConfirmReopen,
+  onGoToMembers,
+}: {
+  modal: LeagueActionModal;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirmClose: () => void;
+  onConfirmPreserve: () => void;
+  onConfirmReopen: () => void;
+  onGoToMembers: () => void;
+}) {
+  if (!modal) return null;
+
+  const isOdd =
+    (modal.type === "close" || modal.type === "close-existing") &&
+    modal.state.active_member_count % 2 === 1;
+
+  return (
+    <div
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 px-4"
+      onClick={loading ? undefined : onCancel}
+    >
+      <div
+        className="w-full max-w-lg rounded-3xl border border-[#A6E824]/35 bg-[#111417] p-6 shadow-2xl shadow-black/80"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {modal.type === "close" && (
+          <>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#A6E824]">
+              Chiusura iscrizioni
+            </p>
+            <h2 className="mt-3 text-2xl font-black text-white">
+              Vuoi chiudere le iscrizioni e generare i calendari?
+            </h2>
+
+            <div className="mt-4 space-y-3 text-sm leading-6 text-gray-300">
+              {isOdd ? (
+                <>
+                  <p>
+                    La tua lega ha{" "}
+                    <strong className="text-white">
+                      {modal.state.active_member_count} partecipanti
+                    </strong>
+                    , quindi un numero dispari.
+                  </p>
+                  <p>
+                    Verrà creato un calendario con un{" "}
+                    <strong className="text-white">
+                      Turno di riposo (BYE)
+                    </strong>{" "}
+                    a rotazione. Nessun partecipante riceverà una vittoria
+                    automatica durante il proprio turno di riposo.
+                  </p>
+                  <p>
+                    Se durante la stagione entrerà un nuovo partecipante, potrà
+                    occupare il posto del Turno di riposo (BYE) dalla prima
+                    giornata futura ancora aperta, senza modificare le giornate
+                    già disputate o bloccate.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  I{" "}
+                  <strong className="text-white">
+                    {modal.state.active_member_count} partecipanti
+                  </strong>{" "}
+                  verranno bloccati e saranno generati automaticamente i
+                  calendari Fantacalcio e One-to-One.
+                </p>
+              )}
+
+              <p>
+                La lega potrà essere riaperta solo fino all’inizio del
+                campionato.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onCancel}
+                className="rounded-xl border border-gray-600 px-4 py-2.5 text-sm font-black text-gray-300 transition hover:border-white disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onConfirmClose}
+                className="rounded-xl bg-[#A6E824] px-4 py-2.5 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Generazione..." : "Genera calendari"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {modal.type === "close-existing" && (
+          <>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#A6E824]">
+              Nuova chiusura iscrizioni
+            </p>
+            <h2 className="mt-3 text-2xl font-black text-white">
+              {modal.rosterChanged
+                ? "Il roster è cambiato."
+                : "I calendari esistono già."}
+            </h2>
+
+            <div className="mt-4 space-y-3 text-sm leading-6 text-gray-300">
+              {modal.rosterChanged ? (
+                <>
+                  <p>
+                    La composizione dei partecipanti non coincide più con quella
+                    usata per generare i calendari attuali.
+                  </p>
+                  <p>
+                    Per chiudere nuovamente le iscrizioni è quindi necessaria
+                    una rigenerazione completa dei calendari Fantacalcio e
+                    One-to-One.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Il roster è rimasto invariato rispetto alla generazione
+                    precedente.
+                  </p>
+                  <p>
+                    Puoi mantenere gli accoppiamenti esistenti oppure generare
+                    una nuova versione completa dei calendari.
+                  </p>
+                </>
+              )}
+
+              {isOdd && (
+                <p>
+                  La lega resta dispari: continuerà a essere previsto un{" "}
+                  <strong className="text-white">
+                    Turno di riposo (BYE)
+                  </strong>{" "}
+                  a rotazione.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onCancel}
+                className="rounded-xl border border-gray-600 px-4 py-2.5 text-sm font-black text-gray-300 transition hover:border-white disabled:opacity-50"
+              >
+                Annulla
+              </button>
+
+              {!modal.rosterChanged && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={onConfirmPreserve}
+                  className="rounded-xl border border-[#A6E824]/60 px-4 py-2.5 text-sm font-black text-[#A6E824] transition hover:bg-[#A6E824]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Chiusura..." : "Mantieni calendari"}
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onConfirmClose}
+                className="rounded-xl bg-[#A6E824] px-4 py-2.5 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Generazione..." : "Rigenera calendari"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {modal.type === "missing-vice" && (
+          <>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-300">
+              Vice mancante
+            </p>
+            <h2 className="mt-3 text-2xl font-black text-white">
+              Per chiudere le iscrizioni è necessario nominare un Vice.
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-gray-300">
+              Il Vice garantisce la continuità della gestione della lega in
+              caso di assenza dell’Amministratore.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-xl border border-gray-600 px-4 py-2.5 text-sm font-black text-gray-300 transition hover:border-white"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={onGoToMembers}
+                className="rounded-xl bg-[#A6E824] px-4 py-2.5 text-sm font-black text-black transition hover:brightness-110"
+              >
+                Vai ai Membri
+              </button>
+            </div>
+          </>
+        )}
+
+        {modal.type === "reopen" && (
+          <>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#A6E824]">
+              Riapertura iscrizioni
+            </p>
+            <h2 className="mt-3 text-2xl font-black text-white">
+              Vuoi riaprire le iscrizioni?
+            </h2>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-gray-300">
+              <p>
+                Potrai aggiungere o rimuovere membri fino all’inizio del
+                campionato.
+              </p>
+              <p>
+                Se il roster cambierà, al nuovo lock i calendari dovranno essere
+                rigenerati. Se resterà identico, potrai mantenerli oppure
+                generarne di nuovi.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onCancel}
+                className="rounded-xl border border-gray-600 px-4 py-2.5 text-sm font-black text-gray-300 transition hover:border-white disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={onConfirmReopen}
+                className="rounded-xl bg-[#A6E824] px-4 py-2.5 text-sm font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Riapertura..." : "Riapri iscrizioni"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {modal.type === "success" && (
+          <>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#A6E824]">
+              Operazione completata
+            </p>
+            <h2 className="mt-3 text-2xl font-black text-white">
+              {modal.title}
+            </h2>
+            <p className="mt-4 whitespace-pre-line text-sm leading-6 text-gray-300">
+              {modal.message}
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-xl bg-[#A6E824] px-5 py-2.5 text-sm font-black text-black transition hover:brightness-110"
+              >
+                Chiudi
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function HamburgerDrawer({
   open,
   leagueName,
@@ -308,6 +621,12 @@ export default function HamburgerDrawer({
   const [drawerLeagues, setDrawerLeagues] = useState<DrawerLeagueData[]>([]);
   const [drawerClub, setDrawerClub] = useState<DrawerClubData | null>(null);
   const [leagueOpen, setLeagueOpen] = useState(false);
+  const [lifecycleStates, setLifecycleStates] = useState<
+    Record<string, LeagueLifecycleState>
+  >({});
+  const [leagueActionModal, setLeagueActionModal] =
+    useState<LeagueActionModal>(null);
+  const [leagueActionLoading, setLeagueActionLoading] = useState(false);
 
   useEffect(() => {
     setDrawerLeague((current) => ({
@@ -337,6 +656,35 @@ export default function HamburgerDrawer({
       }));
 
       setDrawerLeagues(leagues);
+
+      const stateEntries = await Promise.all(
+        leagues
+          .filter((item) => item.leagueId)
+          .map(async (item) => {
+            const { data: lifecycleData, error: lifecycleError } =
+              await supabase.rpc("get_league_lifecycle_state_rpc", {
+                target_league_id: item.leagueId,
+              });
+
+            if (lifecycleError) return null;
+
+            const state = (lifecycleData || [])[0] as
+              | LeagueLifecycleState
+              | undefined;
+
+            return state ? ([item.leagueId, state] as const) : null;
+          })
+      );
+
+      setLifecycleStates(
+        Object.fromEntries(
+          stateEntries.filter(
+            (
+              entry
+            ): entry is readonly [string, LeagueLifecycleState] => entry !== null
+          )
+        )
+      );
 
       const current = leagues.find((item) => item.leagueId === leagueId) || leagues[0];
       if (!current) return;
@@ -400,6 +748,202 @@ export default function HamburgerDrawer({
   function getLeagueRoundPath() {
     const leagueId = drawerLeague.leagueId || getCurrentLeagueIdFromPath();
     return leagueId ? `/leghe/${leagueId}/giornata` : "/leghe";
+  }
+
+  async function refreshLifecycleState(targetLeagueId: string) {
+    const { data, error } = await supabase.rpc(
+      "get_league_lifecycle_state_rpc",
+      {
+        target_league_id: targetLeagueId,
+      }
+    );
+
+    if (error) throw error;
+
+    const state = (data || [])[0] as LeagueLifecycleState | undefined;
+    if (!state) return;
+
+    setLifecycleStates((current) => ({
+      ...current,
+      [targetLeagueId]: state,
+    }));
+  }
+
+  function getLeagueStatusPresentation(
+    item: DrawerLeagueData,
+    state?: LeagueLifecycleState
+  ) {
+    if (!state) {
+      return {
+        label: "Stato lega",
+        clickable: false,
+        pulse: false,
+        tone:
+          "border-gray-600/60 bg-black/40 text-gray-400",
+      };
+    }
+
+    const firstLockReached =
+      state.first_round_lock_at !== null &&
+      new Date(state.first_round_lock_at).getTime() <= Date.now();
+
+    const competitionActive =
+      state.first_scored_at !== null ||
+      state.lifecycle_status === "active" ||
+      state.lifecycle_status === "completed" ||
+      state.lifecycle_status === "archived" ||
+      (state.roster_status === "locked" && firstLockReached);
+
+    if (competitionActive) {
+      return {
+        label:
+          state.lifecycle_status === "completed"
+            ? "Campionato concluso"
+            : "Campionato attivo",
+        clickable: false,
+        pulse: false,
+        tone:
+          "border-sky-400/30 bg-sky-400/10 text-sky-200",
+      };
+    }
+
+    if (state.roster_status === "locked") {
+      return {
+        label: "Iscrizioni chiuse",
+        clickable: item.role === "admin",
+        pulse: false,
+        tone:
+          "border-amber-400/35 bg-amber-400/10 text-amber-200",
+      };
+    }
+
+    return {
+      label: "Iscrizioni aperte",
+      clickable: item.role === "admin",
+      pulse: item.role === "admin",
+      tone:
+        "border-[#A6E824]/45 bg-[#A6E824]/10 text-[#A6E824]",
+    };
+  }
+
+  function handleLeagueStatusClick(
+    event: React.MouseEvent<HTMLButtonElement>,
+    item: DrawerLeagueData
+  ) {
+    event.stopPropagation();
+
+    const state = lifecycleStates[item.leagueId];
+    if (!state || item.role !== "admin") return;
+
+    const presentation = getLeagueStatusPresentation(item, state);
+    if (!presentation.clickable) return;
+
+    if (state.roster_status === "open") {
+      if (state.active_vice_count !== 1) {
+        setLeagueActionModal({ type: "missing-vice", league: item });
+        return;
+      }
+
+      if (state.schedule_version !== null) {
+        const rosterChanged =
+          state.schedule_member_count !== null &&
+          state.schedule_member_count !== state.active_member_count;
+
+        setLeagueActionModal({
+          type: "close-existing",
+          league: item,
+          state,
+          rosterChanged,
+        });
+        return;
+      }
+
+      setLeagueActionModal({ type: "close", league: item, state });
+      return;
+    }
+
+    setLeagueActionModal({ type: "reopen", league: item, state });
+  }
+
+  async function closeLeagueWithScheduleChoice(
+    regenerateSchedules: boolean
+  ) {
+    if (
+      !leagueActionModal ||
+      (leagueActionModal.type !== "close" &&
+        leagueActionModal.type !== "close-existing")
+    ) {
+      return;
+    }
+
+    const targetLeague = leagueActionModal.league;
+    setLeagueActionLoading(true);
+
+    const { error } = await supabase.rpc("lock_league_roster_rpc", {
+      target_league_id: targetLeague.leagueId,
+      regenerate_schedules: regenerateSchedules,
+    });
+
+    if (error) {
+      setLeagueActionLoading(false);
+
+      if (error.message.includes("ACTIVE_VICE_REQUIRED")) {
+        setLeagueActionModal({
+          type: "missing-vice",
+          league: targetLeague,
+        });
+        return;
+      }
+
+      alert(error.message);
+      return;
+    }
+
+    await refreshLifecycleState(targetLeague.leagueId);
+    setLeagueActionLoading(false);
+    setLeagueActionModal({
+      type: "success",
+      title: regenerateSchedules
+        ? "Calendari generati correttamente."
+        : "Calendari mantenuti correttamente.",
+      message: regenerateSchedules
+        ? "Le iscrizioni sono state chiuse.\n\nÈ stata attivata una nuova versione dei calendari Fantacalcio e One-to-One. Potrai riaprire la lega solo fino all’inizio del campionato."
+        : "Le iscrizioni sono state chiuse mantenendo gli accoppiamenti esistenti. Potrai riaprire la lega solo fino all’inizio del campionato.",
+    });
+  }
+
+  function confirmCloseLeague() {
+    void closeLeagueWithScheduleChoice(true);
+  }
+
+  function confirmPreserveLeagueSchedules() {
+    void closeLeagueWithScheduleChoice(false);
+  }
+
+  async function confirmReopenLeague() {
+    if (!leagueActionModal || leagueActionModal.type !== "reopen") return;
+
+    const targetLeague = leagueActionModal.league;
+    setLeagueActionLoading(true);
+
+    const { error } = await supabase.rpc("reopen_league_roster_rpc", {
+      target_league_id: targetLeague.leagueId,
+    });
+
+    if (error) {
+      setLeagueActionLoading(false);
+      alert(error.message);
+      return;
+    }
+
+    await refreshLifecycleState(targetLeague.leagueId);
+    setLeagueActionLoading(false);
+    setLeagueActionModal({
+      type: "success",
+      title: "Iscrizioni riaperte.",
+      message:
+        "Puoi nuovamente aggiungere o rimuovere membri fino all’inizio del campionato.",
+    });
   }
 
   const activeLeagueName = drawerLeague.leagueName || leagueName;
@@ -468,24 +1012,57 @@ export default function HamburgerDrawer({
               {selectableLeagues.map((item) => {
                 const current = item.leagueId === drawerLeague.leagueId;
 
+                const lifecycleState = lifecycleStates[item.leagueId];
+                const statusPresentation = getLeagueStatusPresentation(
+                  item,
+                  lifecycleState
+                );
+
                 return (
-                  <button
+                  <div
                     key={item.leagueId}
-                    type="button"
-                    onClick={() => goTo(getLeagueDashboardPath(item.leagueId))}
-                    className={`flex w-full items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-left text-sm font-black text-white transition last:border-b-0 hover:bg-white/5 ${
+                    className={`border-b border-white/10 px-3 py-3 last:border-b-0 ${
                       current ? "bg-[#A6E824]/10" : ""
                     }`}
                   >
-                    <span className="min-w-0">
-                      <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#A6E824]">
-                        {current ? "Lega in corso" : "Lega"}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        goTo(getLeagueDashboardPath(item.leagueId))
+                      }
+                      className="flex w-full items-center justify-between gap-3 text-left text-sm font-black text-white transition hover:opacity-90"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#A6E824]">
+                          {current ? "Lega in corso" : "Lega"}
+                        </span>
+                        <span className="block truncate">
+                          {item.leagueName}
+                        </span>
+                        <span className="block truncate text-[11px] font-bold text-gray-500">
+                          {item.displayName}
+                        </span>
                       </span>
-                      <span className="block truncate">{item.leagueName}</span>
-                      <span className="block truncate text-[11px] font-bold text-gray-500">{item.displayName}</span>
-                    </span>
-                    <span className="shrink-0 text-[#A6E824]">→</span>
-                  </button>
+                      <span className="shrink-0 text-[#A6E824]">→</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!statusPresentation.clickable}
+                      onClick={(event) =>
+                        handleLeagueStatusClick(event, item)
+                      }
+                      className={`mt-2 inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition ${statusPresentation.tone} ${
+                        statusPresentation.pulse ? "animate-pulse" : ""
+                      } ${
+                        statusPresentation.clickable
+                          ? "cursor-pointer hover:brightness-125"
+                          : "cursor-default"
+                      }`}
+                    >
+                      {statusPresentation.label}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -591,7 +1168,7 @@ export default function HamburgerDrawer({
             onClick={() => goTo("/regolamento")}
           />
 
-          {activeRole === "owner" && (
+          {activeRole === "admin" && (
             <DrawerMenuItem
               icon="settings"
               title="Impostazioni Lega"
@@ -625,6 +1202,18 @@ export default function HamburgerDrawer({
           />
         </nav>
       </aside>
+
+      <LeagueLifecycleModal
+        modal={leagueActionModal}
+        loading={leagueActionLoading}
+        onCancel={() => {
+          if (!leagueActionLoading) setLeagueActionModal(null);
+        }}
+        onConfirmClose={confirmCloseLeague}
+        onConfirmPreserve={confirmPreserveLeagueSchedules}
+        onConfirmReopen={confirmReopenLeague}
+        onGoToMembers={() => goTo("/membri")}
+      />
     </div>
   );
 }

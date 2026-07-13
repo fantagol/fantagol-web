@@ -135,7 +135,7 @@ export default function LeghePage() {
                   </p>
                 </a>
 
-                {membership.role === "owner" && membership.leagues && (
+                {membership.role === "admin" && membership.leagues && (
                   <button
                     type="button"
                     onClick={() =>
@@ -157,4 +157,5 @@ export default function LeghePage() {
     </main>
   );
 }
+
 
