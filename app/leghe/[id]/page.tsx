@@ -293,7 +293,7 @@ export default function LeagueDashboardPage() {
             onClick={() => router.push(`/leghe/${leagueId}/giornata`)}
             className="mt-6 w-full rounded-2xl bg-[#A6E824] px-6 py-4 font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
           >
-            Invia pronostici
+            Inserisci pronostici
           </button>
         </DashboardCard>
 
