@@ -5,16 +5,47 @@ import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
+import TeamCrest from "../../../../components/app/TeamCrest";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
-import { getRoundState } from "../../../../lib/roundState";
+import {
+  fromFantacalcioStrategyPayload,
+  toFantacalcioStrategyPayload,
+} from "../../../../lib/domain/strategy";
 
 type Side = "left" | "right";
 
-type PredictionRoundState = {
+type RoundPredictionRow = {
   league_round_id: string;
-  has_official_submission: boolean;
+  round_number: number | null;
+  slot_number: number;
+  kickoff: string;
+  match_id: string;
+  match_status: string;
+  home_prediction: number | null;
+  away_prediction: number | null;
+  home_score: number | null;
+  away_score: number | null;
+  home_team_name: string;
+  home_team_short_name: string | null;
+  home_team_logo_url: string | null;
+  home_team_crest_reference: string | null;
+  away_team_name: string;
+  away_team_short_name: string | null;
+  away_team_logo_url: string | null;
+  away_team_crest_reference: string | null;
+};
+
+type StrategyStatusRow = {
+  strategy_exists: boolean;
+  strategy_status: string | null;
+  workspace_payload: unknown;
+  submitted_version: number | null;
+  has_official_snapshot: boolean;
   has_unconfirmed_changes: boolean;
+  is_editable: boolean;
+  is_submittable: boolean;
+  is_locked: boolean;
 };
 
 type LeagueInfo = {
@@ -47,10 +78,16 @@ type RuleItem = {
 };
 
 type DuelMatch = {
+  id: string;
+  slotNumber: number;
   home: string;
   away: string;
   homeBadge: string;
   awayBadge: string;
+  homeCrestReference: string | null;
+  homeLogoUrl: string | null;
+  awayCrestReference: string | null;
+  awayLogoUrl: string | null;
   minute: string;
   liveHome: number;
   liveAway: number;
@@ -72,25 +109,27 @@ const ruleItems: RuleItem[] = [
   { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
 ];
 
-const duelMatches: DuelMatch[] = [
-  { home: "Lazio", away: "Milan", homeBadge: "LAZ", awayBadge: "MIL", minute: "72'", liveHome: 1, liveAway: 0, leftPrediction: "2-1", rightPrediction: "1-0", leftActive: ["exact", "sign", "uo", "gg"], rightActive: ["gg"] },
-  { home: "Bologna", away: "Napoli", homeBadge: "BOL", awayBadge: "NAP", minute: "45+2'", liveHome: 1, liveAway: 1, leftPrediction: "1-1", rightPrediction: "2-1", leftActive: ["exact", "sign", "gg"], rightActive: ["exact", "gg"] },
-  { home: "Inter", away: "Monza", homeBadge: "INT", awayBadge: "MON", minute: "67'", liveHome: 2, liveAway: 1, leftPrediction: "0-2", rightPrediction: "1-2", leftActive: ["bad", "opposite"], rightActive: ["sign", "gg"] },
-  { home: "Roma", away: "Fiorentina", homeBadge: "ROM", awayBadge: "FIO", minute: "FT", liveHome: 3, liveAway: 0, leftPrediction: "2-0", rightPrediction: "1-1", leftActive: ["sign", "uo", "gg", "surprise"], rightActive: ["gg"] },
-  { home: "Torino", away: "Juventus", homeBadge: "TOR", awayBadge: "JUV", minute: "89'", liveHome: 2, liveAway: 2, leftPrediction: "1-2", rightPrediction: "2-2", leftActive: ["sign", "uo", "gg"], rightActive: ["exact", "sign", "uo", "gg", "surprise"] },
-  { home: "Udinese", away: "Atalanta", homeBadge: "UDI", awayBadge: "ATA", minute: "21'", liveHome: 0, liveAway: 1, leftPrediction: "1-0", rightPrediction: "0-1", leftActive: ["sign", "opposite"], rightActive: ["exact", "sign"] },
-  { home: "Frosinone", away: "Sassuolo", homeBadge: "FRO", awayBadge: "SAS", minute: "36'", liveHome: 0, liveAway: 0, leftPrediction: "3-1", rightPrediction: "1-1", leftActive: ["sign", "uo", "gg", "surprise"], rightActive: ["sign", "gg"] },
-  { home: "Verona", away: "Empoli", homeBadge: "VER", awayBadge: "EMP", minute: "54'", liveHome: 1, liveAway: 1, leftPrediction: "2-1", rightPrediction: "0-0", leftActive: ["gg"], rightActive: ["sign", "uo"] },
-  { home: "Genoa", away: "Cagliari", homeBadge: "GEN", awayBadge: "CAG", minute: "64'", liveHome: 2, liveAway: 0, leftPrediction: "1-0", rightPrediction: "2-0", leftActive: ["sign", "uo"], rightActive: ["exact", "sign", "uo"] },
-  { home: "Parma", away: "Como", homeBadge: "PAR", awayBadge: "COM", minute: "FT", liveHome: 0, liveAway: 2, leftPrediction: "1-1", rightPrediction: "0-2", leftActive: ["bad"], rightActive: ["exact", "sign", "uo"] },
-];
-
-function TeamBadge({ label, large = false }: { label: string; large?: boolean }) {
+function TeamBadge({
+  label,
+  crestReference,
+  logoUrl,
+  large = false,
+}: {
+  label: string;
+  crestReference?: string | null;
+  logoUrl?: string | null;
+  large?: boolean;
+}) {
   return (
     <span
-      className={`${large ? "h-10 w-10 text-[10px] sm:h-16 sm:w-16 sm:text-sm" : "h-7 w-7 text-[7px] sm:h-10 sm:w-10 sm:text-[10px]"} flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-[#1f2d35] to-black font-black text-white shadow-inner shadow-white/10`}
+      className={`${large ? "h-10 w-10 sm:h-16 sm:w-16" : "h-7 w-7 sm:h-10 sm:w-10"} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[#11181d] shadow-inner shadow-white/10`}
     >
-      {label}
+      <TeamCrest
+        crestReference={crestReference}
+        logoUrl={logoUrl}
+        alt={`${label} stemma`}
+        fallbackLabel={label}
+      />
     </span>
   );
 }
@@ -213,7 +252,12 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
   return (
     <div className="grid min-w-0 grid-cols-[1fr_56px_1fr] items-center gap-1.5 sm:grid-cols-[1fr_110px_1fr] sm:gap-4">
       <div className="flex min-w-0 flex-col items-center gap-1">
-        <TeamBadge label={match.homeBadge} large />
+        <TeamBadge
+          label={match.homeBadge}
+          crestReference={match.homeCrestReference}
+          logoUrl={match.homeLogoUrl}
+          large
+        />
       </div>
       <div className="flex min-w-0 flex-col items-center">
         <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">{match.minute}</span>
@@ -238,11 +282,34 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
         </div>
       </div>
       <div className="flex min-w-0 flex-col items-center gap-1">
-        <TeamBadge label={match.awayBadge} large />
+        <TeamBadge
+          label={match.awayBadge}
+          crestReference={match.awayCrestReference}
+          logoUrl={match.awayLogoUrl}
+          large
+        />
       </div>
     </div>
   );
 }
+
+function cleanTeamDisplayName(name: string): string {
+  return name
+    .replace(/\b(FC|AC|AS|SS|US|BC|CFC)\b/gi, "")
+    .replace(/\bCalcio\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function getTeamBadge(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
+}
+
 
 export default function FantacalcioLivePage() {
   const router = useRouter();
@@ -258,10 +325,16 @@ export default function FantacalcioLivePage() {
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
-  const [predictionRoundId, setPredictionRoundId] = useState<string | null>(null);
+  const [leagueRoundId, setLeagueRoundId] = useState<string | null>(null);
+  const [roundNumber, setRoundNumber] = useState<number | null>(null);
+  const [strategyExists, setStrategyExists] = useState(false);
   const [hasOfficialSubmission, setHasOfficialSubmission] = useState(false);
   const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
+  const [strategyLocked, setStrategyLocked] = useState(false);
+  const [strategyLoading, setStrategyLoading] = useState(true);
+  const [strategyError, setStrategyError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savingStrategy, setSavingStrategy] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
     displayName: "Club FantaGol",
@@ -313,35 +386,139 @@ export default function FantacalcioLivePage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadPredictionSubmissionState() {
+    async function loadFantacalcioStrategy() {
+      setStrategyLoading(true);
+      setStrategyError(null);
+
       const { data: roundData, error: roundError } = await supabase.rpc(
         "get_my_current_league_round_rpc",
         { p_league_id: leagueId }
       );
 
-      if (cancelled || roundError) return;
+      if (cancelled) return;
+
+      if (roundError) {
+        setStrategyError(roundError.message);
+        setStrategyLoading(false);
+        return;
+      }
 
       const currentRound = (roundData || [])[0];
-      if (!currentRound?.league_round_id) return;
+      if (!currentRound?.league_round_id) {
+        setStrategyError("Nessuna giornata disponibile per questa lega.");
+        setStrategyLoading(false);
+        return;
+      }
 
-      const { data, error } = await supabase.rpc(
-        "get_my_round_predictions_rpc",
-        { p_league_round_id: currentRound.league_round_id }
-      );
+      const currentLeagueRoundId = currentRound.league_round_id as string;
 
-      if (cancelled || error) return;
+      const [{ data: predictionData, error: predictionError }, { data: strategyData, error: strategyStatusError }] =
+        await Promise.all([
+          supabase.rpc("get_my_round_predictions_rpc", {
+            p_league_round_id: currentLeagueRoundId,
+          }),
+          supabase.rpc("get_my_strategy_status_rpc", {
+            p_league_round_id: currentLeagueRoundId,
+            p_mode: "fantacalcio",
+          }),
+        ]);
 
-      const rows = (data || []) as PredictionRoundState[];
-      setPredictionRoundId(currentRound.league_round_id);
-      setHasOfficialSubmission(
-        rows.some((row) => row.has_official_submission)
-      );
-      setHasUnconfirmedChanges(
-        rows.some((row) => row.has_unconfirmed_changes)
-      );
+      if (cancelled) return;
+
+      if (predictionError) {
+        setStrategyError(predictionError.message);
+        setStrategyLoading(false);
+        return;
+      }
+
+      if (strategyStatusError) {
+        setStrategyError(strategyStatusError.message);
+        setStrategyLoading(false);
+        return;
+      }
+
+      const rows = (predictionData || []) as RoundPredictionRow[];
+      if (rows.length !== 10) {
+        setStrategyError("La giornata Fantacalcio deve contenere esattamente 10 partite.");
+        setStrategyLoading(false);
+        return;
+      }
+
+      const baseRows: DuelMatch[] = [...rows]
+        .sort((left, right) => left.slot_number - right.slot_number)
+        .map((row) => {
+          const isFinished = ["finished", "awarded"].includes(row.match_status);
+          const isLive =
+            row.match_status.startsWith("live_") ||
+            ["halftime", "extra_time", "penalties"].includes(row.match_status);
+
+          const homeName = cleanTeamDisplayName(
+            row.home_team_short_name || row.home_team_name
+          );
+          const awayName = cleanTeamDisplayName(
+            row.away_team_short_name || row.away_team_name
+          );
+
+          return {
+            id: row.match_id,
+            slotNumber: row.slot_number,
+            home: homeName,
+            away: awayName,
+            homeBadge: getTeamBadge(homeName),
+            awayBadge: getTeamBadge(awayName),
+            homeCrestReference: row.home_team_crest_reference,
+            homeLogoUrl: row.home_team_logo_url,
+            awayCrestReference: row.away_team_crest_reference,
+            awayLogoUrl: row.away_team_logo_url,
+            minute: isFinished ? "FT" : isLive ? "LIVE" : "—",
+            liveHome: row.home_score ?? 0,
+            liveAway: row.away_score ?? 0,
+            leftPrediction:
+              row.home_prediction === null || row.away_prediction === null
+                ? "—"
+                : `${row.home_prediction}-${row.away_prediction}`,
+            rightPrediction: "—",
+            leftActive: [],
+            rightActive: [],
+          };
+        });
+
+      const strategyStatus = ((strategyData || [])[0] || null) as StrategyStatusRow | null;
+      let orderedRows = baseRows;
+
+      if (strategyStatus?.workspace_payload) {
+        try {
+          const restored = fromFantacalcioStrategyPayload(
+            strategyStatus.workspace_payload
+          );
+          const byId = new Map(baseRows.map((match) => [match.id, match]));
+          const orderedIds = [
+            ...restored.attackMatchIds,
+            ...restored.defenseMatchIds,
+          ];
+          const restoredRows = orderedIds
+            .map((matchId) => byId.get(matchId))
+            .filter((match): match is DuelMatch => Boolean(match));
+
+          if (restoredRows.length === 10) {
+            orderedRows = restoredRows;
+          }
+        } catch {
+          setStrategyError("La strategia salvata non è compatibile con il formato corrente.");
+        }
+      }
+
+      setLeagueRoundId(currentLeagueRoundId);
+      setRoundNumber(rows[0]?.round_number ?? null);
+      setLiveRows(orderedRows);
+      setStrategyExists(Boolean(strategyStatus?.strategy_exists));
+      setHasOfficialSubmission(Boolean(strategyStatus?.has_official_snapshot));
+      setHasUnconfirmedChanges(Boolean(strategyStatus?.has_unconfirmed_changes));
+      setStrategyLocked(Boolean(strategyStatus?.is_locked));
+      setStrategyLoading(false);
     }
 
-    loadPredictionSubmissionState();
+    void loadFantacalcioStrategy();
 
     return () => {
       cancelled = true;
@@ -354,11 +531,8 @@ export default function FantacalcioLivePage() {
   const leftGoals = 5;
   const rightGoals = 4;
 
-  // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
-  const round = getRoundState("2026-08-23T13:44:55");
-  const locked = round.isLocked;
-
-  const isLiveForSwipe = round.isLive || round.isFinished;
+  const locked = strategyLocked;
+  const isLiveForSwipe = strategyLocked;
   const swipeProfiles = useMemo(() => [
     {
       id: "me",
@@ -553,7 +727,7 @@ export default function FantacalcioLivePage() {
 
   const [selectedMatchIndex, setSelectedMatchIndex] = useState<number | null>(null);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
-  const [liveRows, setLiveRows] = useState<DuelMatch[]>(duelMatches);
+  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
   const displayedLiveRows = canViewProfileContent
     ? liveRows
     : liveRows.map((match) => ({
@@ -564,8 +738,36 @@ export default function FantacalcioLivePage() {
         rightActive: [],
       }));
 
+  async function persistStrategy(nextRows: DuelMatch[]) {
+    if (!leagueRoundId || nextRows.length !== 10) return;
+
+    const payload = toFantacalcioStrategyPayload({
+      attackMatchIds: nextRows.slice(0, 5).map((match) => match.id),
+      defenseMatchIds: nextRows.slice(5, 10).map((match) => match.id),
+    });
+
+    setSavingStrategy(true);
+    const { data, error } = await supabase.rpc("save_strategy_draft_rpc", {
+      p_league_round_id: leagueRoundId,
+      p_mode: "fantacalcio",
+      p_payload: payload,
+    });
+    setSavingStrategy(false);
+
+    if (error) {
+      setStrategyError(error.message || "Salvataggio della strategia non riuscito.");
+      return;
+    }
+
+    const result = (data || [])[0];
+    setStrategyExists(true);
+    setHasOfficialSubmission(Boolean(result?.submitted_version));
+    setHasUnconfirmedChanges(Boolean(result?.has_unconfirmed_changes));
+    setStrategyError(null);
+  }
+
   function handleSwapMatch(index: number) {
-    if (locked) return;
+    if (locked || strategyLoading || savingStrategy) return;
 
     if (selectedMatchIndex === null) {
       setSelectedMatchIndex(index);
@@ -585,25 +787,26 @@ export default function FantacalcioLivePage() {
       return;
     }
 
-    setLiveRows((current) => {
-      const next = [...current];
-      [next[selectedMatchIndex], next[index]] = [next[index], next[selectedMatchIndex]];
-      return next;
-    });
+    const next = [...liveRows];
+    [next[selectedMatchIndex], next[index]] = [
+      next[index],
+      next[selectedMatchIndex],
+    ];
 
-    if (hasOfficialSubmission) {
-      setHasUnconfirmedChanges(true);
-    }
-
+    setLiveRows(next);
     setSelectedMatchIndex(null);
+    void persistStrategy(next);
   }
 
-  async function submitPredictions() {
+  async function submitStrategy() {
     if (
       locked ||
       submitting ||
+      strategyLoading ||
+      savingStrategy ||
       !isViewingSelf ||
-      !predictionRoundId ||
+      !leagueRoundId ||
+      liveRows.length !== 10 ||
       (hasOfficialSubmission && !hasUnconfirmedChanges)
     ) {
       return;
@@ -611,24 +814,45 @@ export default function FantacalcioLivePage() {
 
     setSubmitting(true);
 
-    const { data, error } = await supabase.rpc(
-      "submit_round_predictions_rpc",
-      { p_league_round_id: predictionRoundId }
-    );
+    if (!strategyExists) {
+      const payload = toFantacalcioStrategyPayload({
+        attackMatchIds: liveRows.slice(0, 5).map((match) => match.id),
+        defenseMatchIds: liveRows.slice(5, 10).map((match) => match.id),
+      });
+
+      const { error: saveError } = await supabase.rpc(
+        "save_strategy_draft_rpc",
+        {
+          p_league_round_id: leagueRoundId,
+          p_mode: "fantacalcio",
+          p_payload: payload,
+        }
+      );
+
+      if (saveError) {
+        setSubmitting(false);
+        alert(saveError.message || "Salvataggio della strategia non riuscito.");
+        return;
+      }
+
+      setStrategyExists(true);
+    }
+
+    const { data, error } = await supabase.rpc("submit_strategy_rpc", {
+      p_league_round_id: leagueRoundId,
+      p_mode: "fantacalcio",
+    });
 
     setSubmitting(false);
 
     if (error) {
-      alert(error.message || "Invio dei pronostici non riuscito.");
+      alert(error.message || "Invio della strategia Fantacalcio non riuscito.");
       return;
     }
 
     const result = (data || [])[0];
-    if (
-      !result ||
-      result.submitted_prediction_count !== result.required_prediction_count
-    ) {
-      alert("La conferma dell'invio non è coerente con i pronostici richiesti.");
+    if (!result?.submitted_version) {
+      alert("La conferma della strategia non è coerente.");
       return;
     }
 
@@ -760,7 +984,7 @@ export default function FantacalcioLivePage() {
           <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
             <div className="flex h-full flex-col items-center justify-center">
               <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
-              <p className="text-2xl font-black text-white sm:text-3xl">12</p>
+              <p className="text-2xl font-black text-white sm:text-3xl">{roundNumber ?? "—"}</p>
             </div>
           </div>
 
@@ -864,6 +1088,19 @@ export default function FantacalcioLivePage() {
           <ClubKitMini club={opponentClubInfo} align="right" />
         </section>
 
+        {strategyError && (
+          <section className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 sm:mt-4">
+            {strategyError}
+          </section>
+        )}
+
+        {strategyLoading && (
+          <section className="mt-3 rounded-2xl border border-white/10 bg-[#0b1419] px-4 py-8 text-center text-sm font-bold text-gray-400 sm:mt-4">
+            Caricamento strategia Fantacalcio...
+          </section>
+        )}
+
+        {!strategyLoading && liveRows.length === 10 && (
         <section className="mt-3 grid gap-4 sm:mt-4">
           {[
             {
@@ -924,7 +1161,7 @@ export default function FantacalcioLivePage() {
 
                 return (
                   <article
-                    key={`${match.home}-${match.away}`}
+                    key={match.id}
                     className={`border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4 ${
                       selected && !locked ? "bg-[#A6E824]/10 ring-1 ring-inset ring-[#A6E824]/60" : ""
                     }`}
@@ -960,6 +1197,7 @@ export default function FantacalcioLivePage() {
             </section>
           ))}
         </section>
+        )}
 
         <section className="mt-5 flex justify-center">
           <RoundSubmissionButton
@@ -967,8 +1205,9 @@ export default function FantacalcioLivePage() {
             isViewingSelf={isViewingSelf}
             hasOfficialSubmission={hasOfficialSubmission}
             hasUnconfirmedChanges={hasUnconfirmedChanges}
-            submitting={submitting}
-            onClick={submitPredictions}
+            submitting={submitting || savingStrategy || strategyLoading}
+            disabled={liveRows.length !== 10}
+            onClick={submitStrategy}
           />
         </section>
       </section>
@@ -976,8 +1215,8 @@ export default function FantacalcioLivePage() {
     
       <SubmissionModal
         open={submissionModalOpen}
-        title="Pronostici e strategia inviati"
-        description={"La disposizione Attacco/Difesa è stata salvata.\nPuoi modificarla e reinviarla fino al lock ufficiale."}
+        title="Strategia Fantacalcio inviata"
+        description={"La disposizione Attacco/Difesa è ora ufficiale.\nPuoi modificarla e reinviarla fino al lock ufficiale."}
         primaryLabel="Vai a One To One"
         onPrimary={() => router.push(`/leghe/${leagueId}/onetoone`)}
         onClose={() => setSubmissionModalOpen(false)}
