@@ -6,16 +6,49 @@ import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
+import TeamCrest from "../../../../components/app/TeamCrest";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
+import {
+  fromOneToOneStrategyPayload,
+  toOneToOneStrategyPayload,
+} from "../../../../lib/domain/strategy";
 
 type Side = "left" | "right";
 
-type PredictionRoundState = {
+type RoundPredictionRow = {
   league_round_id: string;
-  has_official_submission: boolean;
+  round_number: number | null;
+  slot_number: number;
+  kickoff: string;
+  match_id: string;
+  match_status: string;
+  home_prediction: number | null;
+  away_prediction: number | null;
+  home_score: number | null;
+  away_score: number | null;
+  home_team_name: string;
+  home_team_short_name: string | null;
+  home_team_logo_url: string | null;
+  home_team_crest_reference: string | null;
+  away_team_name: string;
+  away_team_short_name: string | null;
+  away_team_logo_url: string | null;
+  away_team_crest_reference: string | null;
+};
+
+type StrategyStatusRow = {
+  league_fixture_id: string;
+  strategy_exists: boolean;
+  strategy_status: string | null;
+  workspace_payload: unknown;
+  submitted_version: number | null;
+  has_official_snapshot: boolean;
   has_unconfirmed_changes: boolean;
+  is_editable: boolean;
+  is_submittable: boolean;
+  is_locked: boolean;
 };
 
 type LeagueInfo = {
@@ -48,10 +81,16 @@ type RuleItem = {
 };
 
 type DuelMatch = {
+  id: string;
+  slotNumber: number;
   home: string;
   away: string;
   homeBadge: string;
   awayBadge: string;
+  homeCrestReference: string | null;
+  homeLogoUrl: string | null;
+  awayCrestReference: string | null;
+  awayLogoUrl: string | null;
   minute: string;
   liveHome: number;
   liveAway: number;
@@ -62,8 +101,13 @@ type DuelMatch = {
 };
 
 type PredictionSlot = {
+  matchId: string;
   homeBadge: string;
   awayBadge: string;
+  homeCrestReference: string | null;
+  homeLogoUrl: string | null;
+  awayCrestReference: string | null;
+  awayLogoUrl: string | null;
   score: string;
   active: string[];
 };
@@ -80,25 +124,28 @@ const ruleItems: RuleItem[] = [
   { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
 ];
 
-const duelMatches: DuelMatch[] = [
-  { home: "Lazio", away: "Milan", homeBadge: "LAZ", awayBadge: "MIL", minute: "72'", liveHome: 1, liveAway: 0, leftPrediction: "2-1", rightPrediction: "1-0", leftActive: ["exact", "sign", "uo", "gg"], rightActive: ["gg"] },
-  { home: "Bologna", away: "Napoli", homeBadge: "BOL", awayBadge: "NAP", minute: "45+2'", liveHome: 1, liveAway: 1, leftPrediction: "1-1", rightPrediction: "2-1", leftActive: ["exact", "sign", "gg"], rightActive: ["exact", "gg"] },
-  { home: "Inter", away: "Monza", homeBadge: "INT", awayBadge: "MON", minute: "67'", liveHome: 2, liveAway: 1, leftPrediction: "0-2", rightPrediction: "1-2", leftActive: ["bad", "opposite"], rightActive: ["sign", "gg"] },
-  { home: "Roma", away: "Fiorentina", homeBadge: "ROM", awayBadge: "FIO", minute: "FT", liveHome: 3, liveAway: 0, leftPrediction: "2-0", rightPrediction: "1-1", leftActive: ["sign", "uo", "gg", "surprise"], rightActive: ["gg"] },
-  { home: "Torino", away: "Juventus", homeBadge: "TOR", awayBadge: "JUV", minute: "89'", liveHome: 2, liveAway: 2, leftPrediction: "1-2", rightPrediction: "2-2", leftActive: ["sign", "uo", "gg"], rightActive: ["exact", "sign", "uo", "gg", "surprise"] },
-  { home: "Udinese", away: "Atalanta", homeBadge: "UDI", awayBadge: "ATA", minute: "21'", liveHome: 0, liveAway: 1, leftPrediction: "1-0", rightPrediction: "0-1", leftActive: ["sign", "opposite"], rightActive: ["exact", "sign"] },
-  { home: "Frosinone", away: "Sassuolo", homeBadge: "FRO", awayBadge: "SAS", minute: "36'", liveHome: 0, liveAway: 0, leftPrediction: "3-1", rightPrediction: "1-1", leftActive: ["sign", "uo", "gg", "surprise"], rightActive: ["sign", "gg"] },
-  { home: "Verona", away: "Empoli", homeBadge: "VER", awayBadge: "EMP", minute: "54'", liveHome: 1, liveAway: 1, leftPrediction: "2-1", rightPrediction: "0-0", leftActive: ["gg"], rightActive: ["sign", "uo"] },
-  { home: "Genoa", away: "Cagliari", homeBadge: "GEN", awayBadge: "CAG", minute: "64'", liveHome: 2, liveAway: 0, leftPrediction: "1-0", rightPrediction: "2-0", leftActive: ["sign", "uo"], rightActive: ["exact", "sign", "uo"] },
-  { home: "Parma", away: "Como", homeBadge: "PAR", awayBadge: "COM", minute: "FT", liveHome: 0, liveAway: 2, leftPrediction: "1-1", rightPrediction: "0-2", leftActive: ["bad"], rightActive: ["exact", "sign", "uo"] },
-];
 
-function TeamBadge({ label, large = false }: { label: string; large?: boolean }) {
+function TeamBadge({
+  label,
+  crestReference,
+  logoUrl,
+  large = false,
+}: {
+  label: string;
+  crestReference?: string | null;
+  logoUrl?: string | null;
+  large?: boolean;
+}) {
   return (
     <span
-      className={`${large ? "h-10 w-10 text-[10px] sm:h-16 sm:w-16 sm:text-sm" : "h-7 w-7 text-[7px] sm:h-10 sm:w-10 sm:text-[10px]"} flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-[#1f2d35] to-black font-black text-white shadow-inner shadow-white/10`}
+      className={`${large ? "h-10 w-10 sm:h-16 sm:w-16" : "h-7 w-7 sm:h-10 sm:w-10"} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[#11181d] shadow-inner shadow-white/10`}
     >
-      {label}
+      <TeamCrest
+        crestReference={crestReference}
+        logoUrl={logoUrl}
+        alt={`${label} stemma`}
+        fallbackLabel={label}
+      />
     </span>
   );
 }
@@ -243,7 +290,12 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
   return (
     <div className="grid min-w-0 grid-cols-[1fr_56px_1fr] items-center gap-1.5 sm:grid-cols-[1fr_110px_1fr] sm:gap-4">
       <div className="flex min-w-0 flex-col items-center gap-1">
-        <TeamBadge label={match.homeBadge} large />
+        <TeamBadge
+          label={match.homeBadge}
+          crestReference={match.homeCrestReference}
+          logoUrl={match.homeLogoUrl}
+          large
+        />
       </div>
       <div className="flex min-w-0 flex-col items-center">
         <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">{match.minute}</span>
@@ -260,13 +312,46 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
         </div>
       </div>
       <div className="flex min-w-0 flex-col items-center gap-1">
-        <TeamBadge label={match.awayBadge} large />
+        <TeamBadge
+          label={match.awayBadge}
+          crestReference={match.awayCrestReference}
+          logoUrl={match.awayLogoUrl}
+          large
+        />
       </div>
     </div>
   );
 }
 
-export default function FantacalcioLivePage() {
+function cleanTeamDisplayName(name: string): string {
+  return name
+    .replace(/\b(FC|AC|AS|SS|US|SSC|BC|CFC)\b/gi, "")
+    .replace(/\bCalcio\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getTeamBadge(name: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return words.map((word) => word[0]).join("").slice(0, 3).toUpperCase();
+}
+
+function toPredictionSlot(match: DuelMatch): PredictionSlot {
+  return {
+    matchId: match.id,
+    homeBadge: match.homeBadge,
+    awayBadge: match.awayBadge,
+    homeCrestReference: match.homeCrestReference,
+    homeLogoUrl: match.homeLogoUrl,
+    awayCrestReference: match.awayCrestReference,
+    awayLogoUrl: match.awayLogoUrl,
+    score: match.leftPrediction,
+    active: match.leftActive,
+  };
+}
+
+export default function OneToOneLivePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
@@ -281,9 +366,16 @@ export default function FantacalcioLivePage() {
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
-  const [predictionRoundId, setPredictionRoundId] = useState<string | null>(null);
+  const [leagueRoundId, setLeagueRoundId] = useState<string | null>(null);
+  const [roundNumber, setRoundNumber] = useState<number | null>(null);
+  const [leagueFixtureId, setLeagueFixtureId] = useState<string | null>(null);
   const [hasOfficialSubmission, setHasOfficialSubmission] = useState(false);
   const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
+  const [strategyExists, setStrategyExists] = useState(false);
+  const [strategyLocked, setStrategyLocked] = useState(false);
+  const [strategyLoading, setStrategyLoading] = useState(true);
+  const [savingStrategy, setSavingStrategy] = useState(false);
+  const [strategyError, setStrategyError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
@@ -338,35 +430,152 @@ export default function FantacalcioLivePage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadPredictionSubmissionState() {
+    async function loadOneToOneStrategy() {
+      setStrategyLoading(true);
+      setStrategyError(null);
+
       const { data: roundData, error: roundError } = await supabase.rpc(
         "get_my_current_league_round_rpc",
         { p_league_id: leagueId }
       );
 
-      if (cancelled || roundError) return;
+      if (cancelled) return;
+
+      if (roundError) {
+        setStrategyError(roundError.message);
+        setStrategyLoading(false);
+        return;
+      }
 
       const currentRound = (roundData || [])[0];
-      if (!currentRound?.league_round_id) return;
+      if (!currentRound?.league_round_id) {
+        setStrategyError("Nessuna giornata disponibile per questa lega.");
+        setStrategyLoading(false);
+        return;
+      }
 
-      const { data, error } = await supabase.rpc(
-        "get_my_round_predictions_rpc",
-        { p_league_round_id: currentRound.league_round_id }
-      );
+      const currentLeagueRoundId = currentRound.league_round_id as string;
 
-      if (cancelled || error) return;
+      const [
+        { data: predictionData, error: predictionError },
+        { data: strategyData, error: strategyStatusError },
+      ] = await Promise.all([
+        supabase.rpc("get_my_round_predictions_rpc", {
+          p_league_round_id: currentLeagueRoundId,
+        }),
+        supabase.rpc("get_my_strategy_status_rpc", {
+          p_league_round_id: currentLeagueRoundId,
+          p_mode: "one_to_one",
+        }),
+      ]);
 
-      const rows = (data || []) as PredictionRoundState[];
-      setPredictionRoundId(currentRound.league_round_id);
-      setHasOfficialSubmission(
-        rows.some((row) => row.has_official_submission)
+      if (cancelled) return;
+
+      if (predictionError) {
+        setStrategyError(predictionError.message);
+        setStrategyLoading(false);
+        return;
+      }
+
+      if (strategyStatusError) {
+        setStrategyError(strategyStatusError.message);
+        setStrategyLoading(false);
+        return;
+      }
+
+      const rows = (predictionData || []) as RoundPredictionRow[];
+      if (rows.length !== 10) {
+        setStrategyError("La giornata One-to-One deve contenere esattamente 10 partite.");
+        setStrategyLoading(false);
+        return;
+      }
+
+      const baseRows: DuelMatch[] = [...rows]
+        .sort((left, right) => left.slot_number - right.slot_number)
+        .map((row) => {
+          const isFinished = ["finished", "awarded"].includes(row.match_status);
+          const isLive =
+            row.match_status.startsWith("live_") ||
+            ["halftime", "extra_time", "penalties"].includes(row.match_status);
+          const homeName = cleanTeamDisplayName(
+            row.home_team_short_name || row.home_team_name
+          );
+          const awayName = cleanTeamDisplayName(
+            row.away_team_short_name || row.away_team_name
+          );
+
+          return {
+            id: row.match_id,
+            slotNumber: row.slot_number,
+            home: homeName,
+            away: awayName,
+            homeBadge: getTeamBadge(homeName),
+            awayBadge: getTeamBadge(awayName),
+            homeCrestReference: row.home_team_crest_reference,
+            homeLogoUrl: row.home_team_logo_url,
+            awayCrestReference: row.away_team_crest_reference,
+            awayLogoUrl: row.away_team_logo_url,
+            minute: isFinished ? "FT" : isLive ? "LIVE" : "—",
+            liveHome: row.home_score ?? 0,
+            liveAway: row.away_score ?? 0,
+            leftPrediction:
+              row.home_prediction === null || row.away_prediction === null
+                ? "—"
+                : `${row.home_prediction}-${row.away_prediction}`,
+            rightPrediction: "—",
+            leftActive: [],
+            rightActive: [],
+          };
+        });
+
+      const baseSlots = baseRows.map(toPredictionSlot);
+      const status = ((strategyData || [])[0] || null) as StrategyStatusRow | null;
+      let restoredSlots: (PredictionSlot | null)[] = baseSlots;
+
+      if (status?.strategy_exists && status.workspace_payload) {
+        try {
+          const matrix = fromOneToOneStrategyPayload(
+            status.workspace_payload,
+            status.league_fixture_id
+          );
+          const slotsByMatchId = new Map(
+            baseSlots.map((slot) => [slot.matchId, slot])
+          );
+          const sourceByTarget = new Map(
+            matrix.pairs.map((pair) => [pair.targetMatchId, pair.sourceMatchId])
+          );
+
+          restoredSlots = baseRows.map((targetMatch) => {
+            const sourceMatchId = sourceByTarget.get(targetMatch.id);
+            return sourceMatchId ? slotsByMatchId.get(sourceMatchId) || null : null;
+          });
+        } catch (error) {
+          setStrategyError(
+            error instanceof Error
+              ? error.message
+              : "La strategia One-to-One salvata non è leggibile."
+          );
+        }
+      }
+
+      setLeagueRoundId(currentLeagueRoundId);
+      setRoundNumber(rows[0]?.round_number ?? null);
+      setLeagueFixtureId(status?.league_fixture_id || null);
+      setLiveRows(baseRows);
+      setLeftSlots(restoredSlots);
+      setStoredSlots(
+        baseSlots.filter(
+          (slot) => !restoredSlots.some((assigned) => assigned?.matchId === slot.matchId)
+        )
       );
-      setHasUnconfirmedChanges(
-        rows.some((row) => row.has_unconfirmed_changes)
-      );
+      setStrategyExists(Boolean(status?.strategy_exists));
+      setHasOfficialSubmission(Boolean(status?.has_official_snapshot));
+      setHasUnconfirmedChanges(Boolean(status?.has_unconfirmed_changes));
+      setStrategyLocked(Boolean(status?.is_locked));
+      setStrategyLoading(false);
     }
 
-    loadPredictionSubmissionState();
+    void loadOneToOneStrategy();
 
     return () => {
       cancelled = true;
@@ -381,7 +590,7 @@ export default function FantacalcioLivePage() {
 
   // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
   const round = getRoundState("2026-08-23T13:44:55");
-  const locked = round.isLocked;
+  const locked = strategyLocked;
 
   const isLiveForSwipe = round.isLive || round.isFinished;
   const swipeProfiles = useMemo(() => [
@@ -583,15 +792,8 @@ export default function FantacalcioLivePage() {
         ? swipeProfiles[activeSwipeIndex - 1]
         : null;
 
-  const liveRows = useMemo(() => duelMatches, []);
-  const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>(
-    duelMatches.map((match) => ({
-      homeBadge: match.homeBadge,
-      awayBadge: match.awayBadge,
-      score: match.leftPrediction,
-      active: match.leftActive,
-    }))
-  );
+  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
+  const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
   const displayedLeftSlots = canViewProfileContent ? leftSlots : leftSlots.map(() => null);
   const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
   const [openMemoryIndex, setOpenMemoryIndex] = useState<number | null>(null);
@@ -600,7 +802,8 @@ export default function FantacalcioLivePage() {
   const [memoryPopupWidth, setMemoryPopupWidth] = useState<number | null>(null);
   const [memoryDragOffset, setMemoryDragOffset] = useState<{ x: number; y: number } | null>(null);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
-  const allSlotsComplete = leftSlots.every((slot) => slot !== null);
+  const allSlotsComplete =
+    leftSlots.length === 10 && leftSlots.every((slot) => slot !== null);
 
   function closeMemoryPopup() {
     setOpenMemoryIndex(null);
@@ -632,8 +835,47 @@ export default function FantacalcioLivePage() {
     closeMemoryPopup();
   }, [activeSwipeIndex]);
 
+  async function persistPairings(nextSlots: (PredictionSlot | null)[]) {
+    if (
+      !leagueRoundId ||
+      !leagueFixtureId ||
+      liveRows.length !== 10 ||
+      nextSlots.some((slot) => slot === null)
+    ) {
+      return;
+    }
+
+    const completeSlots = nextSlots as PredictionSlot[];
+    const payload = toOneToOneStrategyPayload({
+      fixtureId: leagueFixtureId,
+      pairs: completeSlots.map((slot, index) => ({
+        sourceMatchId: slot.matchId,
+        targetMatchId: liveRows[index].id,
+      })),
+    });
+
+    setSavingStrategy(true);
+    const { data, error } = await supabase.rpc("save_strategy_draft_rpc", {
+      p_league_round_id: leagueRoundId,
+      p_mode: "one_to_one",
+      p_payload: payload,
+    });
+    setSavingStrategy(false);
+
+    if (error) {
+      setStrategyError(error.message || "Salvataggio degli abbinamenti non riuscito.");
+      return;
+    }
+
+    const result = (data || [])[0];
+    setStrategyExists(true);
+    setHasOfficialSubmission(Boolean(result?.submitted_version));
+    setHasUnconfirmedChanges(Boolean(result?.has_unconfirmed_changes));
+    setStrategyError(null);
+  }
+
   function removePredictionSlot(index: number, anchor: HTMLElement) {
-    if (locked) return;
+    if (locked || strategyLoading || savingStrategy) return;
 
     const slot = leftSlots[index];
     if (!slot) {
@@ -647,24 +889,24 @@ export default function FantacalcioLivePage() {
 
     setStoredSlots((current) => [...current, slot]);
     setLeftSlots((current) => current.map((item, itemIndex) => (itemIndex === index ? null : item)));
-    if (hasOfficialSubmission) {
-      setHasUnconfirmedChanges(true);
-    }
     closeMemoryPopup();
   }
 
   function restorePredictionSlot(targetIndex: number, storedIndex: number) {
-    if (locked) return;
+    if (locked || strategyLoading || savingStrategy) return;
 
     const slot = storedSlots[storedIndex];
     if (!slot) return;
 
-    setLeftSlots((current) => current.map((item, itemIndex) => (itemIndex === targetIndex ? slot : item)));
-    setStoredSlots((current) => current.filter((_, itemIndex) => itemIndex !== storedIndex));
-    if (hasOfficialSubmission) {
-      setHasUnconfirmedChanges(true);
-    }
+    const nextSlots = leftSlots.map((item, itemIndex) =>
+      itemIndex === targetIndex ? slot : item
+    );
+    setLeftSlots(nextSlots);
+    setStoredSlots((current) =>
+      current.filter((_, itemIndex) => itemIndex !== storedIndex)
+    );
     closeMemoryPopup();
+    void persistPairings(nextSlots);
   }
 
   function startMemoryPopupDrag(event: PointerEvent<HTMLDivElement>) {
@@ -739,12 +981,16 @@ export default function FantacalcioLivePage() {
     setMemoryDragOffset(null);
   }
 
-  async function submitPredictions() {
+  async function submitStrategy() {
     if (
       locked ||
       submitting ||
+      strategyLoading ||
+      savingStrategy ||
       !isViewingSelf ||
-      !predictionRoundId ||
+      !leagueRoundId ||
+      !leagueFixtureId ||
+      liveRows.length !== 10 ||
       (hasOfficialSubmission && !hasUnconfirmedChanges)
     ) {
       return;
@@ -757,24 +1003,49 @@ export default function FantacalcioLivePage() {
 
     setSubmitting(true);
 
-    const { data, error } = await supabase.rpc(
-      "submit_round_predictions_rpc",
-      { p_league_round_id: predictionRoundId }
-    );
+    if (!strategyExists) {
+      const completeSlots = leftSlots as PredictionSlot[];
+      const payload = toOneToOneStrategyPayload({
+        fixtureId: leagueFixtureId,
+        pairs: completeSlots.map((slot, index) => ({
+          sourceMatchId: slot.matchId,
+          targetMatchId: liveRows[index].id,
+        })),
+      });
+
+      const { error: saveError } = await supabase.rpc(
+        "save_strategy_draft_rpc",
+        {
+          p_league_round_id: leagueRoundId,
+          p_mode: "one_to_one",
+          p_payload: payload,
+        }
+      );
+
+      if (saveError) {
+        setSubmitting(false);
+        alert(saveError.message || "Salvataggio degli abbinamenti non riuscito.");
+        return;
+      }
+
+      setStrategyExists(true);
+    }
+
+    const { data, error } = await supabase.rpc("submit_strategy_rpc", {
+      p_league_round_id: leagueRoundId,
+      p_mode: "one_to_one",
+    });
 
     setSubmitting(false);
 
     if (error) {
-      alert(error.message || "Invio dei pronostici non riuscito.");
+      alert(error.message || "Invio della strategia One-to-One non riuscito.");
       return;
     }
 
     const result = (data || [])[0];
-    if (
-      !result ||
-      result.submitted_prediction_count !== result.required_prediction_count
-    ) {
-      alert("La conferma dell'invio non è coerente con i pronostici richiesti.");
+    if (!result?.submitted_version) {
+      alert("La conferma degli abbinamenti non è coerente.");
       return;
     }
 
@@ -909,7 +1180,7 @@ export default function FantacalcioLivePage() {
           <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
             <div className="flex h-full flex-col items-center justify-center">
               <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
-              <p className="text-2xl font-black text-white sm:text-3xl">12</p>
+              <p className="text-2xl font-black text-white sm:text-3xl">{roundNumber ?? "—"}</p>
             </div>
           </div>
 
@@ -949,7 +1220,7 @@ export default function FantacalcioLivePage() {
             </div>
             <div>
               <p className="text-sm font-black uppercase sm:text-lg">
-                {locked ? "Pronostici chiusi" : "Pronostici aperti"}
+                {locked ? "Abbinamenti chiusi" : "Abbinamenti aperti"}
               </p>
               <p className="text-xs text-gray-300 sm:text-sm">
                 {locked ? "" : "Puoi reinviare fino al lock ufficiale"}
@@ -1013,12 +1284,25 @@ export default function FantacalcioLivePage() {
           <ClubKitMini club={opponentClubInfo} align="right" />
         </section>
 
+        {strategyError && (
+          <section className="mt-3 rounded-2xl border border-red-500/30 bg-red-950/20 p-4 text-sm font-semibold text-red-200 sm:mt-4">
+            {strategyError}
+          </section>
+        )}
+
+        {strategyLoading && (
+          <section className="mt-3 rounded-2xl border border-white/10 bg-[#0b1419] p-6 text-center text-sm font-bold text-gray-400 sm:mt-4">
+            Caricamento abbinamenti One-to-One...
+          </section>
+        )}
+
+        {!strategyLoading && liveRows.length === 10 && (
         <section className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4">
           {liveRows.map((match, index) => {
             const leftSlot = displayedLeftSlots[index];
 
             return (
-              <article key={`${match.home}-${match.away}`} className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4">
+              <article key={match.id} className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4">
                 <div className="grid grid-cols-[23%_54%_23%] items-center gap-0.5 sm:grid-cols-[1fr_1.35fr_1fr] sm:gap-5">
                   <div className="relative">
                     <button
@@ -1078,6 +1362,7 @@ export default function FantacalcioLivePage() {
             );
           })}
         </section>
+        )}
 
         <section className="mt-5 flex justify-center">
           <RoundSubmissionButton
@@ -1085,8 +1370,9 @@ export default function FantacalcioLivePage() {
             isViewingSelf={isViewingSelf}
             hasOfficialSubmission={hasOfficialSubmission}
             hasUnconfirmedChanges={hasUnconfirmedChanges}
-            submitting={submitting}
-            onClick={submitPredictions}
+            submitting={submitting || savingStrategy || strategyLoading}
+            disabled={!allSlotsComplete || Boolean(strategyError)}
+            onClick={submitStrategy}
           />
         </section>
       </section>
@@ -1128,7 +1414,7 @@ export default function FantacalcioLivePage() {
               <div className="grid gap-1.5">
                 {storedSlots.map((stored, storedIndex) => (
                   <button
-                    key={`${stored.homeBadge}-${stored.awayBadge}-${stored.score}-${storedIndex}`}
+                    key={`${stored.matchId}-${storedIndex}`}
                     type="button"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() =>
