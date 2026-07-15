@@ -4,11 +4,18 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
+import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
 
 type Side = "left" | "right";
+
+type PredictionRoundState = {
+  league_round_id: string;
+  has_official_submission: boolean;
+  has_unconfirmed_changes: boolean;
+};
 
 type LeagueInfo = {
   name: string;
@@ -251,6 +258,10 @@ export default function FantacalcioLivePage() {
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
+  const [predictionRoundId, setPredictionRoundId] = useState<string | null>(null);
+  const [hasOfficialSubmission, setHasOfficialSubmission] = useState(false);
+  const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
     displayName: "Club FantaGol",
@@ -298,6 +309,45 @@ export default function FantacalcioLivePage() {
 
     loadLeagueInfo();
   }, [leagueId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPredictionSubmissionState() {
+      const { data: roundData, error: roundError } = await supabase.rpc(
+        "get_my_current_league_round_rpc",
+        { p_league_id: leagueId }
+      );
+
+      if (cancelled || roundError) return;
+
+      const currentRound = (roundData || [])[0];
+      if (!currentRound?.league_round_id) return;
+
+      const { data, error } = await supabase.rpc(
+        "get_my_round_predictions_rpc",
+        { p_league_round_id: currentRound.league_round_id }
+      );
+
+      if (cancelled || error) return;
+
+      const rows = (data || []) as PredictionRoundState[];
+      setPredictionRoundId(currentRound.league_round_id);
+      setHasOfficialSubmission(
+        rows.some((row) => row.has_official_submission)
+      );
+      setHasUnconfirmedChanges(
+        rows.some((row) => row.has_unconfirmed_changes)
+      );
+    }
+
+    loadPredictionSubmissionState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId]);
+
 
   const leftPoints = 72;
   const rightPoints = 65;
@@ -541,11 +591,49 @@ export default function FantacalcioLivePage() {
       return next;
     });
 
+    if (hasOfficialSubmission) {
+      setHasUnconfirmedChanges(true);
+    }
+
     setSelectedMatchIndex(null);
   }
 
-  function submitPredictions() {
-    if (locked) return;
+  async function submitPredictions() {
+    if (
+      locked ||
+      submitting ||
+      !isViewingSelf ||
+      !predictionRoundId ||
+      (hasOfficialSubmission && !hasUnconfirmedChanges)
+    ) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    const { data, error } = await supabase.rpc(
+      "submit_round_predictions_rpc",
+      { p_league_round_id: predictionRoundId }
+    );
+
+    setSubmitting(false);
+
+    if (error) {
+      alert(error.message || "Invio dei pronostici non riuscito.");
+      return;
+    }
+
+    const result = (data || [])[0];
+    if (
+      !result ||
+      result.submitted_prediction_count !== result.required_prediction_count
+    ) {
+      alert("La conferma dell'invio non è coerente con i pronostici richiesti.");
+      return;
+    }
+
+    setHasOfficialSubmission(true);
+    setHasUnconfirmedChanges(false);
     setSubmissionModalOpen(true);
   }
 
@@ -874,18 +962,14 @@ export default function FantacalcioLivePage() {
         </section>
 
         <section className="mt-5 flex justify-center">
-          <button
-            type="button"
+          <RoundSubmissionButton
+            locked={locked}
+            isViewingSelf={isViewingSelf}
+            hasOfficialSubmission={hasOfficialSubmission}
+            hasUnconfirmedChanges={hasUnconfirmedChanges}
+            submitting={submitting}
             onClick={submitPredictions}
-            disabled={locked || !isViewingSelf}
-            className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${
-              locked
-                ? "cursor-not-allowed bg-gray-700 text-gray-300 shadow-black/20"
-                : "bg-[#8cc91e] shadow-[#A6E824]/20 hover:brightness-110"
-            }`}
-          >
-            {!isViewingSelf ? "Pronostici visibili dal live" : locked ? "🔒 Pronostici bloccati" : "✈ Invia i pronostici"}
-          </button>
+          />
         </section>
       </section>
 

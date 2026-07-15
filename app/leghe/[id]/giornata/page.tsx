@@ -4,11 +4,14 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
+import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import KitPreview from "../../../../components/club/KitPreview";
+import TeamCrest from "../../../../components/app/TeamCrest";
 import { supabase } from "../../../../lib/supabaseClient";
-import { getRoundState } from "../../../../lib/roundState";
 
 type Prediction = { home: string; away: string };
+
+type PredictionSaveState = "idle" | "saving" | "saved" | "error";
 
 type LeagueInfo = {
   name: string;
@@ -31,17 +34,85 @@ type ClubInfo = {
 };
 
 type Match = {
+  id: string;
   home: string;
   away: string;
-  homeBadge: string;
-  awayBadge: string;
+  homeCrestReference: string | null;
+  homeLogoUrl: string | null;
+  awayCrestReference: string | null;
+  awayLogoUrl: string | null;
   kickoffDay: string;
   kickoffHour: string;
+  status: string;
   liveHome?: number;
   liveAway?: number;
   minute?: string;
   bonusActive?: string[];
   malusActive?: string[];
+};
+
+type RoundPredictionRow = {
+  league_round_id: string;
+  league_id: string;
+  league_round_number: number;
+  league_round_status: string;
+  league_round_enabled: boolean;
+  fantagol_round_id: string;
+  round_opens_at: string;
+  round_lock_at: string;
+  prediction_window_state: string;
+  can_edit: boolean;
+  seconds_to_lock: number;
+  league_member_id: string;
+  slot_number: number;
+  required: boolean;
+  match_id: string;
+  kickoff: string | null;
+  match_status: string;
+  home_score: number | null;
+  away_score: number | null;
+  home_team_id: string;
+  home_team_name: string;
+  home_team_short_name: string | null;
+  home_team_logo_url: string | null;
+  home_team_crest_reference: string | null;
+  away_team_id: string;
+  away_team_name: string;
+  away_team_short_name: string | null;
+  away_team_logo_url: string | null;
+  away_team_crest_reference: string | null;
+  prediction_id: string | null;
+  home_prediction: number | null;
+  away_prediction: number | null;
+  prediction_status: string;
+  prediction_version: number | null;
+  prediction_submitted_at: string | null;
+  prediction_locked_at: string | null;
+  prediction_updated_at: string | null;
+  filled_prediction_count: number;
+  required_prediction_count: number;
+  is_complete: boolean;
+  has_official_submission: boolean;
+  has_unconfirmed_changes: boolean;
+  official_home_prediction: number | null;
+  official_away_prediction: number | null;
+  official_submitted_at: string | null;
+};
+
+type RoundView = {
+  id: string;
+  number: number;
+  status: string;
+  windowState: string;
+  canEdit: boolean;
+  opensAt: string;
+  lockAt: string;
+  isOpen: boolean;
+  isLocked: boolean;
+  isLive: boolean;
+  isFinished: boolean;
+  label: string;
+  helper: string;
 };
 
 type RuleItem = {
@@ -52,19 +123,6 @@ type RuleItem = {
   icon: string;
   tone: "green" | "orange" | "red" | "violet" | "muted";
 };
-
-const matches: Match[] = [
-  { home: "Atalanta", away: "Sassuolo", homeBadge: "ATA", awayBadge: "SAS", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 1, liveAway: 0, minute: "62'", bonusActive: ["sign", "uo", "gg"] },
-  { home: "Bologna", away: "Lazio", homeBadge: "BOL", awayBadge: "LAZ", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 0, liveAway: 0, minute: "HT", malusActive: ["opposite"] },
-  { home: "Frosinone", away: "Juventus", homeBadge: "FRO", awayBadge: "JUV", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 1, liveAway: 2, minute: "77'", bonusActive: ["exact", "sign", "gg"] },
-  { home: "Genoa", away: "Napoli", homeBadge: "GEN", awayBadge: "NAP", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 0, liveAway: 1, minute: "35'", bonusActive: ["exact", "sign"] },
-  { home: "Inter", away: "Monza", homeBadge: "INT", awayBadge: "MON", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", liveHome: 2, liveAway: 0, minute: "68'", bonusActive: ["sign", "uo"] },
-  { home: "Parma", away: "Cagliari", homeBadge: "PAR", awayBadge: "CAG", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", malusActive: ["bad"] },
-  { home: "Roma", away: "Fiorentina", homeBadge: "ROM", awayBadge: "FIO", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["surprise"] },
-  { home: "Torino", away: "Milan", homeBadge: "TOR", awayBadge: "MIL", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["gg"] },
-  { home: "Udinese", away: "Como", homeBadge: "UDI", awayBadge: "COM", kickoffDay: "Dom 23 Ago", kickoffHour: "13:45", bonusActive: ["sign", "show"] },
-  { home: "Pisa", away: "Cremonese", homeBadge: "PIS", awayBadge: "CRE", kickoffDay: "Lun 24 Ago", kickoffHour: "20:45" },
-];
 
 const ruleItems: RuleItem[] = [
   { key: "exact", label: "Exact", short: "EX", points: "+6", icon: "◎", tone: "muted" },
@@ -79,17 +137,115 @@ const ruleItems: RuleItem[] = [
 ];
 
 function cleanGoal(value: string) {
-  if (!/^\d*$/.test(value)) return null;
-  return value.slice(0, 2);
+  if (!/^\d?$/.test(value)) return null;
+  return value.slice(0, 1);
 }
 
-function TeamBadge({ label }: { label: string }) {
-  return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-[#1f2d35] to-black text-[6px] font-black text-white shadow-inner shadow-white/10 sm:h-8 sm:w-8 sm:text-[8px] lg:h-11 lg:w-11 lg:text-[10px]">
-      {label}
-    </span>
-  );
+function cleanTeamDisplayName(name: string) {
+  const knownNames: Record<string, string> = {
+    "FC Internazionale Milano": "Inter",
+    "Internazionale Milano": "Inter",
+    "AC Milan": "Milan",
+    "Juventus FC": "Juventus",
+    "SSC Napoli": "Napoli",
+    "AS Roma": "Roma",
+    "SS Lazio": "Lazio",
+    "ACF Fiorentina": "Fiorentina",
+    "Atalanta BC": "Atalanta",
+    "Bologna FC 1909": "Bologna",
+    "Genoa CFC": "Genoa",
+    "Hellas Verona FC": "Hellas Verona",
+    "Parma Calcio 1913": "Parma",
+    "Torino FC": "Torino",
+    "Udinese Calcio": "Udinese",
+    "US Lecce": "Lecce",
+    "US Sassuolo Calcio": "Sassuolo",
+    "US Cremonese": "Cremonese",
+    "Pisa SC": "Pisa",
+    "Como 1907": "Como",
+    "Cagliari Calcio": "Cagliari",
+    "AC Monza": "Monza",
+    "Empoli FC": "Empoli",
+    "Frosinone Calcio": "Frosinone",
+    "Venezia FC": "Venezia",
+    "Spezia Calcio": "Spezia",
+    "UC Sampdoria": "Sampdoria",
+  };
+
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (knownNames[normalized]) return knownNames[normalized];
+
+  return normalized
+    .replace(/^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i, "")
+    .replace(/\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i, "")
+    .replace(/\s+(?:19|20)\d{2}$/i, "")
+    .trim();
 }
+
+
+function formatKickoff(kickoff: string | null) {
+  if (!kickoff) {
+    return { day: "Data da definire", hour: "--:--" };
+  }
+
+  const date = new Date(kickoff);
+  return {
+    day: new Intl.DateTimeFormat("it-IT", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    }).format(date),
+    hour: new Intl.DateTimeFormat("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date),
+  };
+}
+
+function buildRoundView(row: RoundPredictionRow): RoundView {
+  const isLocked = ["closed", "disabled", "cancelled"].includes(row.prediction_window_state);
+  const isLive = ["live", "waiting_postponed", "final_calculable", "scoring"].includes(
+    row.league_round_status
+  );
+  const isFinished = ["official", "recalculated", "archived"].includes(row.league_round_status);
+
+  const label =
+    row.prediction_window_state === "open"
+      ? "Pronostici aperti"
+      : row.prediction_window_state === "not_open"
+        ? "Pronostici non ancora aperti"
+        : row.prediction_window_state === "cancelled"
+          ? "Giornata annullata"
+          : row.prediction_window_state === "disabled"
+            ? "Giornata disabilitata"
+            : "Pronostici chiusi";
+
+  const helper =
+    row.prediction_window_state === "open"
+      ? "Inserisci o modifica i pronostici fino al lock ufficiale"
+      : row.prediction_window_state === "not_open"
+        ? "La finestra di inserimento non è ancora iniziata"
+        : row.prediction_window_state === "cancelled"
+          ? "La giornata non è disponibile"
+          : "I pronostici non sono più modificabili";
+
+  return {
+    id: row.league_round_id,
+    number: row.league_round_number,
+    status: row.league_round_status,
+    windowState: row.prediction_window_state,
+    canEdit: row.can_edit,
+    opensAt: row.round_opens_at,
+    lockAt: row.round_lock_at,
+    isOpen: row.prediction_window_state === "open",
+    isLocked,
+    isLive,
+    isFinished,
+    label,
+    helper,
+  };
+}
+
 
 function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; active?: boolean; compact?: boolean }) {
   const toneClass = active
@@ -163,12 +319,18 @@ export default function GiornataPage() {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
-  const [predictions, setPredictions] = useState<Prediction[]>(matches.map(() => ({ home: "", away: "" })));
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [round, setRound] = useState<RoundView | null>(null);
+  const [roundLoading, setRoundLoading] = useState(true);
+  const [roundError, setRoundError] = useState<string | null>(null);
+  const [predictionSaveStates, setPredictionSaveStates] = useState<PredictionSaveState[]>([]);
+  const [predictionSaveErrors, setPredictionSaveErrors] = useState<Array<string | null>>([]);
   const predictionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-
-  // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
-  const round = getRoundState("2026-08-23T13:44:55");
+  const predictionSaveTimersRef = useRef<Array<number | null>>([]);
 
   useEffect(() => {
     async function loadLeagueInfo() {
@@ -207,16 +369,116 @@ export default function GiornataPage() {
     loadLeagueInfo();
   }, [leagueId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRoundPredictions() {
+      setRoundLoading(true);
+      setRoundError(null);
+
+      const { data: currentRoundData, error: currentRoundError } = await supabase.rpc(
+        "get_my_current_league_round_rpc",
+        { p_league_id: leagueId }
+      );
+
+      if (cancelled) return;
+
+      if (currentRoundError) {
+        setRoundError(currentRoundError.message);
+        setRoundLoading(false);
+        return;
+      }
+
+      const currentRound = (currentRoundData || [])[0];
+      if (!currentRound?.league_round_id) {
+        setRoundError("Nessuna giornata disponibile per questa lega.");
+        setRoundLoading(false);
+        return;
+      }
+
+      const { data: predictionData, error: predictionError } = await supabase.rpc(
+        "get_my_round_predictions_rpc",
+        { p_league_round_id: currentRound.league_round_id }
+      );
+
+      if (cancelled) return;
+
+      if (predictionError) {
+        setRoundError(predictionError.message);
+        setRoundLoading(false);
+        return;
+      }
+
+      const rows = (predictionData || []) as RoundPredictionRow[];
+      if (!rows.length) {
+        setRoundError("Il calendario della giornata non contiene partite.");
+        setRoundLoading(false);
+        return;
+      }
+
+      setRound(buildRoundView(rows[0]));
+      setMatches(
+        rows.map((row) => {
+          const kickoff = formatKickoff(row.kickoff);
+          const isFinished = ["finished", "awarded"].includes(row.match_status);
+          const isLive = row.match_status.startsWith("live_") || [
+            "halftime",
+            "extra_time",
+            "penalties",
+          ].includes(row.match_status);
+
+          return {
+            id: row.match_id,
+            home: cleanTeamDisplayName(row.home_team_name),
+            away: cleanTeamDisplayName(row.away_team_name),
+            homeCrestReference: row.home_team_crest_reference,
+            homeLogoUrl: row.home_team_logo_url,
+            awayCrestReference: row.away_team_crest_reference,
+            awayLogoUrl: row.away_team_logo_url,
+            kickoffDay: kickoff.day,
+            kickoffHour: kickoff.hour,
+            status: row.match_status,
+            liveHome: row.home_score ?? undefined,
+            liveAway: row.away_score ?? undefined,
+            minute: isFinished ? "FT" : isLive ? "LIVE" : undefined,
+            bonusActive: [],
+            malusActive: [],
+          };
+        })
+      );
+      setPredictions(
+        rows.map((row) => ({
+          home: row.home_prediction === null ? "" : String(row.home_prediction),
+          away: row.away_prediction === null ? "" : String(row.away_prediction),
+        }))
+      );
+      setPredictionSaveStates(rows.map(() => "idle"));
+      setPredictionSaveErrors(rows.map(() => null));
+      setSubmitted(rows.some((row) => row.has_official_submission));
+      setHasUnconfirmedChanges(rows.some((row) => row.has_unconfirmed_changes));
+      setRoundLoading(false);
+    }
+
+    void loadRoundPredictions();
+
+    return () => {
+      cancelled = true;
+      predictionSaveTimersRef.current.forEach((timer) => {
+        if (timer) window.clearTimeout(timer);
+      });
+    };
+  }, [leagueId]);
+
   const submittedCount = useMemo(
     () => predictions.filter((prediction) => prediction.home !== "" && prediction.away !== "").length,
     [predictions]
   );
 
-  const allComplete = submittedCount === matches.length;
-  const locked = round.isLocked;
-  const currentPoints = 100;
+  const allComplete = matches.length > 0 && submittedCount === matches.length;
+  const locked = round?.isLocked ?? true;
+  const currentPoints = 0;
 
-  const isLiveForSwipe = round.isLive || round.isFinished;
+  const isLiveForSwipe = round?.isLive === true || round?.isFinished === true;
   const swipeProfiles = useMemo(() => [
     {
       id: "me",
@@ -276,7 +538,7 @@ export default function GiornataPage() {
     kit_crest_position: activeProfile?.kitCrestPosition || "left_chest",
     stars_count: activeProfile?.starsCount || 0,
   };
-  const canEdit = round.isOpen && isViewingSelf;
+  const canEdit = round?.canEdit === true && isViewingSelf;
   const canViewProfileContent = isViewingSelf || isLiveForSwipe;
   const displayedPredictions = canViewProfileContent
     ? predictions
@@ -419,6 +681,56 @@ export default function GiornataPage() {
     predictionInputRefs.current[position]?.select();
   }
 
+  function setPredictionSaveState(
+    index: number,
+    state: PredictionSaveState,
+    errorMessage: string | null = null
+  ) {
+    setPredictionSaveStates((current) =>
+      current.map((value, currentIndex) => (currentIndex === index ? state : value))
+    );
+    setPredictionSaveErrors((current) =>
+      current.map((value, currentIndex) =>
+        currentIndex === index ? errorMessage : value
+      )
+    );
+  }
+
+  function schedulePredictionDraftSave(index: number, prediction: Prediction) {
+    const match = matches[index];
+    if (!round?.id || !match?.id) return;
+    if (prediction.home === "" || prediction.away === "") return;
+
+    const previousTimer = predictionSaveTimersRef.current[index];
+    if (previousTimer) window.clearTimeout(previousTimer);
+
+    setPredictionSaveState(index, "saving");
+
+    predictionSaveTimersRef.current[index] = window.setTimeout(async () => {
+      const { error } = await supabase.rpc("save_prediction_draft_rpc", {
+        p_league_round_id: round.id,
+        p_match_id: match.id,
+        p_home_prediction: Number(prediction.home),
+        p_away_prediction: Number(prediction.away),
+      });
+
+      if (error) {
+        setPredictionSaveState(index, "error", error.message);
+        return;
+      }
+
+      setPredictionSaveState(index, "saved");
+
+      window.setTimeout(() => {
+        setPredictionSaveStates((current) =>
+          current.map((value, currentIndex) =>
+            currentIndex === index && value === "saved" ? "idle" : value
+          )
+        );
+      }, 1400);
+    }, 450);
+  }
+
   function updatePrediction(index: number, field: keyof Prediction, value: string) {
     if (!canEdit) return;
 
@@ -426,11 +738,22 @@ export default function GiornataPage() {
     const nextGoal = cleanGoal(value);
     if (nextGoal === null) return;
 
+    const nextPrediction = {
+      ...(predictions[index] ?? { home: "", away: "" }),
+      [field]: nextGoal,
+    };
+
     setPredictions((current) =>
       current.map((prediction, currentIndex) =>
-        currentIndex === index ? { ...prediction, [field]: nextGoal } : prediction
+        currentIndex === index ? nextPrediction : prediction
       )
     );
+
+    setPredictionSaveState(index, "idle");
+    if (submitted && previousValue !== nextGoal) {
+      setHasUnconfirmedChanges(true);
+    }
+    schedulePredictionDraftSave(index, nextPrediction);
 
     if (previousValue === "" && nextGoal.length === 1) {
       const nextPosition = getPredictionInputPosition(index, field) + 1;
@@ -452,15 +775,47 @@ export default function GiornataPage() {
     focusPredictionInput(previousPosition);
   }
 
-  function submitPredictions() {
-    if (locked) return;
+  async function submitPredictions() {
+    if (locked || submitting || !round?.id) return;
+
+    if (predictionSaveStates.some((state) => state === "saving")) {
+      alert("Attendi il completamento del salvataggio dei pronostici.");
+      return;
+    }
+
+    if (predictionSaveStates.some((state) => state === "error")) {
+      alert("Correggi gli errori di salvataggio prima di inviare.");
+      return;
+    }
 
     if (!allComplete) {
       alert("Completa tutti i 10 pronostici prima di inviare.");
       return;
     }
 
+    setSubmitting(true);
+
+    const { data, error } = await supabase.rpc("submit_round_predictions_rpc", {
+      p_league_round_id: round.id,
+    });
+
+    if (error) {
+      setSubmitting(false);
+      alert(error.message || "Invio dei pronostici non riuscito.");
+      return;
+    }
+
+    const result = (data || [])[0];
+
+    if (!result || result.submitted_prediction_count !== result.required_prediction_count) {
+      setSubmitting(false);
+      alert("La conferma dell'invio non è coerente con il numero di pronostici richiesti.");
+      return;
+    }
+
     setSubmitted(true);
+    setHasUnconfirmedChanges(false);
+    setSubmitting(false);
     setSubmissionModalOpen(true);
   }
 
@@ -584,7 +939,7 @@ export default function GiornataPage() {
 
               <div>
                 <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
-                <p className="text-2xl font-black text-white sm:text-3xl">2</p>
+                <p className="text-2xl font-black text-white sm:text-3xl">{round?.number ?? "-"}</p>
               </div>
 
               <button className="hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-xl text-gray-400 sm:flex">
@@ -629,10 +984,10 @@ export default function GiornataPage() {
             </div>
             <div>
               <p className="text-sm font-black uppercase sm:text-lg">
-                {locked ? round.label : submitted ? "Pronostici inviati" : round.label}
+                {locked ? round?.label : submitted ? "Pronostici inviati" : round?.label}
               </p>
               <p className="text-xs text-gray-300 sm:text-sm">
-                {locked ? round.helper : submitted ? "Puoi modificare e reinviare fino al lock ufficiale" : round.helper}
+                {locked ? round?.helper : submitted ? "Puoi modificare e reinviare fino al lock ufficiale" : round?.helper}
               </p>
             </div>
           </div>
@@ -690,24 +1045,59 @@ export default function GiornataPage() {
             <span>Bonus</span>
           </div>
 
-          {matches.map((match, index) => {
+          {roundLoading && (
+            <div className="px-4 py-10 text-center text-sm font-bold text-gray-400">
+              Caricamento della giornata...
+            </div>
+          )}
+
+          {!roundLoading && roundError && (
+            <div className="px-4 py-10 text-center">
+              <p className="text-sm font-black text-red-300">Impossibile caricare la giornata</p>
+              <p className="mt-2 text-xs text-gray-500">{roundError}</p>
+            </div>
+          )}
+
+          {!roundLoading && !roundError && matches.map((match, index) => {
             const prediction = displayedPredictions[index];
             const activeKeys = new Set([...(match.bonusActive ?? []), ...(match.malusActive ?? [])]);
-            const showLiveScore = round.isLive || round.isFinished;
+            const showLiveScore = round?.isLive === true || round?.isFinished === true;
 
             return (
-              <article key={`${match.home}-${match.away}`} className="border-b border-white/10 px-1 py-2 last:border-b-0 sm:px-4 sm:py-3">
+              <article key={match.id} className="border-b border-white/10 px-1 py-2 last:border-b-0 sm:px-4 sm:py-3">
                 <div className="grid grid-cols-[35%_17%_14%_9%_25%] items-center gap-0 sm:grid-cols-[1.65fr_150px_150px_100px_190px] sm:gap-3">
                   <div className="min-w-0 pr-1 sm:pr-0">
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <TeamBadge label={match.homeBadge} />
+                      <TeamCrest
+                        crestReference={match.homeCrestReference}
+                        logoUrl={match.homeLogoUrl}
+                        alt={`${match.home} stemma`}
+                        fallbackLabel={match.home}
+                        size="xs"
+                        className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
+                      />
                       <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.home}</p>
                     </div>
                     <div className="my-0.5 pl-6 text-[7px] font-bold uppercase leading-none text-gray-500 sm:my-1 sm:pl-10 sm:text-[10px]">
-                      {match.kickoffHour}
+                      {match.kickoffDay} · {match.kickoffHour}
+                      {predictionSaveStates[index] === "error" && (
+                        <span
+                          className="ml-1 text-red-400"
+                          title={predictionSaveErrors[index] ?? "Errore di salvataggio"}
+                        >
+                          • errore
+                        </span>
+                      )}
                     </div>
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <TeamBadge label={match.awayBadge} />
+                      <TeamCrest
+                        crestReference={match.awayCrestReference}
+                        logoUrl={match.awayLogoUrl}
+                        alt={`${match.away} stemma`}
+                        fallbackLabel={match.away}
+                        size="xs"
+                        className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
+                      />
                       <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.away}</p>
                     </div>
                   </div>
@@ -720,8 +1110,10 @@ export default function GiornataPage() {
                       value={prediction.home}
                       disabled={!canEdit}
                       inputMode="numeric"
-                      maxLength={2}
+                      maxLength={1}
                       onChange={(event) => updatePrediction(index, "home", event.target.value)}
+                      onFocus={(event) => event.currentTarget.select()}
+                      onClick={(event) => event.currentTarget.select()}
                       onKeyDown={(event) => handlePredictionKeyDown(event, index, "home")}
                       className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
                       placeholder="-"
@@ -734,8 +1126,10 @@ export default function GiornataPage() {
                       value={prediction.away}
                       disabled={!canEdit}
                       inputMode="numeric"
-                      maxLength={2}
+                      maxLength={1}
                       onChange={(event) => updatePrediction(index, "away", event.target.value)}
+                      onFocus={(event) => event.currentTarget.select()}
+                      onClick={(event) => event.currentTarget.select()}
                       onKeyDown={(event) => handlePredictionKeyDown(event, index, "away")}
                       className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
                       placeholder="-"
@@ -769,14 +1163,15 @@ export default function GiornataPage() {
         </section>
 
         <section className="mt-5 flex justify-center">
-          <button
-            type="button"
+          <RoundSubmissionButton
+            locked={locked}
+            isViewingSelf={isViewingSelf}
+            hasOfficialSubmission={submitted}
+            hasUnconfirmedChanges={hasUnconfirmedChanges}
+            submitting={submitting}
+            disabled={roundLoading || !!roundError}
             onClick={submitPredictions}
-            disabled={locked || !isViewingSelf}
-            className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${locked ? "cursor-not-allowed bg-gray-700 text-gray-300 shadow-black/20" : "bg-[#8cc91e] shadow-[#A6E824]/20 hover:brightness-110"}`}
-          >
-            {!isViewingSelf ? "Pronostici visibili dal live" : locked ? "🔒 Pronostici bloccati" : submitted ? "✎ Reinvia i pronostici" : "✈ Invia i pronostici"}
-          </button>
+          />
         </section>
       </section>
 

@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
+import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { getRoundState } from "../../../../lib/roundState";
 
 type Side = "left" | "right";
+
+type PredictionRoundState = {
+  league_round_id: string;
+  has_official_submission: boolean;
+  has_unconfirmed_changes: boolean;
+};
 
 type LeagueInfo = {
   name: string;
@@ -263,6 +271,7 @@ export default function FantacalcioLivePage() {
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [clubInfo, setClubInfo] = useState<ClubInfo | null>(null);
   const [activeSwipeIndex, setActiveSwipeIndex] = useState(0);
@@ -272,12 +281,20 @@ export default function FantacalcioLivePage() {
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
+  const [predictionRoundId, setPredictionRoundId] = useState<string | null>(null);
+  const [hasOfficialSubmission, setHasOfficialSubmission] = useState(false);
+  const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     name: "Lega FantaGol",
     displayName: "Club FantaGol",
     inviteCode: leagueId,
     role: "member",
   });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function loadLeagueInfo() {
@@ -317,6 +334,45 @@ export default function FantacalcioLivePage() {
 
     loadLeagueInfo();
   }, [leagueId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPredictionSubmissionState() {
+      const { data: roundData, error: roundError } = await supabase.rpc(
+        "get_my_current_league_round_rpc",
+        { p_league_id: leagueId }
+      );
+
+      if (cancelled || roundError) return;
+
+      const currentRound = (roundData || [])[0];
+      if (!currentRound?.league_round_id) return;
+
+      const { data, error } = await supabase.rpc(
+        "get_my_round_predictions_rpc",
+        { p_league_round_id: currentRound.league_round_id }
+      );
+
+      if (cancelled || error) return;
+
+      const rows = (data || []) as PredictionRoundState[];
+      setPredictionRoundId(currentRound.league_round_id);
+      setHasOfficialSubmission(
+        rows.some((row) => row.has_official_submission)
+      );
+      setHasUnconfirmedChanges(
+        rows.some((row) => row.has_unconfirmed_changes)
+      );
+    }
+
+    loadPredictionSubmissionState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId]);
+
 
   const leftPoints = 72;
   const rightPoints = 65;
@@ -394,6 +450,8 @@ export default function FantacalcioLivePage() {
   const displayedRightGoals = canViewProfileContent ? rightGoals : 0;
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
+    closeMemoryPopup();
+
     const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
     const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 420;
     const exitX = direction === "next" ? -viewportWidth : viewportWidth;
@@ -450,7 +508,12 @@ export default function FantacalcioLivePage() {
 
   function handlePageSwipeStart(event: TouchEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
+    if (target.closest("[data-memory-popup='true']")) return;
     if (target.closest("input, textarea, select")) return;
+
+    if (openMemoryIndex !== null) {
+      closeMemoryPopup();
+    }
 
     swipeStartXRef.current = event.touches[0]?.clientX ?? null;
     swipeStartYRef.current = event.touches[0]?.clientY ?? null;
@@ -539,18 +602,55 @@ export default function FantacalcioLivePage() {
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const allSlotsComplete = leftSlots.every((slot) => slot !== null);
 
-  function removePredictionSlot(index: number) {
+  function closeMemoryPopup() {
+    setOpenMemoryIndex(null);
+    setMemoryPopupFloating(false);
+    setMemoryPopupWidth(null);
+    setMemoryDragOffset(null);
+  }
+
+  function openMemoryPopup(index: number, anchor: HTMLElement) {
+    const rect = anchor.getBoundingClientRect();
+    const popupWidth = Math.max(106, rect.width);
+    const x = Math.min(
+      Math.max(8, rect.left),
+      Math.max(8, window.innerWidth - popupWidth - 8)
+    );
+    const y = Math.min(
+      Math.max(8, rect.bottom + 8),
+      Math.max(8, window.innerHeight - 140)
+    );
+
+    setOpenMemoryIndex(index);
+    setMemoryPopupFloating(true);
+    setMemoryPopupWidth(popupWidth);
+    setMemoryPopupPosition({ x, y });
+    setMemoryDragOffset(null);
+  }
+
+  useEffect(() => {
+    closeMemoryPopup();
+  }, [activeSwipeIndex]);
+
+  function removePredictionSlot(index: number, anchor: HTMLElement) {
     if (locked) return;
 
     const slot = leftSlots[index];
     if (!slot) {
-      setOpenMemoryIndex((current) => (current === index ? null : index));
+      if (openMemoryIndex === index) {
+        closeMemoryPopup();
+      } else {
+        openMemoryPopup(index, anchor);
+      }
       return;
     }
 
     setStoredSlots((current) => [...current, slot]);
     setLeftSlots((current) => current.map((item, itemIndex) => (itemIndex === index ? null : item)));
-    setOpenMemoryIndex(null);
+    if (hasOfficialSubmission) {
+      setHasUnconfirmedChanges(true);
+    }
+    closeMemoryPopup();
   }
 
   function restorePredictionSlot(targetIndex: number, storedIndex: number) {
@@ -561,18 +661,26 @@ export default function FantacalcioLivePage() {
 
     setLeftSlots((current) => current.map((item, itemIndex) => (itemIndex === targetIndex ? slot : item)));
     setStoredSlots((current) => current.filter((_, itemIndex) => itemIndex !== storedIndex));
-    setOpenMemoryIndex(null);
+    if (hasOfficialSubmission) {
+      setHasUnconfirmedChanges(true);
+    }
+    closeMemoryPopup();
   }
 
   function startMemoryPopupDrag(event: PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    swipeStartXRef.current = null;
+    swipeStartYRef.current = null;
+    swipeLockRef.current = null;
+
     const popup = event.currentTarget.closest("[data-memory-popup='true']") as HTMLDivElement | null;
     if (!popup) return;
 
     const rect = popup.getBoundingClientRect();
 
-    setMemoryPopupFloating(true);
     setMemoryPopupWidth(rect.width);
-    setMemoryPopupPosition({ x: rect.left, y: rect.top });
     setMemoryDragOffset({
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
@@ -584,6 +692,9 @@ export default function FantacalcioLivePage() {
   function moveMemoryPopup(event: PointerEvent<HTMLDivElement>) {
     if (!memoryDragOffset) return;
 
+    event.preventDefault();
+    event.stopPropagation();
+
     const popupWidth = memoryPopupWidth ?? 106;
     const popup = event.currentTarget.closest("[data-memory-popup='true']") as HTMLDivElement | null;
     const popupHeight = popup?.offsetHeight ?? 80;
@@ -591,24 +702,84 @@ export default function FantacalcioLivePage() {
     const maxX = Math.max(8, window.innerWidth - popupWidth - 8);
     const maxY = Math.max(8, window.innerHeight - popupHeight - 8);
 
+    const edgeZone = 72;
+    const maxScrollStep = 18;
+    let scrollDelta = 0;
+
+    if (event.clientY < edgeZone) {
+      const intensity = (edgeZone - event.clientY) / edgeZone;
+      scrollDelta = -Math.ceil(maxScrollStep * intensity);
+    } else if (event.clientY > window.innerHeight - edgeZone) {
+      const intensity =
+        (event.clientY - (window.innerHeight - edgeZone)) / edgeZone;
+      scrollDelta = Math.ceil(maxScrollStep * intensity);
+    }
+
+    if (scrollDelta !== 0) {
+      window.scrollBy({ top: scrollDelta, behavior: "auto" });
+    }
+
     setMemoryPopupPosition({
       x: Math.min(Math.max(8, event.clientX - memoryDragOffset.x), maxX),
       y: Math.min(Math.max(8, event.clientY - memoryDragOffset.y), maxY),
     });
   }
 
-  function stopMemoryPopupDrag() {
+  function stopMemoryPopupDrag(event?: PointerEvent<HTMLDivElement>) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    if (
+      event &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
     setMemoryDragOffset(null);
   }
 
-  function submitPredictions() {
-    if (locked || !isViewingSelf) return;
+  async function submitPredictions() {
+    if (
+      locked ||
+      submitting ||
+      !isViewingSelf ||
+      !predictionRoundId ||
+      (hasOfficialSubmission && !hasUnconfirmedChanges)
+    ) {
+      return;
+    }
 
     if (!allSlotsComplete) {
       alert("Completa tutti gli abbinamenti prima di inviare.");
       return;
     }
 
+    setSubmitting(true);
+
+    const { data, error } = await supabase.rpc(
+      "submit_round_predictions_rpc",
+      { p_league_round_id: predictionRoundId }
+    );
+
+    setSubmitting(false);
+
+    if (error) {
+      alert(error.message || "Invio dei pronostici non riuscito.");
+      return;
+    }
+
+    const result = (data || [])[0];
+    if (
+      !result ||
+      result.submitted_prediction_count !== result.required_prediction_count
+    ) {
+      alert("La conferma dell'invio non è coerente con i pronostici richiesti.");
+      return;
+    }
+
+    setHasOfficialSubmission(true);
+    setHasUnconfirmedChanges(false);
     setSubmissionModalOpen(true);
   }
 
@@ -677,7 +848,10 @@ export default function FantacalcioLivePage() {
           transition: swipeTransition
             ? "transform 260ms cubic-bezier(.22,.61,.36,1), opacity 260ms cubic-bezier(.22,.61,.36,1), filter 260ms cubic-bezier(.22,.61,.36,1)"
             : "none",
-          filter: swipeDragX !== 0 ? "drop-shadow(0 28px 70px rgba(0,0,0,0.55))" : "none",
+          filter:
+            swipeDragX !== 0
+              ? "drop-shadow(0 28px 70px rgba(0,0,0,0.55))"
+              : "none",
           willChange: "transform, opacity, filter",
         }}
       >
@@ -849,7 +1023,9 @@ export default function FantacalcioLivePage() {
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => removePredictionSlot(index)}
+                      onClick={(event) =>
+                        removePredictionSlot(index, event.currentTarget)
+                      }
                       disabled={locked || !isViewingSelf}
                       className={`w-full text-left transition ${locked ? "cursor-default" : "hover:scale-[1.01]"}`}
                       title={
@@ -876,59 +1052,6 @@ export default function FantacalcioLivePage() {
                       )}
                     </button>
 
-                    {openMemoryIndex === index && !locked && !leftSlot && (
-                      <div
-                        data-memory-popup="true"
-                        className={`${
-                          memoryPopupFloating
-                            ? "fixed"
-                            : "absolute left-1 top-[calc(100%+6px)] w-[106px] sm:left-0 sm:right-0 sm:w-auto"
-                        } z-50 rounded-2xl border border-[#A6E824]/25 bg-[#071015] p-1 shadow-2xl shadow-[#A6E824]/10 sm:p-1.5`}
-                        style={
-                          memoryPopupFloating
-                            ? { left: memoryPopupPosition.x, top: memoryPopupPosition.y, width: memoryPopupWidth ?? undefined }
-                            : undefined
-                        }
-                      >
-                        <div
-                          className={`absolute left-1/2 top-0 z-10 flex h-6 w-[74px] -translate-x-1/2 -translate-y-[21px] touch-none items-center justify-center border border-[#A6E824]/40 bg-[#0b1419] text-[13px] font-black text-[#A6E824] shadow-lg shadow-[#A6E824]/10 [clip-path:polygon(12%_0%,88%_0%,100%_100%,0%_100%)] sm:h-7 sm:w-[86px] sm:-translate-y-[24px] ${
-                            memoryDragOffset ? "cursor-grabbing" : "cursor-grab"
-                          }`}
-                          onPointerDown={startMemoryPopupDrag}
-                          onPointerMove={moveMemoryPopup}
-                          onPointerUp={stopMemoryPopupDrag}
-                          onPointerCancel={stopMemoryPopupDrag}
-                          title="Trascina memoria"
-                        >
-                          ≡
-                        </div>
-                        {storedSlots.length === 0 ? (
-                          <div className="h-10 rounded-xl border border-dashed border-white/10 bg-black/25" />
-                        ) : (
-                          <div className="grid gap-1.5">
-                            {storedSlots.map((stored, storedIndex) => (
-                              <button
-                                key={`${stored.homeBadge}-${stored.awayBadge}-${stored.score}-${storedIndex}`}
-                                type="button"
-                                onPointerDown={(event) => event.stopPropagation()}
-                                onClick={() => restorePredictionSlot(index, storedIndex)}
-                                className="group grid grid-cols-[22px_auto_22px] items-center justify-center gap-1 rounded-xl border border-[#A6E824]/25 bg-[#0b1419] px-0.5 py-1.5 text-[11px] font-black text-white shadow-inner shadow-white/5 transition hover:scale-[1.03] hover:border-[#A6E824]/70 hover:bg-[#101d18] hover:shadow-[0_0_18px_rgba(166,232,36,0.16)] sm:grid-cols-[1fr_auto_1fr] sm:gap-1.5 sm:px-2 sm:py-2 sm:text-sm"
-                              >
-                                <span className="text-left text-[10px] uppercase tracking-[-0.02em] text-gray-500 transition group-hover:text-[#A6E824] sm:tracking-[0.02em] sm:text-xs">
-                                  {stored.homeBadge}
-                                </span>
-                                <span className="rounded-lg bg-black/35 px-0.5 py-1 text-center text-[14px] leading-none text-white shadow-inner shadow-white/5 sm:px-2 sm:text-base">
-                                  {stored.score}
-                                </span>
-                                <span className="text-right text-[10px] uppercase tracking-[-0.02em] text-gray-500 transition group-hover:text-[#A6E824] sm:tracking-[0.02em] sm:text-xs">
-                                  {stored.awayBadge}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   <LiveMatchCenter match={match} />
@@ -957,20 +1080,78 @@ export default function FantacalcioLivePage() {
         </section>
 
         <section className="mt-5 flex justify-center">
-          <button
-            type="button"
+          <RoundSubmissionButton
+            locked={locked}
+            isViewingSelf={isViewingSelf}
+            hasOfficialSubmission={hasOfficialSubmission}
+            hasUnconfirmedChanges={hasUnconfirmedChanges}
+            submitting={submitting}
             onClick={submitPredictions}
-            disabled={locked || !isViewingSelf}
-            className={`w-full max-w-2xl rounded-2xl px-6 py-4 text-base font-black uppercase text-white shadow-lg transition sm:py-5 sm:text-lg ${
-              locked
-                ? "cursor-not-allowed bg-gray-700 text-gray-300 shadow-black/20"
-                : "bg-[#8cc91e] shadow-[#A6E824]/20 hover:brightness-110"
-            }`}
-          >
-            {!isViewingSelf ? "Pronostici visibili dal live" : locked ? "🔒 Pronostici bloccati" : "✈ Invia i pronostici"}
-          </button>
+          />
         </section>
       </section>
+
+
+      {mounted &&
+        openMemoryIndex !== null &&
+        !locked &&
+        leftSlots[openMemoryIndex] === null &&
+        createPortal(
+          <div
+            data-memory-popup="true"
+            className="fixed z-[200] rounded-2xl border border-[#A6E824]/25 bg-[#071015] p-1 shadow-2xl shadow-[#A6E824]/10 sm:p-1.5"
+            style={{
+              left: memoryPopupPosition.x,
+              top: memoryPopupPosition.y,
+              width: memoryPopupWidth ?? 106,
+            }}
+            onTouchStart={(event) => event.stopPropagation()}
+            onTouchMove={(event) => event.stopPropagation()}
+            onTouchEnd={(event) => event.stopPropagation()}
+          >
+            <div
+              className={`absolute left-1/2 top-0 z-10 flex h-6 w-[74px] -translate-x-1/2 -translate-y-[21px] touch-none select-none items-center justify-center border border-[#A6E824]/40 bg-[#0b1419] text-[13px] font-black text-[#A6E824] shadow-lg shadow-[#A6E824]/10 [clip-path:polygon(12%_0%,88%_0%,100%_100%,0%_100%)] sm:h-7 sm:w-[86px] sm:-translate-y-[24px] ${
+                memoryDragOffset ? "cursor-grabbing" : "cursor-grab"
+              }`}
+              onPointerDown={startMemoryPopupDrag}
+              onPointerMove={moveMemoryPopup}
+              onPointerUp={stopMemoryPopupDrag}
+              onPointerCancel={stopMemoryPopupDrag}
+              title="Trascina memoria"
+            >
+              ≡
+            </div>
+
+            {storedSlots.length === 0 ? (
+              <div className="h-10 rounded-xl border border-dashed border-white/10 bg-black/25" />
+            ) : (
+              <div className="grid gap-1.5">
+                {storedSlots.map((stored, storedIndex) => (
+                  <button
+                    key={`${stored.homeBadge}-${stored.awayBadge}-${stored.score}-${storedIndex}`}
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() =>
+                      restorePredictionSlot(openMemoryIndex, storedIndex)
+                    }
+                    className="group grid grid-cols-[22px_auto_22px] items-center justify-center gap-1 rounded-xl border border-[#A6E824]/25 bg-[#0b1419] px-0.5 py-1.5 text-[11px] font-black text-white shadow-inner shadow-white/5 transition hover:scale-[1.03] hover:border-[#A6E824]/70 hover:bg-[#101d18] hover:shadow-[0_0_18px_rgba(166,232,36,0.16)] sm:grid-cols-[1fr_auto_1fr] sm:gap-1.5 sm:px-2 sm:py-2 sm:text-sm"
+                  >
+                    <span className="text-left text-[10px] uppercase tracking-[-0.02em] text-gray-500 transition group-hover:text-[#A6E824] sm:tracking-[0.02em] sm:text-xs">
+                      {stored.homeBadge}
+                    </span>
+                    <span className="rounded-lg bg-black/35 px-0.5 py-1 text-center text-[14px] leading-none text-white shadow-inner shadow-white/5 sm:px-2 sm:text-base">
+                      {stored.score}
+                    </span>
+                    <span className="text-right text-[10px] uppercase tracking-[-0.02em] text-gray-500 transition group-hover:text-[#A6E824] sm:tracking-[0.02em] sm:text-xs">
+                      {stored.awayBadge}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
 
       <SubmissionModal
         open={submissionModalOpen}
