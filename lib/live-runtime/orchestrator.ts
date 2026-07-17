@@ -6,6 +6,7 @@ import {
   enqueueLiveRuntimeJob,
   type EnqueuedLiveRuntimeJob,
 } from "./job-service";
+import { enqueueLeagueRoundRebuildJobs } from "./rebuild-enqueue";
 import { normalizeLiveMatchUpdate } from "./normalizer";
 import { decidePollingPolicy } from "./polling-policy";
 import {
@@ -77,18 +78,6 @@ function buildMatchRefreshIdempotencyKey(input: {
   ].join(":");
 }
 
-function buildLeagueRoundRebuildIdempotencyKey(input: {
-  leagueRoundId: string;
-  receiptId: string;
-}): string {
-  return [
-    "live",
-    "rebuild-league-round",
-    input.leagueRoundId,
-    input.receiptId,
-  ].join(":");
-}
-
 async function enqueueMeaningfulChangeJobs(input: {
   client: SupabaseClient;
   scope: LiveRuntimeIngestionScope;
@@ -126,30 +115,19 @@ async function enqueueMeaningfulChangeJobs(input: {
 
   jobs.push(refreshJob);
 
-  for (const leagueRoundId of [...new Set(input.scope.leagueRoundIds)]) {
-    const rebuildJob = await enqueueLiveRuntimeJob(input.client, {
-      jobType: "rebuild_league_round",
-      scopeType: "league_round",
-      scopeId: leagueRoundId,
-      idempotencyKey: buildLeagueRoundRebuildIdempotencyKey({
-        leagueRoundId,
-        receiptId: input.receipt.receiptId,
-      }),
-      priority: 30,
-      payload: {
-        receipt_id: input.receipt.receiptId,
-        match_id: input.scope.matchId,
-        fantagol_round_id: input.scope.fantagolRoundId,
-        league_round_id: leagueRoundId,
-        change_type: input.change.changeType,
-        changed_fields: input.change.changedFields,
-      },
-      correlationId: input.receipt.correlationId,
-      causationId: refreshJob.jobId,
-    });
+  const rebuildJobs = await enqueueLeagueRoundRebuildJobs({
+    client: input.client,
+    leagueRoundIds: input.scope.leagueRoundIds,
+    receiptId: input.receipt.receiptId,
+    matchId: input.scope.matchId,
+    fantagolRoundId: input.scope.fantagolRoundId,
+    changeType: input.change.changeType,
+    changedFields: input.change.changedFields,
+    correlationId: input.receipt.correlationId,
+    causationId: refreshJob.jobId,
+  });
 
-    jobs.push(rebuildJob);
-  }
+  jobs.push(...rebuildJobs);
 
   return jobs;
 }
