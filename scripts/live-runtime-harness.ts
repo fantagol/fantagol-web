@@ -1,3 +1,4 @@
+import { loadEnvConfig } from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 
 import {
@@ -7,6 +8,8 @@ import {
 } from "../lib/live-runtime";
 
 type HarnessMode = "enqueue" | "once" | "drain";
+
+loadEnvConfig(process.cwd());
 
 function requiredEnv(name: string, fallbacks: string[] = []): string {
   for (const key of [name, ...fallbacks]) {
