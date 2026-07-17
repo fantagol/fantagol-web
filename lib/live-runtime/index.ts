@@ -7,5 +7,7 @@ export * from "./polling-policy";
 export * from "./publication-service";
 export * from "./receipt-service";
 export * from "./rpc-utils";
+export * from "./simulation-service";
 export * from "./snapshot-service";
 export * from "./types";
+export * from "./worker";
