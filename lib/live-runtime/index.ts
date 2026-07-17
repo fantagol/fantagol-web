@@ -18,3 +18,6 @@ export * from "./snapshot-service";
 export * from "./the-odds-api-live-adapter";
 export * from "./types";
 export * from "./worker";
+export * from "./odds-snapshot";
+export * from "./odds-snapshot-service";
+export * from "./the-odds-api-snapshot-normalizer";
