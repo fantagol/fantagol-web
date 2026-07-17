@@ -21,3 +21,4 @@ export * from "./worker";
 export * from "./odds-snapshot";
 export * from "./odds-snapshot-service";
 export * from "./the-odds-api-snapshot-normalizer";
+export * from "./poll-match-handler";

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
+import { handlePollMatchJob } from "./poll-match-handler";
 import {
   claimLiveRuntimeJob,
   completeLiveRuntimeJob,
@@ -233,6 +234,8 @@ const publishSnapshotHandler: LiveRuntimeWorkerHandler = async ({
 };
 
 const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
+  poll_match: async ({ client, job }) =>
+    handlePollMatchJob({ client, job }),
   rebuild_league_round: rebuildLeagueRoundHandler,
   publish_snapshot: publishSnapshotHandler,
   retry_publication: publishSnapshotHandler,
