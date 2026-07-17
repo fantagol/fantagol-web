@@ -3,7 +3,9 @@ export type LiveRuntimeErrorCode =
   | "LIVE_RUNTIME_INVALID_DATE"
   | "LIVE_RUNTIME_INVALID_SCORE"
   | "LIVE_RUNTIME_UNSUPPORTED_STATUS"
-  | "LIVE_RUNTIME_CONFIGURATION_ERROR";
+  | "LIVE_RUNTIME_CONFIGURATION_ERROR"
+  | "LIVE_RUNTIME_RPC_ERROR"
+  | "LIVE_RUNTIME_INVALID_RPC_RESPONSE";
 
 export class LiveRuntimeError extends Error {
   readonly code: LiveRuntimeErrorCode;
