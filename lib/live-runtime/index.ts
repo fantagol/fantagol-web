@@ -4,6 +4,8 @@ export * from "./job-service";
 export * from "./normalizer";
 export * from "./orchestrator";
 export * from "./polling-policy";
+export * from "./provider-runtime";
+export * from "./provider-runtime-runner";
 export * from "./publication-service";
 export * from "./receipt-service";
 export * from "./rpc-utils";
