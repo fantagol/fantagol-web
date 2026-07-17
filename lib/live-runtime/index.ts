@@ -15,5 +15,6 @@ export * from "./scheduler";
 export * from "./scheduler-runner";
 export * from "./simulation-service";
 export * from "./snapshot-service";
+export * from "./the-odds-api-live-adapter";
 export * from "./types";
 export * from "./worker";
