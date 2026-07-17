@@ -14,6 +14,7 @@ import {
   publishLiveStateSnapshot,
   type LivePublicationChannel,
 } from "./publication-service";
+import { handleRefreshRoundJob } from "./refresh-round-handler";
 import { createLiveStateSnapshot } from "./snapshot-service";
 import {
   rebuildLeagueRoundSimulation,
@@ -234,6 +235,8 @@ const publishSnapshotHandler: LiveRuntimeWorkerHandler = async ({
 };
 
 const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
+  refresh_round: async ({ client, job }) =>
+    handleRefreshRoundJob({ client, job }),
   poll_match: async ({ client, job }) =>
     handlePollMatchJob({ client, job }),
   rebuild_league_round: rebuildLeagueRoundHandler,
