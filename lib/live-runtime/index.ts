@@ -2,6 +2,7 @@ export * from "./change-detector";
 export * from "./errors";
 export * from "./football-data-live-adapter";
 export * from "./job-service";
+export * from "./live-match-state-service";
 export * from "./normalizer";
 export * from "./orchestrator";
 export * from "./polling-policy";
