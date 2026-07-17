@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { handleCertificationReadinessJob } from "./certification-readiness-handler";
 import { LiveRuntimeError } from "./errors";
 import { handlePollMatchJob } from "./poll-match-handler";
 import {
@@ -242,6 +243,8 @@ const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
   rebuild_league_round: rebuildLeagueRoundHandler,
   publish_snapshot: publishSnapshotHandler,
   retry_publication: publishSnapshotHandler,
+  evaluate_certification_readiness: async ({ client, job }) =>
+    handleCertificationReadinessJob({ client, job }),
 };
 
 export async function runLiveRuntimeWorkerOnce(
