@@ -20,13 +20,15 @@ export function createDefaultProviderRuntimeRegistry(
     }),
   );
 
-  registry.register(
-    "the_odds_api",
-    new TheOddsApiLiveAdapter({
-      apiKey: options.theOddsApiKey,
-      sportKey: options.theOddsApiSportKey,
-    }),
-  );
+  if (options.theOddsApiKey || process.env.THE_ODDS_API_KEY) {
+    registry.register(
+      "the_odds_api",
+      new TheOddsApiLiveAdapter({
+        apiKey: options.theOddsApiKey,
+        sportKey: options.theOddsApiSportKey,
+      }),
+    );
+  }
 
   return registry;
 }
