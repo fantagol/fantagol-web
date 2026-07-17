@@ -6,7 +6,6 @@ import {
   enqueueLiveRuntimeJob,
   type EnqueuedLiveRuntimeJob,
 } from "./job-service";
-import { enqueueLeagueRoundRebuildJobs } from "./rebuild-enqueue";
 import { normalizeLiveMatchUpdate } from "./normalizer";
 import { decidePollingPolicy } from "./polling-policy";
 import {
@@ -107,6 +106,7 @@ async function enqueueMeaningfulChangeJobs(input: {
       provider_code: input.update.providerCode,
       change_type: input.change.changeType,
       changed_fields: input.change.changedFields,
+      league_round_ids: input.scope.leagueRoundIds,
       normalized_update: input.update.normalizedPayload,
     },
     correlationId: input.receipt.correlationId,
@@ -115,19 +115,6 @@ async function enqueueMeaningfulChangeJobs(input: {
 
   jobs.push(refreshJob);
 
-  const rebuildJobs = await enqueueLeagueRoundRebuildJobs({
-    client: input.client,
-    leagueRoundIds: input.scope.leagueRoundIds,
-    receiptId: input.receipt.receiptId,
-    matchId: input.scope.matchId,
-    fantagolRoundId: input.scope.fantagolRoundId,
-    changeType: input.change.changeType,
-    changedFields: input.change.changedFields,
-    correlationId: input.receipt.correlationId,
-    causationId: refreshJob.jobId,
-  });
-
-  jobs.push(...rebuildJobs);
 
   return jobs;
 }
