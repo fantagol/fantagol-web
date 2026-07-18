@@ -40,6 +40,7 @@ type RoundPredictionRow = {
 
 type StrategyStatusRow = {
   league_fixture_id: string;
+  is_bye: boolean;
   strategy_exists: boolean;
   strategy_status: string | null;
   workspace_payload: unknown;
@@ -150,9 +151,23 @@ function TeamBadge({
   );
 }
 
-function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+function Avatar({
+  name,
+  avatarUrl,
+  disabled = false,
+}: {
+  name: string;
+  avatarUrl?: string | null;
+  disabled?: boolean;
+}) {
   return (
-    <div className="flex h-12 w-12 min-[380px]:h-[52px] min-[380px]:w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl">
+    <div
+      className={`flex h-12 w-12 min-[380px]:h-[52px] min-[380px]:w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl ${
+        disabled
+          ? "border-white/5 grayscale opacity-30 saturate-0"
+          : "border-white/15"
+      }`}
+    >
       {avatarUrl ? (
         <img
           src={avatarUrl}
@@ -373,6 +388,7 @@ export default function OneToOneLivePage() {
   const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
   const [strategyExists, setStrategyExists] = useState(false);
   const [strategyLocked, setStrategyLocked] = useState(false);
+  const [isByeRound, setIsByeRound] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(true);
   const [savingStrategy, setSavingStrategy] = useState(false);
   const [strategyError, setStrategyError] = useState<string | null>(null);
@@ -560,6 +576,7 @@ export default function OneToOneLivePage() {
 
       setLeagueRoundId(currentLeagueRoundId);
       setRoundNumber(rows[0]?.round_number ?? null);
+      setIsByeRound(Boolean(status?.is_bye));
       setLeagueFixtureId(status?.league_fixture_id || null);
       setLiveRows(baseRows);
       setLeftSlots(restoredSlots);
@@ -591,8 +608,9 @@ export default function OneToOneLivePage() {
   // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
   const round = getRoundState("2026-08-23T13:44:55");
   const locked = strategyLocked;
+  const interactionLocked = strategyLocked || isByeRound;
 
-  const isLiveForSwipe = round.isLive || round.isFinished;
+  const isLiveForSwipe = !isByeRound && (round.isLive || round.isFinished);
   const swipeProfiles = useMemo(() => [
     {
       id: "me",
@@ -837,6 +855,7 @@ export default function OneToOneLivePage() {
 
   async function persistPairings(nextSlots: (PredictionSlot | null)[]) {
     if (
+      isByeRound ||
       !leagueRoundId ||
       !leagueFixtureId ||
       liveRows.length !== 10 ||
@@ -875,7 +894,7 @@ export default function OneToOneLivePage() {
   }
 
   function removePredictionSlot(index: number, anchor: HTMLElement) {
-    if (locked || strategyLoading || savingStrategy) return;
+    if (interactionLocked || strategyLoading || savingStrategy) return;
 
     const slot = leftSlots[index];
     if (!slot) {
@@ -893,7 +912,7 @@ export default function OneToOneLivePage() {
   }
 
   function restorePredictionSlot(targetIndex: number, storedIndex: number) {
-    if (locked || strategyLoading || savingStrategy) return;
+    if (interactionLocked || strategyLoading || savingStrategy) return;
 
     const slot = storedSlots[storedIndex];
     if (!slot) return;
@@ -983,7 +1002,7 @@ export default function OneToOneLivePage() {
 
   async function submitStrategy() {
     if (
-      locked ||
+      interactionLocked ||
       submitting ||
       strategyLoading ||
       savingStrategy ||
@@ -1169,9 +1188,15 @@ export default function OneToOneLivePage() {
               </div>
 
               <div className="flex min-w-0 flex-col items-center justify-self-center">
-                <Avatar name={opponentClubInfo?.name || "Avversario"} avatarUrl={opponentClubInfo?.crest_url} />
-                <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
-                  {opponentClubInfo?.name || "Avversario"}
+                <Avatar
+                  name={isByeRound ? "Riposo" : opponentClubInfo?.name || "Avversario"}
+                  avatarUrl={isByeRound ? null : opponentClubInfo?.crest_url}
+                  disabled={isByeRound}
+                />
+                <p className={`mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none sm:max-w-[72px] sm:text-[10px] ${
+                  isByeRound ? "text-gray-600" : "text-white"
+                }`}>
+                  {isByeRound ? "Riposo" : opponentClubInfo?.name || "Avversario"}
                 </p>
               </div>
             </div>
@@ -1206,13 +1231,13 @@ export default function OneToOneLivePage() {
           <div className="flex items-center gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-4 md:border-b-0 md:border-r">
             <div
               className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border text-2xl shadow-[0_0_28px_rgba(166,232,36,0.18)] sm:h-16 sm:w-16 sm:text-3xl ${
-                locked
+                interactionLocked
                   ? "border-gray-500/40 bg-gray-500/10 text-gray-400 shadow-[0_0_22px_rgba(156,163,175,0.10)]"
                   : "border-[#A6E824]/40 bg-[#A6E824]/20 text-[#A6E824]"
               }`}
             >
               <span>✎</span>
-              {locked && (
+              {interactionLocked && (
                 <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-gray-500/40 bg-[#071015] text-[13px] shadow-lg sm:h-7 sm:w-7 sm:text-sm">
                   🔒
                 </span>
@@ -1220,10 +1245,18 @@ export default function OneToOneLivePage() {
             </div>
             <div>
               <p className="text-sm font-black uppercase sm:text-lg">
-                {locked ? "Abbinamenti chiusi" : "Abbinamenti aperti"}
+                {isByeRound
+                  ? "Turno di riposo"
+                  : locked
+                    ? "Abbinamenti chiusi"
+                    : "Abbinamenti aperti"}
               </p>
               <p className="text-xs text-gray-300 sm:text-sm">
-                {locked ? "" : "Puoi reinviare fino al lock ufficiale"}
+                {isByeRound
+                  ? "Le funzioni One-to-One sono disattivate per questa giornata"
+                  : locked
+                    ? ""
+                    : "Puoi reinviare fino al lock ufficiale"}
               </p>
             </div>
           </div>
@@ -1272,17 +1305,46 @@ export default function OneToOneLivePage() {
           </div>
         </section>
 
-        <RuleStrip />
+        <div className={isByeRound ? "pointer-events-none opacity-30 grayscale" : ""}>
+          <RuleStrip />
+        </div>
 
-        <section className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1419] p-3 shadow-xl shadow-black/30 sm:mt-4 sm:p-4">
-          <ClubKitMini club={viewedClubInfo} align="left" />
+        {isByeRound ? (
+          <section className="mt-3 grid gap-4 rounded-2xl border border-white/10 bg-[#0b1419] p-4 shadow-xl shadow-black/30 sm:mt-4 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:items-center sm:p-5">
+            <div className="pointer-events-none opacity-35 grayscale">
+              <ClubKitMini club={viewedClubInfo} align="left" />
+            </div>
 
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/40 text-[10px] font-black text-[#A6E824] sm:h-11 sm:w-11 sm:text-xs">
-            VS
-          </div>
+            <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-center sm:p-5">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-gray-500/30 bg-gray-500/10 text-xl grayscale">
+                ⏸
+              </div>
+              <p className="mt-3 text-base font-black uppercase text-gray-200 sm:text-lg">
+                In questo turno riposi in One-to-One
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-gray-500 sm:text-sm">
+                Le funzioni di questa modalità sono disattivate. Puoi pianificare la strategia della modalità Fantacalcio.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
+                className="mt-4 rounded-xl border border-[#A6E824]/35 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black uppercase tracking-[0.08em] text-[#A6E824] transition hover:border-[#A6E824]/70 hover:bg-[#A6E824]/15 sm:text-sm"
+              >
+                Pianifica Fantacalcio
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1419] p-3 shadow-xl shadow-black/30 sm:mt-4 sm:p-4">
+            <ClubKitMini club={viewedClubInfo} align="left" />
 
-          <ClubKitMini club={opponentClubInfo} align="right" />
-        </section>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#A6E824]/35 bg-black/40 text-[10px] font-black text-[#A6E824] sm:h-11 sm:w-11 sm:text-xs">
+              VS
+            </div>
+
+            <ClubKitMini club={opponentClubInfo} align="right" />
+          </section>
+        )}
 
         {strategyError && (
           <section className="mt-3 rounded-2xl border border-red-500/30 bg-red-950/20 p-4 text-sm font-semibold text-red-200 sm:mt-4">
@@ -1297,7 +1359,9 @@ export default function OneToOneLivePage() {
         )}
 
         {!strategyLoading && liveRows.length === 10 && (
-        <section className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4">
+        <section className={`mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4 ${
+          isByeRound ? "pointer-events-none select-none opacity-25 grayscale" : ""
+        }`}>
           {liveRows.map((match, index) => {
             const leftSlot = displayedLeftSlots[index];
 
@@ -1310,10 +1374,10 @@ export default function OneToOneLivePage() {
                       onClick={(event) =>
                         removePredictionSlot(index, event.currentTarget)
                       }
-                      disabled={locked || !isViewingSelf}
-                      className={`w-full text-left transition ${locked ? "cursor-default" : "hover:scale-[1.01]"}`}
+                      disabled={interactionLocked || !isViewingSelf}
+                      className={`w-full text-left transition ${interactionLocked ? "cursor-default" : "hover:scale-[1.01]"}`}
                       title={
-                        locked
+                        interactionLocked
                           ? "Pronostico bloccato"
                           : leftSlot
                             ? "Clicca per svuotare la casella e mettere il pronostico in memoria"
@@ -1340,7 +1404,7 @@ export default function OneToOneLivePage() {
 
                   <LiveMatchCenter match={match} />
 
-                  {locked && canViewProfileContent ? (
+                  {interactionLocked && canViewProfileContent ? (
                     <PredictionSide
                       score={match.rightPrediction}
                       active={match.rightActive}
@@ -1364,23 +1428,25 @@ export default function OneToOneLivePage() {
         </section>
         )}
 
-        <section className="mt-5 flex justify-center">
-          <RoundSubmissionButton
-            locked={locked}
-            isViewingSelf={isViewingSelf}
-            hasOfficialSubmission={hasOfficialSubmission}
-            hasUnconfirmedChanges={hasUnconfirmedChanges}
-            submitting={submitting || savingStrategy || strategyLoading}
-            disabled={!allSlotsComplete || Boolean(strategyError)}
-            onClick={submitStrategy}
-          />
-        </section>
+        {!isByeRound && (
+          <section className="mt-5 flex justify-center">
+            <RoundSubmissionButton
+              locked={locked}
+              isViewingSelf={isViewingSelf}
+              hasOfficialSubmission={hasOfficialSubmission}
+              hasUnconfirmedChanges={hasUnconfirmedChanges}
+              submitting={submitting || savingStrategy || strategyLoading}
+              disabled={!allSlotsComplete || Boolean(strategyError)}
+              onClick={submitStrategy}
+            />
+          </section>
+        )}
       </section>
 
 
       {mounted &&
         openMemoryIndex !== null &&
-        !locked &&
+        !interactionLocked &&
         leftSlots[openMemoryIndex] === null &&
         createPortal(
           <div
