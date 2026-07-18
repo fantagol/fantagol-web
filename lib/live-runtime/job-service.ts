@@ -13,7 +13,9 @@ export type LiveRuntimeJobType =
   | "publish_snapshot"
   | "retry_publication"
   | "evaluate_certification_readiness"
-  | "certify_match_result";
+  | "certify_match_result"
+  | "evaluate_round_certification_readiness"
+  | "certify_round";
 
 export type LiveRuntimeScopeType =
   | "match"
@@ -245,3 +247,4 @@ export async function failLiveRuntimeJob(
     deadLetterId: row.dead_letter_id,
   };
 }
+

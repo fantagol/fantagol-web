@@ -26,3 +26,5 @@ export * from "./odds-snapshot-service";
 export * from "./the-odds-api-snapshot-normalizer";
 export * from "./poll-match-handler";
 export * from "./refresh-round-handler";
+export * from "./round-certification-readiness-handler";
+export * from "./certify-round-handler";

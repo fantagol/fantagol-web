@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { handleCertificationReadinessJob } from "./certification-readiness-handler";
 import { handleCertifyMatchResultJob } from "./certify-match-result-handler";
+import { handleCertifyRoundJob } from "./certify-round-handler";
 import { LiveRuntimeError } from "./errors";
 import { handlePollMatchJob } from "./poll-match-handler";
 import {
@@ -17,6 +18,7 @@ import {
   type LivePublicationChannel,
 } from "./publication-service";
 import { handleRefreshRoundJob } from "./refresh-round-handler";
+import { handleRoundCertificationReadinessJob } from "./round-certification-readiness-handler";
 import { createLiveStateSnapshot } from "./snapshot-service";
 import {
   rebuildLeagueRoundSimulation,
@@ -174,25 +176,40 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     correlationId: job.correlationId,
   });
 
-  const publicationJob = await enqueueLiveRuntimeJob(client, {
-    jobType: "publish_snapshot",
-    scopeType: "live_state_snapshot",
-    scopeId: snapshot.liveStateSnapshotId,
+  const certificationReadinessJob = await enqueueLiveRuntimeJob(client, {
+    jobType: "evaluate_round_certification_readiness",
+    scopeType: "league_round",
+    scopeId: rebuilt.leagueRoundId,
     idempotencyKey: [
       "live",
-      "publish-snapshot",
-      snapshot.liveStateSnapshotId,
-      getString(job.payload, "publication_channel") ?? "realtime",
+      "evaluate-round-certification-readiness",
+      rebuilt.leagueRoundId,
+      rebuilt.calculationRunId,
+      rebuilt.uiSimulationId,
     ].join(":"),
-    priority: 40,
+    priority: 34,
     payload: {
+      league_round_id: rebuilt.leagueRoundId,
+      calculation_run_id: rebuilt.calculationRunId,
+      ui_simulation_id: rebuilt.uiSimulationId,
       live_state_snapshot_id: snapshot.liveStateSnapshotId,
-      channel:
+      publication_channel:
         getString(job.payload, "publication_channel") ?? "realtime",
-      metadata: {
-        source_job_id: job.jobId,
+      publication_metadata: {
+        source_rebuild_job_id: job.jobId,
         ui_simulation_id: rebuilt.uiSimulationId,
+        live_state_snapshot_id: snapshot.liveStateSnapshotId,
       },
+      engine_version:
+        getString(job.payload, "round_certification_engine_version") ??
+        "round-certification-v1",
+      reason:
+        getString(job.payload, "round_certification_reason") ??
+        "automatic official round certification",
+      committed_by_member_id: getString(
+        job.payload,
+        "committed_by_member_id",
+      ),
     },
     correlationId: job.correlationId,
     causationId: job.jobId,
@@ -207,7 +224,9 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     standings_simulation_id: rebuilt.standingsSimulationId,
     ui_simulation_id: rebuilt.uiSimulationId,
     live_state_snapshot_id: snapshot.liveStateSnapshotId,
-    publication_job_id: publicationJob.jobId,
+    certification_readiness_job_id: certificationReadinessJob.jobId,
+    certification_readiness_job_inserted:
+      certificationReadinessJob.inserted,
   };
 };
 
@@ -248,6 +267,10 @@ const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
     handleCertificationReadinessJob({ client, job }),
   certify_match_result: async ({ client, job }) =>
     handleCertifyMatchResultJob({ client, job }),
+  evaluate_round_certification_readiness: async ({ client, job }) =>
+    handleRoundCertificationReadinessJob({ client, job }),
+  certify_round: async ({ client, job }) =>
+    handleCertifyRoundJob({ client, job }),
 };
 
 export async function runLiveRuntimeWorkerOnce(
