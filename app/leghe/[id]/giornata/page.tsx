@@ -888,7 +888,7 @@ export default function GiornataPage() {
           willChange: "transform, opacity, filter",
         }}
       >
-        <header className="grid grid-cols-[1.35fr_1fr_1fr_1fr] gap-2 border-b border-white/10 py-3 sm:gap-3 sm:py-5">
+        <header className="grid w-full min-w-0 grid-cols-[1.35fr_1fr_0.9fr_1.1fr] gap-2 border-b border-white/10 py-3 sm:grid-cols-[1.35fr_1fr_1fr_1fr] sm:gap-3 sm:py-5">
           <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
             <div className="flex h-full items-center gap-2">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-base">
@@ -931,14 +931,14 @@ export default function GiornataPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/25 p-3 text-center">
-            <div className="flex items-center justify-center gap-2">
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
+            <div className="flex h-full items-center justify-center gap-1 sm:gap-2">
               <button className="hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-xl text-gray-400 sm:flex">
                 ‹
               </button>
 
               <div>
-                <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
+                <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">Giornata</p>
                 <p className="text-2xl font-black text-white sm:text-3xl">{round?.number ?? "-"}</p>
               </div>
 
@@ -951,16 +951,16 @@ export default function GiornataPage() {
           <button
             type="button"
             onClick={() => router.push("/statistiche")}
-            className="rounded-2xl border border-white/10 bg-black/25 p-3 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
+            className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 p-1.5 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] sm:p-3"
           >
-            <div className="mx-auto flex h-10 w-14 items-end gap-1 rounded-xl border border-white/10 bg-[#071015] px-2 pb-2 sm:h-12 sm:w-16">
+            <div className="mx-auto flex h-9 w-11 items-end gap-0.5 rounded-xl border border-white/10 bg-[#071015] px-1.5 pb-1.5 sm:h-12 sm:w-16 sm:gap-1 sm:px-2 sm:pb-2">
               <span className="h-3 flex-1 rounded-t bg-[#A6E824]/50 sm:h-4" />
               <span className="h-6 flex-1 rounded-t bg-[#A6E824] sm:h-7" />
               <span className="h-4 flex-1 rounded-t bg-[#A6E824]/70 sm:h-5" />
               <span className="h-8 flex-1 rounded-t bg-[#A6E824]/90 sm:h-9" />
             </div>
 
-            <p className="mt-1 text-[9px] font-black uppercase text-gray-500 sm:text-xs">
+            <p className="mt-1 whitespace-nowrap text-[8px] font-black uppercase tracking-[-0.03em] text-gray-500 sm:text-xs">
               Statistiche
             </p>
           </button>

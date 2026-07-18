@@ -136,7 +136,7 @@ function TeamBadge({
 
 function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
   return (
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl">
+    <div className="flex h-12 w-12 min-[380px]:h-[52px] min-[380px]:w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl">
       {avatarUrl ? (
         <img
           src={avatarUrl}
@@ -930,9 +930,9 @@ export default function FantacalcioLivePage() {
           willChange: "transform, opacity, filter",
         }}
       >
-        <header className="grid grid-cols-[1fr_78px_78px] gap-2 border-b border-white/10 py-3 sm:grid-cols-[1fr_120px_120px] sm:gap-3 sm:py-5">
+        <header className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_54px_66px] gap-1.5 border-b border-white/10 py-3 sm:grid-cols-[minmax(0,1fr)_120px_120px] sm:gap-3 sm:py-5">
           <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-2xl shadow-black/40 sm:p-3">
-            <div className="grid grid-cols-[54px_1fr_54px] items-center gap-1 sm:grid-cols-[84px_1fr_84px] sm:gap-2">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 sm:grid-cols-[84px_minmax(104px,1fr)_84px] sm:gap-3">
               <div className="flex shrink-0 flex-col items-center">
                 <Avatar name={viewedClubInfo.name} avatarUrl={viewedClubInfo.crest_url} />
                 <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
@@ -940,26 +940,26 @@ export default function FantacalcioLivePage() {
                 </p>
               </div>
 
-              <div className="flex min-w-0 flex-col items-center justify-center">
-                <div className="grid w-full grid-cols-[1fr_auto_1fr] items-end gap-1 text-center">
-                  <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
+              <div className="flex min-w-0 flex-col items-center justify-center px-0.5 sm:min-w-[104px] sm:px-2">
+                <div className="relative flex w-full items-end justify-between text-center">
+                  <span className="min-w-[18px] text-base font-black leading-none text-[#A6E824] sm:min-w-[24px] sm:text-xl">
                     {displayedLeftPoints}
                   </span>
 
-                  <span className="pb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
-                    pt
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 pb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
+                    PT
                   </span>
 
-                  <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
+                  <span className="min-w-[18px] text-base font-black leading-none text-[#A6E824] sm:min-w-[24px] sm:text-xl">
                     {displayedRightPoints}
                   </span>
                 </div>
 
-                <span className="my-1 flex h-6 w-6 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:h-8 sm:w-8 sm:text-[10px]">
+                <span className="my-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:my-2 sm:h-8 sm:w-8 sm:text-[10px]">
                   VS
                 </span>
 
-                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                <div className="flex min-w-0 items-center justify-center gap-1 sm:min-w-[94px] sm:gap-2">
                   <span className="text-3xl font-black leading-none text-[#A6E824] sm:text-4xl">
                     {displayedLeftGoals}
                   </span>
@@ -972,7 +972,7 @@ export default function FantacalcioLivePage() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-col items-center">
+              <div className="flex min-w-0 flex-col items-center justify-self-center">
                 <Avatar name={opponentClubInfo?.name || "Avversario"} avatarUrl={opponentClubInfo?.crest_url} />
                 <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
                   {opponentClubInfo?.name || "Avversario"}
@@ -983,7 +983,7 @@ export default function FantacalcioLivePage() {
 
           <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
             <div className="flex h-full flex-col items-center justify-center">
-              <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Giornata</p>
+              <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">Giornata</p>
               <p className="text-2xl font-black text-white sm:text-3xl">{roundNumber ?? "—"}</p>
             </div>
           </div>
@@ -991,16 +991,16 @@ export default function FantacalcioLivePage() {
           <button
             type="button"
             onClick={() => router.push("/statistiche")}
-            className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] sm:p-3"
+            className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 p-1.5 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] sm:p-3"
           >
-            <div className="mx-auto flex h-10 w-14 items-end gap-1 rounded-xl border border-white/10 bg-[#071015] px-2 pb-2 sm:h-12 sm:w-16">
+            <div className="mx-auto flex h-9 w-11 items-end gap-0.5 rounded-xl border border-white/10 bg-[#071015] px-1.5 pb-1.5 sm:h-12 sm:w-16 sm:gap-1 sm:px-2 sm:pb-2">
               <span className="h-3 flex-1 rounded-t bg-[#A6E824]/50 sm:h-4" />
               <span className="h-6 flex-1 rounded-t bg-[#A6E824] sm:h-7" />
               <span className="h-4 flex-1 rounded-t bg-[#A6E824]/70 sm:h-5" />
               <span className="h-8 flex-1 rounded-t bg-[#A6E824]/90 sm:h-9" />
             </div>
 
-            <p className="mt-1 text-[9px] font-black uppercase text-gray-500 sm:text-xs">
+            <p className="mt-1 whitespace-nowrap text-[8px] font-black uppercase tracking-[-0.03em] text-gray-500 sm:text-xs">
               Statistiche
             </p>
           </button>
