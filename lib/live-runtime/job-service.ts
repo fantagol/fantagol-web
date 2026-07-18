@@ -12,7 +12,8 @@ export type LiveRuntimeJobType =
   | "rebuild_league_round"
   | "publish_snapshot"
   | "retry_publication"
-  | "evaluate_certification_readiness";
+  | "evaluate_certification_readiness"
+  | "certify_match_result";
 
 export type LiveRuntimeScopeType =
   | "match"

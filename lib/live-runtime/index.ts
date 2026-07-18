@@ -1,4 +1,5 @@
 export * from "./certification-readiness-handler";
+export * from "./certify-match-result-handler";
 export * from "./change-detector";
 export * from "./errors";
 export * from "./football-data-live-adapter";

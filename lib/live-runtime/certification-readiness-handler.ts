@@ -1,12 +1,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
-import type { ClaimedLiveRuntimeJob } from "./job-service";
+import {
+  enqueueLiveRuntimeJob,
+  type ClaimedLiveRuntimeJob,
+} from "./job-service";
 import { freezeOfficialMatchOddsSnapshot } from "./odds-snapshot-service";
+import {
+  callRuntimeRpc,
+  requireSingleRpcRow,
+} from "./rpc-utils";
 
 type HandleCertificationReadinessJobInput = {
   client: SupabaseClient;
   job: ClaimedLiveRuntimeJob;
+};
+
+type MatchCertificationReadinessRpcRow = {
+  match_id: string;
+  certification_state: string;
+  source_match_version: number;
+  is_ready: boolean;
+  stable_since: string | null;
+  ready_at: string | null;
+  blocking_code: string | null;
+  active_certification_id: string | null;
+  details: Record<string, unknown>;
 };
 
 function getRequiredString(
@@ -50,6 +69,52 @@ function getOptionalString(
   return value.trim();
 }
 
+function getOptionalInteger(
+  payload: Record<string, unknown>,
+  key: string,
+  fallback: number,
+): number {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        `evaluate_certification_readiness requires payload.${key} to be a non-negative integer`,
+      details: { key, value },
+    });
+  }
+
+  return value as number;
+}
+
+function getOptionalBoolean(
+  payload: Record<string, unknown>,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        `evaluate_certification_readiness requires payload.${key} to be boolean`,
+      details: { key, value },
+    });
+  }
+
+  return value;
+}
+
 function getFreezeAt(payload: Record<string, unknown>): string {
   const value = getOptionalString(
     payload,
@@ -64,6 +129,20 @@ function getFreezeAt(payload: Record<string, unknown>): string {
       message:
         "evaluate_certification_readiness requires payload.freeze_at to be a valid ISO date",
       details: { freezeAt: value },
+    });
+  }
+
+  return parsed.toISOString();
+}
+
+function requireValidScheduledAt(value: string, field: string): string {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_RPC_RESPONSE",
+      message: `Match certification RPC returned invalid ${field}`,
+      details: { field, value },
     });
   }
 
@@ -109,22 +188,127 @@ export async function handleCertificationReadinessJob({
     "freeze_reason",
     "kickoff",
   );
-  const policyVersion = getOptionalString(
+  const oddsPolicyVersion = getOptionalString(
     job.payload,
     "policy_version",
     "official_match_odds_v1",
+  );
+  const stabilityWindowSeconds = getOptionalInteger(
+    job.payload,
+    "stability_window_seconds",
+    300,
+  );
+  const requireOfficialOdds = getOptionalBoolean(
+    job.payload,
+    "require_official_odds",
+    true,
+  );
+  const certificationEngineVersion = getOptionalString(
+    job.payload,
+    "certification_engine_version",
+    "match-result-certification-v1",
+  );
+  const certificationPolicyVersion = getOptionalString(
+    job.payload,
+    "certification_policy_version",
+    "match-result-certification-policy-v1",
   );
 
   const frozen = await freezeOfficialMatchOddsSnapshot(client, {
     matchId,
     freezeAt,
     freezeReason,
-    policyVersion,
+    policyVersion: oddsPolicyVersion,
   });
 
+  const functionName = "evaluate_match_certification_readiness_rpc";
+  const rows = await callRuntimeRpc<MatchCertificationReadinessRpcRow>(
+    client,
+    functionName,
+    {
+      p_match_id: matchId,
+      p_stability_window_seconds: stabilityWindowSeconds,
+      p_require_official_odds: requireOfficialOdds,
+      p_correlation_id: job.correlationId,
+    },
+  );
+  const readiness = requireSingleRpcRow(rows, functionName);
+
+  let followUpJob = null;
+
+  if (readiness.is_ready) {
+    followUpJob = await enqueueLiveRuntimeJob(client, {
+      jobType: "certify_match_result",
+      scopeType: "match",
+      scopeId: matchId,
+      idempotencyKey: [
+        "live",
+        "certify-match-result",
+        matchId,
+        readiness.source_match_version,
+      ].join(":"),
+      priority: 10,
+      payload: {
+        match_id: matchId,
+        source_match_version: readiness.source_match_version,
+        stability_window_seconds: stabilityWindowSeconds,
+        require_official_odds: requireOfficialOdds,
+        engine_version: certificationEngineVersion,
+        policy_version: certificationPolicyVersion,
+        certified_by: "live-runtime",
+      },
+      correlationId: job.correlationId,
+      causationId: job.jobId,
+    });
+  } else if (
+    readiness.certification_state === "stabilizing" &&
+    readiness.ready_at
+  ) {
+    const scheduledAt = requireValidScheduledAt(
+      readiness.ready_at,
+      "ready_at",
+    );
+
+    followUpJob = await enqueueLiveRuntimeJob(client, {
+      jobType: "evaluate_certification_readiness",
+      scopeType: "match",
+      scopeId: matchId,
+      idempotencyKey: [
+        "live",
+        "evaluate-certification-readiness",
+        matchId,
+        readiness.source_match_version,
+        scheduledAt,
+      ].join(":"),
+      priority: 20,
+      scheduledAt,
+      payload: {
+        ...job.payload,
+        match_id: matchId,
+        freeze_at: freezeAt,
+        freeze_reason: freezeReason,
+        policy_version: oddsPolicyVersion,
+        stability_window_seconds: stabilityWindowSeconds,
+        require_official_odds: requireOfficialOdds,
+        certification_engine_version: certificationEngineVersion,
+        certification_policy_version: certificationPolicyVersion,
+      },
+      correlationId: job.correlationId,
+      causationId: job.jobId,
+    });
+  }
+
   return {
-    match_id: frozen.matchId,
+    match_id: readiness.match_id,
     certification_readiness_evaluated: true,
+    certification_state: readiness.certification_state,
+    source_match_version: readiness.source_match_version,
+    is_ready: readiness.is_ready,
+    stable_since: readiness.stable_since,
+    ready_at: readiness.ready_at,
+    blocking_code: readiness.blocking_code,
+    active_certification_id: readiness.active_certification_id,
+    readiness_details: readiness.details,
     official_odds_ready: true,
     official_match_odds_snapshot_id:
       frozen.officialMatchOddsSnapshotId,
@@ -134,6 +318,16 @@ export async function handleCertificationReadinessJob({
     already_frozen: frozen.alreadyFrozen,
     freeze_at: freezeAt,
     freeze_reason: freezeReason,
-    policy_version: policyVersion,
+    odds_policy_version: oddsPolicyVersion,
+    stability_window_seconds: stabilityWindowSeconds,
+    require_official_odds: requireOfficialOdds,
+    follow_up_job_id: followUpJob?.jobId ?? null,
+    follow_up_job_type: readiness.is_ready
+      ? "certify_match_result"
+      : followUpJob
+        ? "evaluate_certification_readiness"
+        : null,
+    follow_up_job_inserted: followUpJob?.inserted ?? false,
+    follow_up_scheduled_at: followUpJob?.scheduledAt ?? null,
   };
 }
