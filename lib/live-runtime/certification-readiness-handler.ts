@@ -5,6 +5,7 @@ import {
   enqueueLiveRuntimeJob,
   type ClaimedLiveRuntimeJob,
 } from "./job-service";
+import { launchMatchResultCertificationWorkflow } from "./match-result-certification-workflow";
 import { freezeOfficialMatchOddsSnapshot } from "./odds-snapshot-service";
 import {
   callRuntimeRpc,
@@ -235,30 +236,21 @@ export async function handleCertificationReadinessJob({
   const readiness = requireSingleRpcRow(rows, functionName);
 
   let followUpJob = null;
+  let followUpWorkflow = null;
 
   if (readiness.is_ready) {
-    followUpJob = await enqueueLiveRuntimeJob(client, {
-      jobType: "certify_match_result",
-      scopeType: "match",
-      scopeId: matchId,
-      idempotencyKey: [
-        "live",
-        "certify-match-result",
-        matchId,
-        readiness.source_match_version,
-      ].join(":"),
-      priority: 10,
-      payload: {
-        match_id: matchId,
-        source_match_version: readiness.source_match_version,
-        stability_window_seconds: stabilityWindowSeconds,
-        require_official_odds: requireOfficialOdds,
-        engine_version: certificationEngineVersion,
-        policy_version: certificationPolicyVersion,
-        certified_by: "live-runtime",
-      },
+    followUpWorkflow = await launchMatchResultCertificationWorkflow({
+      client,
+      matchId,
+      sourceMatchVersion: readiness.source_match_version,
+      stabilityWindowSeconds,
+      requireOfficialOdds,
+      engineVersion: certificationEngineVersion,
+      policyVersion: certificationPolicyVersion,
+      certifiedBy: "live-runtime",
       correlationId: job.correlationId,
       causationId: job.jobId,
+      triggerJobId: job.jobId,
     });
   } else if (
     readiness.certification_state === "stabilizing" &&
@@ -321,13 +313,19 @@ export async function handleCertificationReadinessJob({
     odds_policy_version: oddsPolicyVersion,
     stability_window_seconds: stabilityWindowSeconds,
     require_official_odds: requireOfficialOdds,
-    follow_up_job_id: followUpJob?.jobId ?? null,
+    follow_up_workflow_id:
+      followUpWorkflow?.workflowId ?? null,
+    follow_up_workflow_inserted:
+      followUpWorkflow?.workflowInserted ?? false,
+    follow_up_job_id:
+      followUpWorkflow?.jobId ?? followUpJob?.jobId ?? null,
     follow_up_job_type: readiness.is_ready
       ? "certify_match_result"
       : followUpJob
         ? "evaluate_certification_readiness"
         : null,
-    follow_up_job_inserted: followUpJob?.inserted ?? false,
+    follow_up_job_inserted:
+      followUpWorkflow?.jobInserted ?? followUpJob?.inserted ?? false,
     follow_up_scheduled_at: followUpJob?.scheduledAt ?? null,
   };
 }

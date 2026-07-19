@@ -34,6 +34,7 @@ export * from "./workflow-types";
 export * from "./workflow-factory";
 export * from "./workflow-launcher";
 export * from "./certification-readiness-workflow";
+export * from "./match-result-certification-workflow";
 export * from "./round-certification-readiness-workflow";
 export * from "./round-certification-workflow";
 export * from "./certified-snapshot-publication-workflow";
