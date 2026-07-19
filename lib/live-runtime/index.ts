@@ -28,3 +28,6 @@ export * from "./poll-match-handler";
 export * from "./refresh-round-handler";
 export * from "./round-certification-readiness-handler";
 export * from "./certify-round-handler";
+export * from "./workflow-errors";
+export * from "./workflow-service";
+export * from "./workflow-types";
