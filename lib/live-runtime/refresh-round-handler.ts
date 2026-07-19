@@ -1,10 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { launchCertificationReadinessWorkflow } from "./certification-readiness-workflow";
 import { LiveRuntimeError } from "./errors";
-import {
-  enqueueLiveRuntimeJob,
-  type ClaimedLiveRuntimeJob,
-} from "./job-service";
+import type { ClaimedLiveRuntimeJob } from "./job-service";
 import { enqueueLeagueRoundRebuildJobs } from "./rebuild-enqueue";
 import {
   callRuntimeRpc,
@@ -44,18 +42,6 @@ function shouldEvaluateCertificationReadiness(
   matchStatus: string,
 ): boolean {
   return CERTIFICATION_ELIGIBLE_STATUSES.has(matchStatus);
-}
-
-function buildCertificationReadinessIdempotencyKey(input: {
-  matchId: string;
-  receiptId: string;
-}): string {
-  return [
-    "live",
-    "evaluate-certification-readiness",
-    input.matchId,
-    input.receiptId,
-  ].join(":");
 }
 
 function getRequiredString(
@@ -211,30 +197,19 @@ export async function handleRefreshRoundJob({
       })
     : [];
 
-  const certificationJob =
+  const certificationWorkflow =
     refreshed.applied &&
     shouldEvaluateCertificationReadiness(refreshed.match_status)
-      ? await enqueueLiveRuntimeJob(client, {
-          jobType: "evaluate_certification_readiness",
-          scopeType: "match",
-          scopeId: matchId,
-          idempotencyKey:
-            buildCertificationReadinessIdempotencyKey({
-              matchId,
-              receiptId,
-            }),
-          priority: 20,
-          payload: {
-            match_id: matchId,
-            receipt_id: receiptId,
-            freeze_at: refreshed.provider_updated_at,
-            freeze_reason: "first_certification_eligible_live_state",
-            policy_version: "official_match_odds_v1",
-            match_status: refreshed.match_status,
-            match_state_version: refreshed.current_version,
-          },
+      ? await launchCertificationReadinessWorkflow({
+          client,
+          matchId,
+          receiptId,
+          freezeAt: refreshed.provider_updated_at,
+          matchStatus: refreshed.match_status,
+          matchStateVersion: refreshed.current_version,
           correlationId: job.correlationId,
           causationId: job.jobId,
+          triggerJobId: job.jobId,
         })
       : null;
 
@@ -253,9 +228,17 @@ export async function handleRefreshRoundJob({
     period: refreshed.period,
     rebuild_job_count: rebuildJobs.length,
     rebuild_job_ids: rebuildJobs.map((rebuildJob) => rebuildJob.jobId),
-    certification_readiness_enqueued: certificationJob !== null,
-    certification_readiness_job_id: certificationJob?.jobId ?? null,
+    certification_readiness_enqueued:
+      certificationWorkflow?.jobId !== null &&
+      certificationWorkflow?.jobId !== undefined,
+    certification_readiness_job_id: certificationWorkflow?.jobId ?? null,
     certification_readiness_job_inserted:
-      certificationJob?.inserted ?? false,
+      certificationWorkflow?.jobInserted ?? false,
+    certification_readiness_workflow_id:
+      certificationWorkflow?.workflowId ?? null,
+    certification_readiness_workflow_inserted:
+      certificationWorkflow?.workflowInserted ?? false,
+    certification_readiness_workflow_status:
+      certificationWorkflow?.workflowStatus ?? null,
   };
 }

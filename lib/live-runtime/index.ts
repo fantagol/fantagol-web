@@ -33,3 +33,4 @@ export * from "./workflow-service";
 export * from "./workflow-types";
 export * from "./workflow-factory";
 export * from "./workflow-launcher";
+export * from "./certification-readiness-workflow";
