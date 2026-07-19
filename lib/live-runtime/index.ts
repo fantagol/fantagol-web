@@ -31,3 +31,5 @@ export * from "./certify-round-handler";
 export * from "./workflow-errors";
 export * from "./workflow-service";
 export * from "./workflow-types";
+export * from "./workflow-factory";
+export * from "./workflow-launcher";
