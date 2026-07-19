@@ -1,10 +1,8 @@
 ﻿import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
-import {
-  enqueueLiveRuntimeJob,
-  type ClaimedLiveRuntimeJob,
-} from "./job-service";
+import { launchCertifiedSnapshotPublicationWorkflow } from "./certified-snapshot-publication-workflow";
+import type { ClaimedLiveRuntimeJob } from "./job-service";
 import {
   callRuntimeRpc,
   requireSingleRpcRow,
@@ -197,47 +195,25 @@ export async function handleCertifyRoundJob({
     "realtime",
   );
 
-  const publicationJob =
-    await enqueueLiveRuntimeJob(client, {
-      jobType: "publish_snapshot",
-      scopeType: "live_state_snapshot",
-      scopeId: liveStateSnapshotId,
-      idempotencyKey: [
-        "live",
-        "publish-certified-snapshot",
-        liveStateSnapshotId,
-        publicationChannel,
-        certification.certification_id,
-      ].join(":"),
-      priority: 40,
-      payload: {
-        live_state_snapshot_id:
-          liveStateSnapshotId,
-        channel: publicationChannel,
-        metadata: {
-          ...getOptionalObject(
-            job.payload,
-            "publication_metadata",
-          ),
-          source_job_id: job.jobId,
-          league_round_id:
-            certification.league_round_id,
-          calculation_run_id:
-            certification.calculation_run_id,
-          ui_simulation_id:
-            certification.ui_simulation_id,
-          certification_id:
-            certification.certification_id,
-          certification_version:
-            certification.certification_version,
-          certification_hash:
-            certification.certification_hash,
-          ledger_version:
-            certification.ledger_version,
-        },
-      },
+  const publicationWorkflow =
+    await launchCertifiedSnapshotPublicationWorkflow({
+      client,
+      liveStateSnapshotId,
+      publicationChannel,
+      certificationId: certification.certification_id,
+      leagueRoundId: certification.league_round_id,
+      calculationRunId: certification.calculation_run_id,
+      uiSimulationId: certification.ui_simulation_id,
+      certificationVersion: certification.certification_version,
+      certificationHash: certification.certification_hash,
+      ledgerVersion: certification.ledger_version,
+      publicationMetadata: getOptionalObject(
+        job.payload,
+        "publication_metadata",
+      ),
       correlationId: job.correlationId,
       causationId: job.jobId,
+      triggerJobId: job.jobId,
     });
 
   return {
@@ -262,9 +238,13 @@ export async function handleCertifyRoundJob({
       certification.superseded_certification_id,
     live_state_snapshot_id:
       liveStateSnapshotId,
+    publication_workflow_id:
+      publicationWorkflow.workflowId,
+    publication_workflow_inserted:
+      publicationWorkflow.workflowInserted,
     publication_job_id:
-      publicationJob.jobId,
+      publicationWorkflow.jobId,
     publication_job_inserted:
-      publicationJob.inserted,
+      publicationWorkflow.jobInserted,
   };
 }
