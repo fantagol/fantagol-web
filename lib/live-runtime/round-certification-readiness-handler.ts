@@ -1,10 +1,8 @@
 ﻿import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
-import {
-  enqueueLiveRuntimeJob,
-  type ClaimedLiveRuntimeJob,
-} from "./job-service";
+import { launchRoundCertificationWorkflow } from "./round-certification-workflow";
+import type { ClaimedLiveRuntimeJob } from "./job-service";
 import {
   callRuntimeRpc,
   requireSingleRpcRow,
@@ -179,47 +177,44 @@ export async function handleRoundCertificationReadinessJob({
 
   const readiness = requireSingleRpcRow(rows, functionName);
 
-  let followUpJob = null;
+  let followUpWorkflow = null;
 
   if (readiness.is_ready) {
-    followUpJob = await enqueueLiveRuntimeJob(client, {
-      jobType: "certify_round",
-      scopeType: "league_round",
-      scopeId: leagueRoundId,
-      idempotencyKey: [
-        "live",
-        "certify-round",
-        leagueRoundId,
-        calculationRunId,
-        uiSimulationId,
-      ].join(":"),
-      priority: 35,
-      payload: {
-        ...job.payload,
-        league_round_id: leagueRoundId,
-        calculation_run_id: calculationRunId,
-        ui_simulation_id: uiSimulationId,
-        engine_version: getOptionalString(
-          job.payload,
-          "engine_version",
-          "round-certification-v1",
-        ),
-        reason: getOptionalString(
-          job.payload,
-          "reason",
-          "automatic official round certification",
-        ),
-        committed_by_member_id: getOptionalNullableString(
-          job.payload,
-          "committed_by_member_id",
-        ),
-        publication_metadata: getOptionalObject(
-          job.payload,
-          "publication_metadata",
-        ),
-      },
+    followUpWorkflow = await launchRoundCertificationWorkflow({
+      client,
+      leagueRoundId,
+      calculationRunId,
+      uiSimulationId,
+      liveStateSnapshotId: getRequiredString(
+        job.payload,
+        "live_state_snapshot_id",
+      ),
+      publicationChannel: getOptionalString(
+        job.payload,
+        "publication_channel",
+        "realtime",
+      ),
+      publicationMetadata: getOptionalObject(
+        job.payload,
+        "publication_metadata",
+      ),
+      engineVersion: getOptionalString(
+        job.payload,
+        "engine_version",
+        "round-certification-v1",
+      ),
+      reason: getOptionalString(
+        job.payload,
+        "reason",
+        "automatic official round certification",
+      ),
+      committedByMemberId: getOptionalNullableString(
+        job.payload,
+        "committed_by_member_id",
+      ),
       correlationId: job.correlationId,
       causationId: job.jobId,
+      triggerJobId: job.jobId,
     });
   }
 
@@ -251,9 +246,13 @@ export async function handleRoundCertificationReadinessJob({
     blocking_code: readiness.blocking_code,
     blocking_details:
       readiness.blocking_details,
+    follow_up_workflow_id:
+      followUpWorkflow?.workflowId ?? null,
+    follow_up_workflow_inserted:
+      followUpWorkflow?.workflowInserted ?? false,
     follow_up_job_id:
-      followUpJob?.jobId ?? null,
+      followUpWorkflow?.jobId ?? null,
     follow_up_job_inserted:
-      followUpJob?.inserted ?? false,
+      followUpWorkflow?.jobInserted ?? false,
   };
 }

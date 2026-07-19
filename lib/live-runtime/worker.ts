@@ -8,7 +8,6 @@ import { handlePollMatchJob } from "./poll-match-handler";
 import {
   claimLiveRuntimeJob,
   completeLiveRuntimeJob,
-  enqueueLiveRuntimeJob,
   failLiveRuntimeJob,
   type ClaimedLiveRuntimeJob,
   type LiveRuntimeJobType,
@@ -19,6 +18,7 @@ import {
 } from "./publication-service";
 import { handleRefreshRoundJob } from "./refresh-round-handler";
 import { handleRoundCertificationReadinessJob } from "./round-certification-readiness-handler";
+import { launchRoundCertificationReadinessWorkflow } from "./round-certification-readiness-workflow";
 import { createLiveStateSnapshot } from "./snapshot-service";
 import {
   rebuildLeagueRoundSimulation,
@@ -176,44 +176,34 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     correlationId: job.correlationId,
   });
 
-  const certificationReadinessJob = await enqueueLiveRuntimeJob(client, {
-    jobType: "evaluate_round_certification_readiness",
-    scopeType: "league_round",
-    scopeId: rebuilt.leagueRoundId,
-    idempotencyKey: [
-      "live",
-      "evaluate-round-certification-readiness",
-      rebuilt.leagueRoundId,
-      rebuilt.calculationRunId,
-      rebuilt.uiSimulationId,
-    ].join(":"),
-    priority: 34,
-    payload: {
-      league_round_id: rebuilt.leagueRoundId,
-      calculation_run_id: rebuilt.calculationRunId,
-      ui_simulation_id: rebuilt.uiSimulationId,
-      live_state_snapshot_id: snapshot.liveStateSnapshotId,
-      publication_channel:
+  const certificationReadinessWorkflow =
+    await launchRoundCertificationReadinessWorkflow({
+      client,
+      leagueRoundId: rebuilt.leagueRoundId,
+      calculationRunId: rebuilt.calculationRunId,
+      uiSimulationId: rebuilt.uiSimulationId,
+      liveStateSnapshotId: snapshot.liveStateSnapshotId,
+      publicationChannel:
         getString(job.payload, "publication_channel") ?? "realtime",
-      publication_metadata: {
+      publicationMetadata: {
         source_rebuild_job_id: job.jobId,
         ui_simulation_id: rebuilt.uiSimulationId,
         live_state_snapshot_id: snapshot.liveStateSnapshotId,
       },
-      engine_version:
+      engineVersion:
         getString(job.payload, "round_certification_engine_version") ??
         "round-certification-v1",
       reason:
         getString(job.payload, "round_certification_reason") ??
         "automatic official round certification",
-      committed_by_member_id: getString(
+      committedByMemberId: getString(
         job.payload,
         "committed_by_member_id",
       ),
-    },
-    correlationId: job.correlationId,
-    causationId: job.jobId,
-  });
+      correlationId: job.correlationId,
+      causationId: job.jobId,
+      triggerJobId: job.jobId,
+    });
 
   return {
     league_round_id: rebuilt.leagueRoundId,
@@ -224,9 +214,14 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     standings_simulation_id: rebuilt.standingsSimulationId,
     ui_simulation_id: rebuilt.uiSimulationId,
     live_state_snapshot_id: snapshot.liveStateSnapshotId,
-    certification_readiness_job_id: certificationReadinessJob.jobId,
+    certification_readiness_workflow_id:
+      certificationReadinessWorkflow.workflowId,
+    certification_readiness_workflow_inserted:
+      certificationReadinessWorkflow.workflowInserted,
+    certification_readiness_job_id:
+      certificationReadinessWorkflow.jobId,
     certification_readiness_job_inserted:
-      certificationReadinessJob.inserted,
+      certificationReadinessWorkflow.jobInserted,
   };
 };
 
