@@ -20,6 +20,16 @@ type LeagueInfo = {
   role: string;
 };
 
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 type ClubInfo = {
   name: string;
   motto?: string | null;
@@ -337,7 +347,7 @@ export default function GiornataPage() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      const current = (data || []).find((row: MyLeagueRpcRow) => row.league_id === leagueId);
       if (!current) return;
 
       setLeagueInfo({
@@ -463,6 +473,7 @@ export default function GiornataPage() {
 
     return () => {
       cancelled = true;
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- Cleanup intentionally reads the latest timer registry.
       predictionSaveTimersRef.current.forEach((timer) => {
         if (timer) window.clearTimeout(timer);
       });

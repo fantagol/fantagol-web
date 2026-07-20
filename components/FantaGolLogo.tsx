@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 export default function FantaGolLogo() {
   return (
     <img

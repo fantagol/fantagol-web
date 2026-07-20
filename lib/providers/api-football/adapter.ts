@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- Provider adapter signatures intentionally retain contract parameters that are not consumed by fallback implementations. */
 import type { CalendarProvider, CompetitionProvider, LiveScoreProvider } from "../core/contracts";
 import { ProviderError } from "../core/errors";
 import type {

@@ -223,7 +223,7 @@ export default function ClubKitPage() {
             </p>
             <h1 className="mt-3 text-4xl font-black md:text-5xl">{club.name}</h1>
             <p className="mt-3 max-w-2xl text-gray-400">
-              Scegli modello, colori e posizione dello stemma. L'anteprima si aggiorna in tempo reale.
+              Scegli modello, colori e posizione dello stemma. L&apos;anteprima si aggiorna in tempo reale.
             </p>
           </div>
 

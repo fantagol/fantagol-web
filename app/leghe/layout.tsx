@@ -13,6 +13,16 @@ type LeagueShellInfo = {
   role: string;
 };
 
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 export default function LegheLayout({
   children,
 }: {
@@ -37,7 +47,7 @@ export default function LegheLayout({
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      const current = (data || []).find((row: MyLeagueRpcRow) => row.league_id === leagueId);
       if (!current) return;
 
       setLeagueInfo({

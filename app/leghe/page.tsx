@@ -15,6 +15,16 @@ type Membership = {
   } | null;
 };
 
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 export default function LeghePage() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +37,7 @@ export default function LeghePage() {
     } = await supabase.auth.getSession();
 
     if (!session?.user) {
-      window.location.href = "/login";
+      window.location.assign("/login");
       return;
     }
 
@@ -40,7 +50,7 @@ export default function LeghePage() {
     }
 
     setMemberships(
-      (data || []).map((row: any) => ({
+      (data || []).map((row: MyLeagueRpcRow) => ({
         id: row.membership_id,
         display_name: row.display_name,
         role: row.role,
@@ -76,7 +86,9 @@ export default function LeghePage() {
   }
 
   useEffect(() => {
-    loadLeagues();
+    // Initial client-side synchronization with the authenticated Supabase session.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadLeagues();
   }, []);
 
   return (

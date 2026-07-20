@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
@@ -57,6 +58,14 @@ type LeagueInfo = {
   displayName: string;
   inviteCode: string;
   role: string;
+};
+
+type MyLeagueRpcRow = {
+  league_id: string;
+  league_name: string | null;
+  display_name: string | null;
+  invite_code: string | null;
+  role: string | null;
 };
 
 type ClubInfo = {
@@ -399,9 +408,17 @@ export default function OneToOneLivePage() {
     inviteCode: leagueId,
     role: "member",
   });
+  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
+  const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
+  const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
+
 
   useEffect(() => {
-    setMounted(true);
+    const frame = window.requestAnimationFrame(() => {
+      setMounted(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -409,7 +426,7 @@ export default function OneToOneLivePage() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      const current = ((data || []) as MyLeagueRpcRow[]).find((row) => row.league_id === leagueId);
       if (!current) return;
 
       setLeagueInfo({
@@ -810,12 +827,9 @@ export default function OneToOneLivePage() {
         ? swipeProfiles[activeSwipeIndex - 1]
         : null;
 
-  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
-  const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
   const displayedLeftSlots = canViewProfileContent ? leftSlots : leftSlots.map(() => null);
-  const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
   const [openMemoryIndex, setOpenMemoryIndex] = useState<number | null>(null);
-  const [memoryPopupFloating, setMemoryPopupFloating] = useState(false);
+  const [, setMemoryPopupFloating] = useState(false);
   const [memoryPopupPosition, setMemoryPopupPosition] = useState({ x: 12, y: 250 });
   const [memoryPopupWidth, setMemoryPopupWidth] = useState<number | null>(null);
   const [memoryDragOffset, setMemoryDragOffset] = useState<{ x: number; y: number } | null>(null);

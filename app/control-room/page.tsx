@@ -145,7 +145,7 @@ export default function ControlRoomPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-7 text-gray-300 sm:text-lg sm:leading-8">
-                La Control Room è l'area avanzata dedicata alle statistiche globali FantaGol:
+                La Control Room è l&apos;area avanzata dedicata alle statistiche globali FantaGol:
                 dati aggregati e anonimi sulle giocate degli utenti, trend dei pronostici,
                 squadre più lette, risultati più cercati, bonus, malus e andamento generale
                 delle scelte della community.

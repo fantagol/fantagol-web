@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import FantaGolLogo from "./FantaGolLogo";
 import { supabase } from "../lib/supabaseClient";
@@ -123,9 +124,9 @@ export default function Header() {
 
             {isLoggedIn && (
               <>
-                <a onClick={closeMenu} className="block" href="/leghe">
+                <Link onClick={closeMenu} className="block" href="/leghe">
                   Le mie Leghe
-                </a>
+                </Link>
 
                 <a onClick={closeMenu} className="block" href="/crea-lega">
                   Crea Lega

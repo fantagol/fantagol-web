@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
@@ -55,6 +56,14 @@ type LeagueInfo = {
   displayName: string;
   inviteCode: string;
   role: string;
+};
+
+type MyLeagueRpcRow = {
+  league_id: string;
+  league_name: string | null;
+  display_name: string | null;
+  invite_code: string | null;
+  role: string | null;
 };
 
 type ClubInfo = {
@@ -358,13 +367,15 @@ export default function FantacalcioLivePage() {
     inviteCode: leagueId,
     role: "member",
   });
+  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
+
 
   useEffect(() => {
     async function loadLeagueInfo() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      const current = ((data || []) as MyLeagueRpcRow[]).find((row) => row.league_id === leagueId);
       if (!current) return;
 
       setLeagueInfo({
@@ -746,7 +757,6 @@ export default function FantacalcioLivePage() {
 
   const [selectedMatchIndex, setSelectedMatchIndex] = useState<number | null>(null);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
-  const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
   const displayedLiveRows = canViewProfileContent
     ? liveRows
     : liveRows.map((match) => ({

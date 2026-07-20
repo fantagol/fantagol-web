@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import FantaGolLogo from "../../../components/FantaGolLogo";
@@ -415,9 +416,9 @@ export default function StatisticheMembroPage() {
       />
 
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
-        <a href="/statistiche" className="text-sm font-black text-[#A6E824] hover:underline">
+        <Link href="/statistiche" className="text-sm font-black text-[#A6E824] hover:underline">
           ← Torna alle statistiche
-        </a>
+        </Link>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
           <aside className="rounded-3xl border border-gray-700 bg-[#111111] p-6">

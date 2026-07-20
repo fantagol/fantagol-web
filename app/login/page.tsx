@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 import { supabase } from "../../lib/supabaseClient";
@@ -59,12 +60,12 @@ export default function LoginPage() {
                 Sei già connesso.
               </p>
 
-              <a
+              <Link
                 href="/leghe"
                 className="mt-3 inline-block rounded-xl bg-[#A6E824] px-5 py-2 font-semibold text-black transition hover:brightness-110"
               >
                 Vai alle tue leghe
-              </a>
+              </Link>
             </div>
           )}
 

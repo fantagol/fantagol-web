@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useMemo, useState } from "react";
 
 type TeamCrestSize = "xs" | "sm" | "md" | "lg" | "xl";

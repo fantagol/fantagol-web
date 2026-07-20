@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 import KitPreview from "../club/KitPreview";
 
@@ -231,7 +232,7 @@ export default function LeagueProfileSwipe({
 
           {!activeProfile.isCurrentUser && !isLive && (
             <div className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/25 px-3 py-2 text-center text-[11px] font-bold text-gray-500">
-              I pronostici degli altri membri saranno visibili dall'inizio della fase live.
+              I pronostici degli altri membri saranno visibili dall&apos;inizio della fase live.
             </div>
           )}
         </div>

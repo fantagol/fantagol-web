@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- Provider adapter signatures intentionally retain contract parameters that are not consumed by fallback implementations. */
 import type { OddsProvider } from "../core/contracts";
 import { ProviderError } from "../core/errors";
 import type { NormalizedOddsSnapshot } from "../types/normalized";

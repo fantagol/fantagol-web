@@ -21,6 +21,16 @@ type DrawerLeagueData = {
   role: string;
 };
 
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 type LeagueLifecycleState = {
   league_id: string;
   lifecycle_status: string;
@@ -638,6 +648,11 @@ export default function HamburgerDrawer({
     }));
   }, [leagueName, displayName, inviteCode, role]);
 
+  function getCurrentLeagueIdFromPath() {
+    const match = window.location.pathname.match(/\/leghe\/([^\/]+)/);
+    return match?.[1] || "";
+  }
+
   useEffect(() => {
     if (!open) return;
 
@@ -647,7 +662,7 @@ export default function HamburgerDrawer({
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const leagues: DrawerLeagueData[] = (data || []).map((row: any) => ({
+      const leagues: DrawerLeagueData[] = (data || []).map((row: MyLeagueRpcRow) => ({
         leagueId: row.league_id || "",
         leagueName: row.league_name || "Lega FantaGol",
         displayName: row.display_name || "Club FantaGol",
@@ -732,12 +747,7 @@ export default function HamburgerDrawer({
   function goTo(path: string) {
     setLeagueOpen(false);
     onClose();
-    window.location.href = path;
-  }
-
-  function getCurrentLeagueIdFromPath() {
-    const match = window.location.pathname.match(/\/leghe\/([^\/]+)/);
-    return match?.[1] || "";
+    window.location.assign(path);
   }
 
   function getLeagueDashboardPath(targetLeagueId?: string) {
@@ -785,6 +795,8 @@ export default function HamburgerDrawer({
 
     const firstLockReached =
       state.first_round_lock_at !== null &&
+      // This state intentionally reflects whether the scheduled lock has elapsed.
+      // eslint-disable-next-line react-hooks/purity
       new Date(state.first_round_lock_at).getTime() <= Date.now();
 
     const competitionActive =

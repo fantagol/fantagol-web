@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useCallback, useEffect, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
@@ -159,6 +160,8 @@ export default function MembriPage() {
   }, []);
 
   useEffect(() => {
+    // Initial client-side synchronization with league membership data.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMembers();
   }, [loadMembers]);
 

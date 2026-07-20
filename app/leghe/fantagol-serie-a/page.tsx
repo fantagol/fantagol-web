@@ -1,3 +1,4 @@
+import Link from "next/link";
 
 export default function LegaHomePage() {
   return (
@@ -19,9 +20,9 @@ export default function LegaHomePage() {
             Pronostica
           </a>
 
-          <a href="/leghe" className="rounded-3xl border border-gray-700 bg-[#1f2427] p-6 font-bold text-white">
+          <Link href="/leghe" className="rounded-3xl border border-gray-700 bg-[#1f2427] p-6 font-bold text-white">
             Cambia Lega
-          </a>
+          </Link>
 
           <a href="/crea-lega" className="rounded-3xl border border-[#A6E824]/50 bg-[#111111] p-6 font-bold text-[#A6E824]">
             Invita Partecipanti

@@ -35,6 +35,17 @@ function translateDeleteError(message: string): string {
   return message || "Eliminazione definitiva della lega non riuscita.";
 }
 
+
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 export default function LeagueSettingsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -75,7 +86,7 @@ export default function LeagueSettingsPage() {
       }
 
       const current = (data || []).find(
-        (row: any) => row.league_id === leagueId
+        (row: MyLeagueRpcRow) => row.league_id === leagueId
       );
 
       if (!current) {
@@ -203,11 +214,11 @@ export default function LeagueSettingsPage() {
             {!isAdmin ? (
               <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
                 <p className="font-black text-white">
-                  Funzione riservata all'admin
+                  Funzione riservata all&apos;admin
                 </p>
 
                 <p className="mt-2 text-sm font-semibold leading-6 text-gray-500">
-                  Soltanto l'admin della lega può eseguire la cancellazione
+                  Soltanto l&apos;admin della lega può eseguire la cancellazione
                   definitiva.
                 </p>
               </div>

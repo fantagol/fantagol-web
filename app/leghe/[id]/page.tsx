@@ -17,6 +17,16 @@ type League = {
   role: string;
 };
 
+type MyLeagueRpcRow = {
+  league_id: string;
+  membership_id?: string | null;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 const currentRoundMatches = [
   { home: "Milan", away: "Napoli", time: "Sab 22 · 20:45" },
   { home: "Lazio", away: "Roma", time: "Dom 23 · 12:30" },
@@ -208,7 +218,7 @@ export default function LeagueDashboardPage() {
         return;
       }
 
-      const current = (data || []).find((row: any) => row.league_id === leagueId);
+      const current = (data || []).find((row: MyLeagueRpcRow) => row.league_id === leagueId);
 
       if (!current) {
         window.location.href = "/leghe";

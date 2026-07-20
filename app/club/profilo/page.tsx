@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { ChangeEvent, PointerEvent, TouchEvent, WheelEvent, useEffect, useRef, useState } from "react";
 import FantaGolLogo from "../../../components/FantaGolLogo";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
@@ -408,8 +409,12 @@ export default function ClubProfilePage() {
         ...current,
         displayName: cleanName,
       }));
-    } catch (error: any) {
-      alert(error.message || "Errore durante il salvataggio del profilo.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Errore durante il salvataggio del profilo.";
+      alert(message);
     } finally {
       setSaving(false);
     }
@@ -473,7 +478,7 @@ export default function ClubProfilePage() {
               {name.trim() || club.name}
             </h1>
             <p className="mt-3 max-w-2xl text-gray-400">
-              Crea l'avatar rotondo del tuo Club, aggiorna il nome e aggiungi un motto personale.
+              Crea l&apos;avatar rotondo del tuo Club, aggiorna il nome e aggiungi un motto personale.
             </p>
           </div>
 
@@ -544,7 +549,7 @@ export default function ClubProfilePage() {
             </label>
 
             <p className="mt-4 text-center text-xs leading-5 text-gray-500">
-              Carica un'immagine e centra l'inquadratura direttamente dentro il cerchio avatar.
+              Carica un&apos;immagine e centra l&apos;inquadratura direttamente dentro il cerchio avatar.
             </p>
           </div>
 

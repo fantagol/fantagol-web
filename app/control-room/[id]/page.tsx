@@ -359,7 +359,7 @@ export default function ControlRoomDetailPage() {
 
               <p className="mt-4 max-w-3xl text-base leading-7 text-gray-300 sm:text-lg sm:leading-8">
                 Statistiche aggregate e anonime sulle giocate FantaGol. Questa schermata mostra
-                l'orientamento globale della community sui pronostici, sulle squadre, sui risultati
+                l&apos;orientamento globale della community sui pronostici, sulle squadre, sui risultati
                 esatti e sulle principali metriche di lettura.
               </p>
 
