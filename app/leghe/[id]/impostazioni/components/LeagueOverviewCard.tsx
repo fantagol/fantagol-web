@@ -34,19 +34,13 @@ export default function LeagueOverviewCard({
         </Badge>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <Metric label="Membri attivi">
           {lifecycle?.active_member_count ?? "—"}
         </Metric>
 
         <Metric label="Vice attivo">
           {lifecycle?.active_vice_count === 1 ? "Presente" : "Mancante"}
-        </Metric>
-
-        <Metric label="Calendario" compact>
-          {lifecycle?.schedule_version
-            ? `Versione ${lifecycle.schedule_version}`
-            : "Non generato"}
         </Metric>
 
         <Metric label="Turno di riposo" compact>

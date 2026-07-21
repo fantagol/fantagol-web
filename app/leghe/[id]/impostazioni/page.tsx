@@ -15,13 +15,12 @@ import { useLeagueAdministration } from "./hooks/useLeagueAdministration";
 export default function LeagueAdministrationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-
   const administration = useLeagueAdministration(params.id);
 
   if (administration.loading) {
     return (
       <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center bg-black px-4 text-white">
-        <div className="rounded-2xl border border-white/10 bg-[#111417] px-6 py-5 text-center shadow-2xl shadow-black/60">
+        <div className="rounded-2xl border border-white/10 bg-[#111417] px-6 py-5 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#A6E824]" />
           <p className="mt-4 text-sm font-black text-gray-300">
             Caricamento amministrazione...
@@ -38,7 +37,9 @@ export default function LeagueAdministrationPage() {
     lifecycle,
     scoringProfile,
     events,
+    members,
     action,
+    actionMemberId,
     errorMessage,
     successMessage,
     confirmationName,
@@ -82,7 +83,6 @@ export default function LeagueAdministrationPage() {
             lifecycle={lifecycle}
             onBack={() => router.push(`/leghe/${league.id}`)}
           />
-
           <InvitationCard
             league={league}
             onCopyInvite={() => void administration.copyInviteLink()}
@@ -92,15 +92,34 @@ export default function LeagueAdministrationPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <MembersCard
             lifecycle={lifecycle}
-            onOpenMembers={() => router.push("/membri")}
+            members={members}
+            isAdmin={Boolean(isAdmin)}
+            action={action}
+            actionMemberId={actionMemberId}
+            onAssignVice={(memberId) =>
+              void administration.assignVice(memberId)
+            }
+            onRemoveMember={(memberId, reason) =>
+              void administration.removeMember(memberId, reason)
+            }
+            onReinstateMember={(memberId) =>
+              void administration.reinstateMember(memberId)
+            }
           />
 
-          <ScoringProfileCard scoringProfile={scoringProfile} />
+          <ScoringProfileCard
+            scoringProfile={scoringProfile}
+            isAdmin={Boolean(isAdmin)}
+            action={action}
+            onSave={(settings, reason) =>
+              void administration.saveScoringProfile(settings, reason)
+            }
+          />
         </div>
 
         <RosterManagementCard
           lifecycle={lifecycle}
-          isAdmin={isAdmin}
+          isAdmin={Boolean(isAdmin)}
           action={action}
           rosterChanged={rosterChanged}
           competitionStarted={competitionStarted}
@@ -114,7 +133,7 @@ export default function LeagueAdministrationPage() {
 
         <DangerZoneCard
           league={league}
-          isAdmin={isAdmin}
+          isAdmin={Boolean(isAdmin)}
           action={action}
           confirmationName={confirmationName}
           confirmationMatches={confirmationMatches}

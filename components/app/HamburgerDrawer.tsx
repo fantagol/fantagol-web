@@ -760,6 +760,11 @@ export default function HamburgerDrawer({
     return leagueId ? `/leghe/${leagueId}/giornata` : "/leghe";
   }
 
+  function getLeagueSettingsPath() {
+    const leagueId = drawerLeague.leagueId || getCurrentLeagueIdFromPath();
+    return leagueId ? `/leghe/${leagueId}/impostazioni` : "/leghe";
+  }
+
   async function refreshLifecycleState(targetLeagueId: string) {
     const { data, error } = await supabase.rpc(
       "get_league_lifecycle_state_rpc",
@@ -1180,14 +1185,16 @@ export default function HamburgerDrawer({
             onClick={() => goTo("/regolamento")}
           />
 
-          {activeRole === "admin" && (
-            <DrawerMenuItem
-              icon="settings"
-              title="Impostazioni Lega"
-              subtitle="Gestione regole e configurazione"
-              onClick={() => goTo("#")}
-            />
-          )}
+          <DrawerMenuItem
+            icon="settings"
+            title="Impostazioni Lega"
+            subtitle={
+              activeRole === "admin"
+                ? "Amministrazione, regole e configurazione"
+                : "Informazioni e configurazione della lega"
+            }
+            onClick={() => goTo(getLeagueSettingsPath())}
+          />
 
           <div className="my-4 border-t border-gray-700" />
 

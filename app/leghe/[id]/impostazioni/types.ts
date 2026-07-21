@@ -35,6 +35,7 @@ export type LeagueLifecycleState = {
 
 export type ScoringProfile = {
   id: string;
+  league_id?: string;
   version: number;
   surprise_bonus_enabled: boolean;
   goal_show_bonus_enabled: boolean;
@@ -46,11 +47,42 @@ export type ScoringProfile = {
   reason: string | null;
 };
 
+export type ScoringSettings = Pick<
+  ScoringProfile,
+  | "surprise_bonus_enabled"
+  | "goal_show_bonus_enabled"
+  | "grand_slam_bonus_enabled"
+  | "cantonata_malus_enabled"
+  | "opposite_sign_malus_enabled"
+>;
+
 export type AdminEvent = {
   id: string;
   action_type: string;
+  actor_display_name: string | null;
+  target_display_name: string | null;
   details: Record<string, unknown>;
   created_at: string;
+};
+
+export type LeagueMember = {
+  id: string;
+  userId: string | null;
+  displayName: string;
+  clubName: string;
+  realName: string | null;
+  role: string;
+  status: string;
+};
+
+export type LeagueMembershipRpcRow = {
+  membership_id: string;
+  user_id: string | null;
+  display_name: string | null;
+  role: string | null;
+  status: string | null;
+  club_name: string | null;
+  real_name: string | null;
 };
 
 export type LeagueAction =
@@ -58,4 +90,8 @@ export type LeagueAction =
   | "lock-preserve"
   | "reopen"
   | "delete"
+  | "save-scoring"
+  | "assign-vice"
+  | "remove-member"
+  | "reinstate-member"
   | null;
