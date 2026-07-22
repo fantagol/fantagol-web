@@ -10,8 +10,13 @@ export default function RegolamentoPage() {
           Regolamento Ufficiale FantaGol
         </h1>
 
-        <p className="mb-16 text-xl text-gray-400">
+        <p className="mb-6 text-xl text-gray-400">
           Un solo pronostico. Tre modalità di gioco. Infinite sfide.
+        </p>
+
+        <p className="mb-16 text-gray-400">
+          Per garantire il miglior equilibrio competitivo è consigliata la partecipazione con un numero pari di giocatori.
+          Le leghe con un numero dispari di partecipanti sono comunque pienamente supportate.
         </p>
 
         <section className="mb-16">
@@ -177,9 +182,26 @@ export default function RegolamentoPage() {
               <p className="mt-6 text-gray-400">
                 La composizione dei due reparti può essere modificata fino al
                 blocco dei pronostici. Al termine della giornata, il punteggio
-                complessivo viene convertito in gol secondo le fasce ufficiali
-                della modalità Fantacalcio.
+                complessivo viene convertito in gol utilizzando una base di 23
+                punti e fasce da 10 punti ciascuna, secondo il regolamento
+                ufficiale della modalità Fantacalcio.
               </p>
+
+              <div className="mt-6 rounded-xl border border-blue-900 p-4">
+                <h4 className="mb-3 font-semibold">Conversione Fantacalcio</h4>
+
+                <div className="space-y-2 text-gray-300">
+                  <div>&lt; 23 punti → 0 gol</div>
+                  <div>23–32 punti → 1 gol</div>
+                  <div>33–42 punti → 2 gol</div>
+                  <div>43–52 punti → 3 gol</div>
+                  <div>53–62 punti → 4 gol</div>
+                </div>
+
+                <p className="mt-4 text-sm text-gray-400">
+                  La progressione continua con fasce di 10 punti per ogni gol successivo.
+                </p>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-gray-800 p-6">

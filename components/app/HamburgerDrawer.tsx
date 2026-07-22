@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import KitPreview from "../club/KitPreview";
 
+const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
+
 type HamburgerDrawerProps = {
   open: boolean;
   leagueName: string;
@@ -227,6 +229,21 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
+
+
+  if (icon === "archive") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-6">
+          <span className="absolute inset-x-0 top-0 h-2 rounded-t-md border border-[#A6E824]/80 bg-[#A6E824]/15" />
+          <span className="absolute inset-x-0 bottom-0 top-2 rounded-b-md border border-t-0 border-[#A6E824]/70">
+            <span className="absolute left-1/2 top-1.5 h-0.5 w-3 -translate-x-1/2 rounded bg-[#A6E824]" />
+            <span className="absolute bottom-1 left-1/2 h-2 w-1 -translate-x-1/2 rounded bg-[#A6E824]/70" />
+          </span>
+        </span>
+      </span>
+    );
+  }
 
   if (icon === "rules") {
     return (
@@ -613,6 +630,11 @@ function LeagueLifecycleModal({
   );
 }
 
+function rememberLeague(targetLeagueId: string) {
+  if (!targetLeagueId) return;
+  window.localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, targetLeagueId);
+}
+
 export default function HamburgerDrawer({
   open,
   leagueName,
@@ -704,6 +726,7 @@ export default function HamburgerDrawer({
       const current = leagues.find((item) => item.leagueId === leagueId) || leagues[0];
       if (!current) return;
 
+      rememberLeague(current.leagueId);
       setDrawerLeague(current);
 
       const { data: clubData } = await supabase.rpc("get_my_club_rpc");
@@ -745,23 +768,38 @@ export default function HamburgerDrawer({
   }
 
   function goTo(path: string) {
+    const targetLeagueMatch = path.match(/^\/leghe\/([^/]+)/);
+    if (targetLeagueMatch?.[1]) {
+      rememberLeague(targetLeagueMatch[1]);
+    }
+
     setLeagueOpen(false);
     onClose();
     window.location.assign(path);
   }
 
+  function getResolvedLeagueId(targetLeagueId?: string) {
+    return (
+      targetLeagueId ||
+      drawerLeague.leagueId ||
+      getCurrentLeagueIdFromPath() ||
+      window.localStorage.getItem(LAST_LEAGUE_STORAGE_KEY) ||
+      ""
+    );
+  }
+
   function getLeagueDashboardPath(targetLeagueId?: string) {
-    const leagueId = targetLeagueId || getCurrentLeagueIdFromPath();
+    const leagueId = getResolvedLeagueId(targetLeagueId);
     return leagueId ? `/leghe/${leagueId}` : "/leghe";
   }
 
   function getLeagueRoundPath() {
-    const leagueId = drawerLeague.leagueId || getCurrentLeagueIdFromPath();
+    const leagueId = getResolvedLeagueId();
     return leagueId ? `/leghe/${leagueId}/giornata` : "/leghe";
   }
 
   function getLeagueSettingsPath() {
-    const leagueId = drawerLeague.leagueId || getCurrentLeagueIdFromPath();
+    const leagueId = getResolvedLeagueId();
     return leagueId ? `/leghe/${leagueId}/impostazioni` : "/leghe";
   }
 
@@ -1174,6 +1212,13 @@ export default function HamburgerDrawer({
             title="Hall of Fame"
             subtitle="Titoli, stelle e modalità vinte"
             onClick={() => goTo("/club?scrollTo=hall-of-fame")}
+          />
+
+          <DrawerMenuItem
+            icon="archive"
+            title="Archivio"
+            subtitle="Stagioni concluse e leghe definitive"
+            onClick={() => goTo("/archivio")}
           />
 
           <div className="my-4 border-t border-gray-700" />

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
+import FantaGolModeIcon from "../../../components/app/FantaGolModeIcon";
+import TeamCrest from "../../../components/app/TeamCrest";
 import ModeSummaryCard from "../../../components/app/ModeSummaryCard";
+
+const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
 
 type League = {
   id: string;
@@ -27,28 +31,126 @@ type MyLeagueRpcRow = {
   status?: string | null;
 };
 
-const currentRoundMatches = [
-  { home: "Milan", away: "Napoli", time: "Sab 22 · 20:45" },
-  { home: "Lazio", away: "Roma", time: "Dom 23 · 12:30" },
-  { home: "Frosinone", away: "Juventus", time: "Dom 23 · 13:45" },
-  { home: "Genoa", away: "Napoli", time: "Dom 23 · 15:00" },
-  { home: "Inter", away: "Monza", time: "Dom 23 · 15:00" },
-  { home: "Parma", away: "Cagliari", time: "Dom 23 · 18:00" },
-  { home: "Roma", away: "Fiorentina", time: "Dom 23 · 18:00" },
-  { home: "Torino", away: "Milan", time: "Dom 23 · 20:45" },
-  { home: "Udinese", away: "Como", time: "Dom 23 · 20:45" },
-  { home: "Pisa", away: "Cremonese", time: "Lun 24 · 20:45" },
-];
+type RoundPredictionRow = {
+  league_round_id: string;
+  league_round_number: number;
+  prediction_window_state: string;
+  match_id: string;
+  kickoff: string | null;
+  match_status: string;
+  home_score: number | null;
+  away_score: number | null;
+  home_team_name: string;
+  home_team_logo_url: string | null;
+  home_team_crest_reference: string | null;
+  away_team_name: string;
+  away_team_logo_url: string | null;
+  away_team_crest_reference: string | null;
+};
 
-function MatchMiniRow({
-  home,
-  away,
-  time,
-  index,
-}: {
+type DashboardMatch = {
+  id: string;
   home: string;
   away: string;
-  time: string;
+  kickoff: string | null;
+  kickoffDay: string;
+  kickoffHour: string;
+  status: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  homeCrestReference: string | null;
+  homeLogoUrl: string | null;
+  awayCrestReference: string | null;
+  awayLogoUrl: string | null;
+};
+
+function cleanTeamDisplayName(name: string) {
+  const knownNames: Record<string, string> = {
+    "FC Internazionale Milano": "Inter",
+    "Internazionale Milano": "Inter",
+    "AC Milan": "Milan",
+    "Juventus FC": "Juventus",
+    "SSC Napoli": "Napoli",
+    "AS Roma": "Roma",
+    "SS Lazio": "Lazio",
+    "ACF Fiorentina": "Fiorentina",
+    "Atalanta BC": "Atalanta",
+    "Bologna FC 1909": "Bologna",
+    "Genoa CFC": "Genoa",
+    "Hellas Verona FC": "Hellas Verona",
+    "Parma Calcio 1913": "Parma",
+    "Torino FC": "Torino",
+    "Udinese Calcio": "Udinese",
+    "US Lecce": "Lecce",
+    "US Sassuolo Calcio": "Sassuolo",
+    "US Cremonese": "Cremonese",
+    "Pisa SC": "Pisa",
+    "Como 1907": "Como",
+    "Cagliari Calcio": "Cagliari",
+    "AC Monza": "Monza",
+    "Empoli FC": "Empoli",
+    "Frosinone Calcio": "Frosinone",
+    "Venezia FC": "Venezia",
+    "Spezia Calcio": "Spezia",
+    "UC Sampdoria": "Sampdoria",
+  };
+
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (knownNames[normalized]) return knownNames[normalized];
+
+  return normalized
+    .replace(
+      /^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i,
+      ""
+    )
+    .replace(
+      /\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i,
+      ""
+    )
+    .replace(/\s+(?:19|20)\d{2}$/i, "")
+    .trim();
+}
+
+function formatKickoff(kickoff: string | null) {
+  if (!kickoff) {
+    return { day: "Data da definire", hour: "--:--" };
+  }
+
+  const date = new Date(kickoff);
+
+  return {
+    day: new Intl.DateTimeFormat("it-IT", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    }).format(date),
+    hour: new Intl.DateTimeFormat("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date),
+  };
+}
+
+function getLocalDateKey(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+
+function getProviderScoreLabel(match: DashboardMatch) {
+  return `${match.homeScore ?? 0} - ${match.awayScore ?? 0}`;
+}
+
+function MatchMiniRow({
+  match,
+  index,
+}: {
+  match: DashboardMatch;
   index: number;
 }) {
   return (
@@ -58,19 +160,79 @@ function MatchMiniRow({
       </div>
 
       <div className="min-w-0">
-        <div className="truncate text-sm font-black text-white">
-          {home} - {away}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <TeamCrest
+            crestReference={match.homeCrestReference}
+            logoUrl={match.homeLogoUrl}
+            alt={`${match.home} stemma`}
+            fallbackLabel={match.home}
+            size="xs"
+            className="h-5 w-5"
+          />
+          <span className="min-w-0 truncate text-sm font-black text-white">
+            {match.home}
+          </span>
+          <span className="shrink-0 text-xs font-black text-gray-600">-</span>
+          <TeamCrest
+            crestReference={match.awayCrestReference}
+            logoUrl={match.awayLogoUrl}
+            alt={`${match.away} stemma`}
+            fallbackLabel={match.away}
+            size="xs"
+            className="h-5 w-5"
+          />
+          <span className="min-w-0 truncate text-sm font-black text-white">
+            {match.away}
+          </span>
         </div>
-        <div className="text-[11px] font-semibold text-gray-500">{time}</div>
+
+        <div className="mt-0.5 text-[11px] font-semibold text-gray-500">
+          {match.kickoffDay} · {match.kickoffHour}
+        </div>
       </div>
 
       <div className="rounded-lg border border-white/10 bg-[#0b0d0e] px-2 py-1 text-[10px] font-black text-gray-400">
-        — : —
+        {getProviderScoreLabel(match)}
       </div>
     </div>
   );
 }
 
+function DayMatchRow({ match }: { match: DashboardMatch }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4">
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        <span className="truncate text-right text-sm font-black sm:text-base">
+          {match.home}
+        </span>
+        <TeamCrest
+          crestReference={match.homeCrestReference}
+          logoUrl={match.homeLogoUrl}
+          alt={`${match.home} stemma`}
+          fallbackLabel={match.home}
+          size="sm"
+        />
+      </div>
+
+      <div className="min-w-[68px] rounded-xl bg-[#A6E824]/10 px-3 py-2 text-center text-sm font-black text-[#A6E824]">
+        {getProviderScoreLabel(match)}
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2">
+        <TeamCrest
+          crestReference={match.awayCrestReference}
+          logoUrl={match.awayLogoUrl}
+          alt={`${match.away} stemma`}
+          fallbackLabel={match.away}
+          size="sm"
+        />
+        <span className="truncate text-sm font-black sm:text-base">
+          {match.away}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 
 function DashboardQuickIcon({ icon }: { icon: string }) {
@@ -198,6 +360,10 @@ export default function LeagueDashboardPage() {
   const [league, setLeague] = useState<League | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [matches, setMatches] = useState<DashboardMatch[]>([]);
+  const [roundNumber, setRoundNumber] = useState<number | null>(null);
+  const [roundLabel, setRoundLabel] = useState("Giornata non disponibile");
+  const [roundError, setRoundError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -225,6 +391,8 @@ export default function LeagueDashboardPage() {
         return;
       }
 
+      window.localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, current.league_id);
+
       setLeague({
         id: current.league_id,
         name: current.league_name,
@@ -233,6 +401,69 @@ export default function LeagueDashboardPage() {
         role: current.role,
       });
 
+      const { data: currentRoundData, error: currentRoundError } =
+        await supabase.rpc("get_my_current_league_round_rpc", {
+          p_league_id: leagueId,
+        });
+
+      if (currentRoundError) {
+        setRoundError(currentRoundError.message);
+        setLoading(false);
+        return;
+      }
+
+      const currentRound = (currentRoundData || [])[0];
+
+      if (!currentRound?.league_round_id) {
+        setRoundError("Nessuna giornata disponibile per questa lega.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: predictionData, error: predictionError } =
+        await supabase.rpc("get_my_round_predictions_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        });
+
+      if (predictionError) {
+        setRoundError(predictionError.message);
+        setLoading(false);
+        return;
+      }
+
+      const rows = (predictionData || []) as RoundPredictionRow[];
+
+      setRoundNumber(currentRound.league_round_number ?? rows[0]?.league_round_number ?? null);
+      setRoundLabel(
+        rows[0]?.prediction_window_state === "open"
+          ? "Pronostici aperti"
+          : rows[0]?.prediction_window_state === "not_open"
+            ? "Pronostici non ancora aperti"
+            : "Pronostici chiusi"
+      );
+
+      setMatches(
+        rows.map((row) => {
+          const kickoff = formatKickoff(row.kickoff);
+
+          return {
+            id: row.match_id,
+            home: cleanTeamDisplayName(row.home_team_name),
+            away: cleanTeamDisplayName(row.away_team_name),
+            kickoff: row.kickoff,
+            kickoffDay: kickoff.day,
+            kickoffHour: kickoff.hour,
+            status: row.match_status,
+            homeScore: row.home_score,
+            awayScore: row.away_score,
+            homeCrestReference: row.home_team_crest_reference,
+            homeLogoUrl: row.home_team_logo_url,
+            awayCrestReference: row.away_team_crest_reference,
+            awayLogoUrl: row.away_team_logo_url,
+          };
+        })
+      );
+
       setLoading(false);
     }
 
@@ -240,6 +471,14 @@ export default function LeagueDashboardPage() {
   }, [leagueId]);
 
 
+
+  const todayMatches = useMemo(() => {
+    const todayKey = getLocalDateKey(new Date());
+
+    return matches.filter(
+      (match) => match.kickoff && getLocalDateKey(match.kickoff) === todayKey
+    );
+  }, [matches]);
 
   if (loading) {
     return (
@@ -266,34 +505,28 @@ export default function LeagueDashboardPage() {
         <DashboardCard className="border-[#A6E824]/30 bg-gradient-to-br from-[#263033] via-[#15191b] to-[#080909] shadow-2xl shadow-black/70">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
-              Giornata 1
+              Giornata {roundNumber ?? "-"}
             </p>
 
-            <Badge variant="success">Pronostici aperti</Badge>
+            <Badge variant="success">{roundLabel}</Badge>
           </div>
+
+          {roundError && (
+            <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+              {roundError}
+            </div>
+          )}
 
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {currentRoundMatches.slice(0, 5).map((match, index) => (
-                <MatchMiniRow
-                  key={`${match.home}-${match.away}`}
-                  home={match.home}
-                  away={match.away}
-                  time={match.time}
-                  index={index + 1}
-                />
+              {matches.slice(0, 5).map((match, index) => (
+                <MatchMiniRow key={match.id} match={match} index={index + 1} />
               ))}
             </div>
 
             <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {currentRoundMatches.slice(5, 10).map((match, index) => (
-                <MatchMiniRow
-                  key={`${match.home}-${match.away}`}
-                  home={match.home}
-                  away={match.away}
-                  time={match.time}
-                  index={index + 6}
-                />
+              {matches.slice(5, 10).map((match, index) => (
+                <MatchMiniRow key={match.id} match={match} index={index + 6} />
               ))}
             </div>
           </div>
@@ -308,24 +541,28 @@ export default function LeagueDashboardPage() {
         </DashboardCard>
 
         <DashboardCard className="mt-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">
-              Risultati live
+              Partite del giorno
             </p>
 
-            <Badge>Prossima partita</Badge>
+            <Badge>
+              {todayMatches.length === 1
+                ? "1 incontro"
+                : `${todayMatches.length} incontri`}
+            </Badge>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-black p-5 text-center">
-            <div className="text-sm text-gray-400">Partita del giorno</div>
-
-            <div className="mt-4 grid grid-cols-3 items-center text-xl font-black">
-              <span>Milan</span>
-              <span className="rounded-xl bg-[#A6E824]/10 px-3 py-2 text-[#A6E824]">
-                20:45
-              </span>
-              <span>Napoli</span>
-            </div>
+          <div className="mt-4 space-y-3">
+            {todayMatches.length > 0 ? (
+              todayMatches.map((match) => (
+                <DayMatchRow key={match.id} match={match} />
+              ))
+            ) : (
+              <div className="rounded-2xl bg-black p-5 text-center text-sm font-semibold text-gray-500">
+                Nessuna partita in programma oggi.
+              </div>
+            )}
           </div>
         </DashboardCard>
 
@@ -337,7 +574,7 @@ export default function LeagueDashboardPage() {
             aria-label="Apri modalità Fantacalcio"
           >
             <ModeSummaryCard
-              icon="🏆"
+              icon={<FantaGolModeIcon mode="fantacalcio" />}
               title="Fantacalcio"
               value="0 punti"
               description="Classifica da avviare"
@@ -351,7 +588,7 @@ export default function LeagueDashboardPage() {
             aria-label="Apri modalità One To One"
           >
             <ModeSummaryCard
-              icon="⚔️"
+              icon={<FantaGolModeIcon mode="one-to-one" />}
               title="One To One"
               value="0-0"
               description="Sfida da generare"
@@ -365,7 +602,7 @@ export default function LeagueDashboardPage() {
             aria-label="Apri modalità Punti Puri"
           >
             <ModeSummaryCard
-              icon="⭐"
+              icon={<FantaGolModeIcon mode="punti-puri" />}
               title="Punti Puri"
               value="0"
               description="Totale stagione"

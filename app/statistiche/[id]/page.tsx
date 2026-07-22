@@ -9,6 +9,7 @@ import KitPreview from "../../../components/club/KitPreview";
 import { supabase } from "../../../lib/supabaseClient";
 
 type LeagueInfo = {
+  leagueId: string;
   leagueName: string;
   displayName: string;
   inviteCode: string;
@@ -42,6 +43,19 @@ type RoundTrend = {
   bad: number;
 };
 
+type StatisticsSplits = {
+  signAccuracy: number;
+  overUnderAccuracy: number;
+  goalNoGoalAccuracy: number;
+  homeExact: number;
+  awayExact: number;
+  underdogAccuracy: number;
+  standardAccuracy: number;
+  evaluatedPredictions: number;
+  surpriseCandidates: number;
+  officialRounds: number;
+};
+
 type MemberDetail = {
   id: string;
   clubName: string;
@@ -65,129 +79,9 @@ type MemberDetail = {
   worstTeam: TeamStat;
   teamStats: TeamStat[];
   roundTrend: RoundTrend[];
+  splits: StatisticsSplits;
 };
 
-const demoMember: MemberDetail = {
-  id: "1",
-  clubName: "Real Exact",
-  realName: "Mario Rossi",
-  kitTemplate: "solid",
-  kitPrimaryColor: "#FFFFFF",
-  kitSecondaryColor: "#A6E824",
-  kitThirdColor: "#111417",
-  kitLogoMode: "center_horizontal",
-  kitCrestPosition: "left_chest",
-  starsCount: 2,
-  totalPoints: 362,
-  averagePoints: 36.2,
-  exact: 18,
-  surprise: 7,
-  show: 11,
-  slam: 2,
-  bad: 5,
-  opposite: 4,
-  bestTeam: {
-    team: "Inter",
-    matches: 10,
-    points: 74,
-    accuracy: 78,
-    exact: 5,
-    sign: 8,
-    overUnder: 7,
-    goalNoGoal: 8,
-    surprise: 1,
-    bad: 0,
-    homeAccuracy: 84,
-    awayAccuracy: 71,
-    homeExact: 3,
-    awayExact: 2,
-    homePoints: 37,
-    awayPoints: 37,
-    trend: "up",
-  },
-  worstTeam: {
-    team: "Lazio",
-    matches: 10,
-    points: 21,
-    accuracy: 31,
-    exact: 0,
-    sign: 3,
-    overUnder: 2,
-    goalNoGoal: 3,
-    surprise: 0,
-    bad: 3,
-    homeAccuracy: 37,
-    awayAccuracy: 24,
-    homeExact: 0,
-    awayExact: 0,
-    homePoints: 11,
-    awayPoints: 10,
-    trend: "down",
-  },
-  teamStats: [
-    { team: "Inter", matches: 10, points: 74, accuracy: 78, exact: 5, sign: 8, overUnder: 7, goalNoGoal: 8, surprise: 1, bad: 0,
-    homeAccuracy: 84,
-    awayAccuracy: 71,
-    homeExact: 3,
-    awayExact: 2,
-    homePoints: 37,
-    awayPoints: 37, trend: "up" },
-    { team: "Napoli", matches: 10, points: 68, accuracy: 74, exact: 4, sign: 8, overUnder: 6, goalNoGoal: 7, surprise: 2, bad: 1,
-    homeAccuracy: 80,
-    awayAccuracy: 67,
-    homeExact: 2,
-    awayExact: 2,
-    homePoints: 34,
-    awayPoints: 34, trend: "up" },
-    { team: "Milan", matches: 10, points: 63, accuracy: 70, exact: 3, sign: 7, overUnder: 7, goalNoGoal: 6, surprise: 1, bad: 1,
-    homeAccuracy: 76,
-    awayAccuracy: 63,
-    homeExact: 2,
-    awayExact: 1,
-    homePoints: 32,
-    awayPoints: 31, trend: "stable" },
-    { team: "Juventus", matches: 10, points: 59, accuracy: 66, exact: 3, sign: 7, overUnder: 5, goalNoGoal: 6, surprise: 0, bad: 1,
-    homeAccuracy: 72,
-    awayAccuracy: 59,
-    homeExact: 2,
-    awayExact: 1,
-    homePoints: 30,
-    awayPoints: 29, trend: "stable" },
-    { team: "Roma", matches: 10, points: 44, accuracy: 52, exact: 1, sign: 5, overUnder: 4, goalNoGoal: 5, surprise: 1, bad: 2,
-    homeAccuracy: 58,
-    awayAccuracy: 45,
-    homeExact: 1,
-    awayExact: 0,
-    homePoints: 22,
-    awayPoints: 22, trend: "down" },
-    { team: "Torino", matches: 10, points: 39, accuracy: 47, exact: 1, sign: 4, overUnder: 5, goalNoGoal: 3, surprise: 0, bad: 2,
-    homeAccuracy: 53,
-    awayAccuracy: 40,
-    homeExact: 1,
-    awayExact: 0,
-    homePoints: 20,
-    awayPoints: 19, trend: "down" },
-    { team: "Lazio", matches: 10, points: 21, accuracy: 31, exact: 0, sign: 3, overUnder: 2, goalNoGoal: 3, surprise: 0, bad: 3,
-    homeAccuracy: 37,
-    awayAccuracy: 24,
-    homeExact: 0,
-    awayExact: 0,
-    homePoints: 11,
-    awayPoints: 10, trend: "down" },
-  ],
-  roundTrend: [
-    { round: 1, points: 32, exact: 1, bad: 0 },
-    { round: 2, points: 41, exact: 2, bad: 1 },
-    { round: 3, points: 28, exact: 1, bad: 0 },
-    { round: 4, points: 52, exact: 3, bad: 0 },
-    { round: 5, points: 34, exact: 2, bad: 1 },
-    { round: 6, points: 43, exact: 2, bad: 0 },
-    { round: 7, points: 37, exact: 1, bad: 1 },
-    { round: 8, points: 55, exact: 3, bad: 0 },
-    { round: 9, points: 25, exact: 0, bad: 2 },
-    { round: 10, points: 15, exact: 0, bad: 0 },
-  ],
-};
 
 function trendLabel(trend: TeamStat["trend"]) {
   if (trend === "up") return "↗ In crescita";
@@ -324,14 +218,23 @@ export default function StatisticheMembroPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
+    leagueId: "",
     leagueName: "FantaGol",
     displayName: "Club FantaGol",
     inviteCode: "",
     role: "member",
   });
+  const [member, setMember] = useState<MemberDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadLeagueInfo() {
+    let cancelled = false;
+
+    async function loadMemberStatistics() {
+      setLoading(true);
+      setLoadError(null);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -341,50 +244,184 @@ export default function StatisticheMembroPage() {
         return;
       }
 
-      const { data } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (data || [])[0];
+      const { data: leagues, error: leaguesError } =
+        await supabase.rpc("get_my_leagues_rpc");
 
-      if (firstLeague) {
-        setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
-        });
+      if (leaguesError) {
+        if (!cancelled) {
+          setLoadError(leaguesError.message);
+          setLoading(false);
+        }
+        return;
       }
 
-      /*
-        Collegamento definitivo:
-        get_member_deep_statistics_rpc(target_member_id uuid)
-        oppure get_member_deep_statistics_rpc(target_league_id uuid, target_member_id uuid)
+      const availableLeagues = leagues || [];
+      const rememberedLeagueId =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("fantagol:lastLeagueId")
+          : null;
 
-        Da leggere da:
-        - giornate chiuse
-        - pronostici per partita
-        - risultati reali
-        - classifiche Punti Puri/Fantacalcio/One to One
-        - tabella squadre e calendario ufficiale
-      */
+      const selectedLeague =
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
+            league.league_id === rememberedLeagueId
+        ) || availableLeagues[0];
+
+      if (!selectedLeague?.league_id) {
+        if (!cancelled) {
+          setLoadError("Nessuna lega disponibile.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      const { data, error } = await supabase.rpc(
+        "get_member_deep_statistics_rpc",
+        {
+          target_league_id: selectedLeague.league_id,
+          target_member_id: params.id,
+        }
+      );
+
+      if (cancelled) return;
+
+      setLeagueInfo({
+        leagueId: selectedLeague.league_id,
+        leagueName: selectedLeague.league_name || "Lega FantaGol",
+        displayName: selectedLeague.display_name || "Club FantaGol",
+        inviteCode:
+          selectedLeague.invite_code || selectedLeague.league_id || "",
+        role: selectedLeague.role || "member",
+      });
+
+      if (error) {
+        setLoadError(error.message);
+        setMember(null);
+        setLoading(false);
+        return;
+      }
+
+      const payload = (data || {}) as {
+        member?: Record<string, unknown>;
+        bestTeam?: TeamStat;
+        worstTeam?: TeamStat;
+        teamStats?: TeamStat[];
+        roundTrend?: RoundTrend[];
+        splits?: Partial<StatisticsSplits>;
+      };
+
+      if (!payload.member) {
+        setLoadError("Statistiche del membro non disponibili.");
+        setMember(null);
+        setLoading(false);
+        return;
+      }
+
+      const rawMember = payload.member;
+      const zeroTeam: TeamStat = {
+        team: "—",
+        matches: 0,
+        points: 0,
+        accuracy: 0,
+        exact: 0,
+        sign: 0,
+        overUnder: 0,
+        goalNoGoal: 0,
+        surprise: 0,
+        bad: 0,
+        homeAccuracy: 0,
+        awayAccuracy: 0,
+        homeExact: 0,
+        awayExact: 0,
+        homePoints: 0,
+        awayPoints: 0,
+        trend: "stable",
+      };
+
+      setMember({
+        id: String(rawMember.id || params.id),
+        clubName: String(rawMember.clubName || "Club FantaGol"),
+        realName: String(rawMember.realName || ""),
+        kitTemplate: String(rawMember.kitTemplate || "solid"),
+        kitPrimaryColor: String(
+          rawMember.kitPrimaryColor || "#FFFFFF"
+        ),
+        kitSecondaryColor: String(
+          rawMember.kitSecondaryColor || "#A6E824"
+        ),
+        kitThirdColor: String(rawMember.kitThirdColor || "#FFFFFF"),
+        kitLogoMode: String(
+          rawMember.kitLogoMode || "center_horizontal"
+        ),
+        kitCrestPosition: String(
+          rawMember.kitCrestPosition || "left_chest"
+        ),
+        starsCount: Number(rawMember.starsCount || 0),
+        totalPoints: Number(rawMember.totalPoints || 0),
+        averagePoints: Number(rawMember.averagePoints || 0),
+        exact: Number(rawMember.exact || 0),
+        surprise: Number(rawMember.surprise || 0),
+        show: Number(rawMember.show || 0),
+        slam: Number(rawMember.slam || 0),
+        bad: Number(rawMember.bad || 0),
+        opposite: Number(rawMember.opposite || 0),
+        bestTeam: payload.bestTeam || zeroTeam,
+        worstTeam: payload.worstTeam || zeroTeam,
+        teamStats: payload.teamStats || [],
+        roundTrend: payload.roundTrend || [],
+        splits: {
+          signAccuracy: Number(payload.splits?.signAccuracy || 0),
+          overUnderAccuracy: Number(
+            payload.splits?.overUnderAccuracy || 0
+          ),
+          goalNoGoalAccuracy: Number(
+            payload.splits?.goalNoGoalAccuracy || 0
+          ),
+          homeExact: Number(payload.splits?.homeExact || 0),
+          awayExact: Number(payload.splits?.awayExact || 0),
+          underdogAccuracy: Number(
+            payload.splits?.underdogAccuracy || 0
+          ),
+          standardAccuracy: Number(
+            payload.splits?.standardAccuracy || 0
+          ),
+          evaluatedPredictions: Number(
+            payload.splits?.evaluatedPredictions || 0
+          ),
+          surpriseCandidates: Number(
+            payload.splits?.surpriseCandidates || 0
+          ),
+          officialRounds: Number(payload.splits?.officialRounds || 0),
+        },
+      });
+      setLoading(false);
     }
 
-    loadLeagueInfo();
-  }, []);
+    loadMemberStatistics();
 
-  const member = useMemo(() => {
-    return {
-      ...demoMember,
-      id: params.id,
+    return () => {
+      cancelled = true;
     };
   }, [params.id]);
 
   const bestTeams = useMemo(
-    () => [...member.teamStats].sort((a, b) => b.accuracy - a.accuracy).slice(0, 3),
-    [member.teamStats]
+    () =>
+      member
+        ? [...member.teamStats]
+            .sort((a, b) => b.accuracy - a.accuracy)
+            .slice(0, 3)
+        : [],
+    [member]
   );
 
   const riskyTeams = useMemo(
-    () => [...member.teamStats].sort((a, b) => a.accuracy - b.accuracy).slice(0, 3),
-    [member.teamStats]
+    () =>
+      member
+        ? [...member.teamStats]
+            .sort((a, b) => a.accuracy - b.accuracy)
+            .slice(0, 3)
+        : [],
+    [member]
   );
 
   return (
@@ -415,6 +452,25 @@ export default function StatisticheMembroPage() {
         onClose={() => setMenuOpen(false)}
       />
 
+      {loading ? (
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
+          <div className="rounded-3xl border border-gray-700 bg-[#111111] p-6 text-gray-400">
+            Caricamento statistiche reali…
+          </div>
+        </section>
+      ) : loadError || !member ? (
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
+          <Link
+            href="/statistiche"
+            className="text-sm font-black text-[#A6E824] hover:underline"
+          >
+            ← Torna alle statistiche
+          </Link>
+          <div className="mt-6 rounded-3xl border border-red-500/30 bg-red-950/20 p-6 text-red-300">
+            {loadError || "Statistiche del membro non disponibili."}
+          </div>
+        </section>
+      ) : (
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
         <Link href="/statistiche" className="text-sm font-black text-[#A6E824] hover:underline">
           ← Torna alle statistiche
@@ -491,9 +547,15 @@ export default function StatisticheMembroPage() {
         <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
           <h2 className="text-2xl font-black">Rendimento per squadra</h2>
           <div className="mt-5 grid gap-3">
-            {member.teamStats.map((stat) => (
-              <TeamDeepCard key={stat.team} stat={stat} />
-            ))}
+            {member.teamStats.length > 0 ? (
+              member.teamStats.map((stat) => (
+                <TeamDeepCard key={stat.team} stat={stat} />
+              ))
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-5 text-gray-500">
+                Nessuna giornata ufficiale disponibile.
+              </div>
+            )}
           </div>
         </section>
 
@@ -538,18 +600,48 @@ export default function StatisticheMembroPage() {
         <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
           <h2 className="text-2xl font-black">Split generali</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <MiniMetric label="Precisione 1X2" value="68%" />
-            <MiniMetric label="Precisione U/O" value="61%" tone="muted" />
-            <MiniMetric label="Precisione G/NG" value="64%" tone="muted" />
-            <MiniMetric label="Exact casa" value="11" />
-            <MiniMetric label="Exact trasferta" value="7" />
-            <MiniMetric label="Big match" value="72%" tone="orange" />
-            <MiniMetric label="Favoriti" value="70%" />
-            <MiniMetric label="Equilibrate" value="55%" tone="orange" />
-            <MiniMetric label="Underdog" value="41%" tone="violet" />
+            <MiniMetric
+              label="Precisione 1X2"
+              value={`${member.splits.signAccuracy}%`}
+            />
+            <MiniMetric
+              label="Precisione U/O"
+              value={`${member.splits.overUnderAccuracy}%`}
+              tone="muted"
+            />
+            <MiniMetric
+              label="Precisione G/NG"
+              value={`${member.splits.goalNoGoalAccuracy}%`}
+              tone="muted"
+            />
+            <MiniMetric label="Exact casa" value={member.splits.homeExact} />
+            <MiniMetric
+              label="Exact trasferta"
+              value={member.splits.awayExact}
+            />
+            <MiniMetric
+              label="Pronostici valutati"
+              value={member.splits.evaluatedPredictions}
+              tone="orange"
+            />
+            <MiniMetric
+              label="Lettura standard"
+              value={`${member.splits.standardAccuracy}%`}
+            />
+            <MiniMetric
+              label="Giornate ufficiali"
+              value={member.splits.officialRounds}
+              tone="orange"
+            />
+            <MiniMetric
+              label="Underdog"
+              value={`${member.splits.underdogAccuracy}%`}
+              tone="violet"
+            />
           </div>
         </section>
       </section>
+      )}
     </main>
   );
 }

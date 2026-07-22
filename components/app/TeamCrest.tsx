@@ -55,9 +55,44 @@ export default function TeamCrest({
   const [sourceIndex, setSourceIndex] = useState(0);
   const currentSource = sources[sourceIndex] ?? null;
 
+  const isJuventus = useMemo(() => {
+    const searchableValue = [
+      alt,
+      fallbackLabel,
+      crestReference,
+      logoUrl,
+      currentSource,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" ")
+      .toLowerCase();
+
+    return (
+      searchableValue.includes("juventus") ||
+      searchableValue.includes("/juve") ||
+      searchableValue.includes("juve.")
+    );
+  }, [alt, fallbackLabel, crestReference, logoUrl, currentSource]);
+
+  const isLazio = useMemo(() => {
+    const searchableValue = [alt, fallbackLabel, crestReference, logoUrl, currentSource]
+      .filter((value): value is string => Boolean(value))
+      .join(" ")
+      .toLowerCase();
+    return searchableValue.includes("lazio");
+  }, [alt, fallbackLabel, crestReference, logoUrl, currentSource]);
+
+  const isNapoli = useMemo(() => {
+    const searchableValue = [alt, fallbackLabel, crestReference, logoUrl, currentSource]
+      .filter((value): value is string => Boolean(value))
+      .join(" ")
+      .toLowerCase();
+    return searchableValue.includes("napoli");
+  }, [alt, fallbackLabel, crestReference, logoUrl, currentSource]);
+
   return (
     <span
-      className={`${sizeClasses[size]} ${className} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[#11181d] shadow-[0_2px_8px_rgba(0,0,0,0.28)]`}
+      className={`${sizeClasses[size]} ${className} flex shrink-0 items-center justify-center`}
     >
       {currentSource ? (
         <img
@@ -66,7 +101,13 @@ export default function TeamCrest({
           loading="lazy"
           decoding="async"
           onError={() => setSourceIndex((current) => current + 1)}
-          className="h-full w-full object-contain p-[10%] drop-shadow-[0_0_2px_rgba(255,255,255,0.95)]"
+          className={`h-full w-full object-contain ${
+            isJuventus
+              ? "brightness-0 invert drop-shadow-[0_0_1px_rgba(255,255,255,0.75)] drop-shadow-[0_0_4px_rgba(255,255,255,0.28)]"
+              : isLazio || isNapoli
+                ? "scale-[1.25]"
+                : ""
+          }`}
         />
       ) : (
         <span

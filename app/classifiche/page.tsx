@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
+import FantaGolModeIcon from "../../components/app/FantaGolModeIcon";
 import { supabase } from "../../lib/supabaseClient";
 
 type Mode = "puntipuri" | "fantacalcio" | "onetoone";
@@ -128,7 +129,10 @@ export default function ClassifichePage() {
                 : "bg-[#1f2427] text-white hover:bg-[#2a3033]"
             }`}
           >
-            ⭐ Punti Puri
+            <span className="flex items-center gap-2">
+              <FantaGolModeIcon mode="punti-puri" className="h-8 w-8 rounded-lg" />
+              <span>Punti Puri</span>
+            </span>
           </button>
 
           <button
@@ -139,7 +143,10 @@ export default function ClassifichePage() {
                 : "bg-[#1f2427] text-white hover:bg-[#2a3033]"
             }`}
           >
-            🏆 Fantacalcio
+            <span className="flex items-center gap-2">
+              <FantaGolModeIcon mode="fantacalcio" className="h-8 w-8 rounded-lg" />
+              <span>Fantacalcio</span>
+            </span>
           </button>
 
           <button
@@ -150,7 +157,10 @@ export default function ClassifichePage() {
                 : "bg-[#1f2427] text-white hover:bg-[#2a3033]"
             }`}
           >
-            ⚔️ One to One
+            <span className="flex items-center gap-2">
+              <FantaGolModeIcon mode="one-to-one" className="h-8 w-8 rounded-lg" />
+              <span>One to One</span>
+            </span>
           </button>
         </div>
 

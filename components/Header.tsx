@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import FantaGolLogo from "./FantaGolLogo";
+import PlatformIcon from "./app/PlatformIcon";
 import { supabase } from "../lib/supabaseClient";
 
 const fantagolGreen = "#A6E824";
@@ -67,14 +68,14 @@ export default function Header() {
                   href="/download/android"
                   className="block px-5 py-3 text-sm text-gray-200 hover:bg-[#262626]"
                 >
-                  📱 Android
+                  <span className="inline-flex items-center gap-2"><PlatformIcon platform="android" size={18} />Android</span>
                 </a>
 
                 <a
                   href="/download/iphone"
                   className="block border-t border-gray-700 px-5 py-3 text-sm text-gray-200 hover:bg-[#262626]"
                 >
-                  🍎 iPhone
+                  <span className="inline-flex items-center gap-2"><PlatformIcon platform="iphone" size={18} />iPhone</span>
                 </a>
               </div>
             )}
@@ -151,7 +152,7 @@ export default function Header() {
                     className="block pl-4 text-base"
                     href="/download/android"
                   >
-                    📱 Android
+                    <span className="inline-flex items-center gap-2"><PlatformIcon platform="android" size={18} />Android</span>
                   </a>
 
                   <a
@@ -159,7 +160,7 @@ export default function Header() {
                     className="block pl-4 text-base"
                     href="/download/iphone"
                   >
-                    🍎 iPhone
+                    <span className="inline-flex items-center gap-2"><PlatformIcon platform="iphone" size={18} />iPhone</span>
                   </a>
                 </div>
               )}

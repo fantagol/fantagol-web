@@ -1,0 +1,34 @@
+﻿app\calendario\page.tsx:182 | ☰
+app\calendario\page.tsx:297 | ⛔
+app\classifiche\page.tsx:97 | ☰
+app\classifiche\page.tsx:142 | 🏆 Fantacalcio
+app\classifiche\page.tsx:153 | ⚔️ One to One
+app\club\kit\page.tsx:200 | ☰
+app\club\page.tsx:133 | ☰
+app\club\page.tsx:198 | <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#A6E824]/30 bg-[#A6E824]/10 text-[#A6E824]">🏆</span><div className="font-black">Fantacalcio</div></div>
+app\club\page.tsx:208 | <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-300">⚔️</span><div className="font-black">One to One</div></div>
+app\club\profilo\page.tsx:453 | ☰
+app\control-room\page.tsx:54 | ➜
+app\control-room\page.tsx:119 | ☰
+app\leghe\layout.tsx:80 | ☰
+app\membri\page.tsx:236 | ☰
+app\statistiche\page.tsx:338 | ☰
+components\app\BottomNav.tsx:9 | <span>🏠<br />Home</span>
+components\app\BottomNav.tsx:10 | <span>⚽<br />Live</span>
+components\app\BottomNav.tsx:11 | <span>🏆<br />Classifiche</span>
+components\app\BottomNav.tsx:12 | <span>📅<br />Calendario</span>
+components\app\BottomNav.tsx:14 | ☰<br />Menu
+components\app\LeagueTopBar.tsx:19 | 🔔
+components\app\LeagueTopBar.tsx:24 | 🏆 {leagueName}
+components\app\LeagueTopBar.tsx:34 | ☰
+components\app\RoundSubmissionButton.tsx:44 | "🔒 Pronostici bloccati"
+components\app\RoundSubmissionButton.tsx:49 | <span>✎ Reinvia i pronostici</span>
+components\app\RoundSubmissionButton.tsx:55 | "✓ Pronostici inviati"
+components\app\RoundSubmissionButton.tsx:57 | "✈ Invia i pronostici"
+components\app\SubmissionModal.tsx:38 | ✓
+components\club\KitPreview.tsx:22 | const stars = "★".repeat(Math.min(starsCount, 5));
+components\Header.tsx:70 | 📱 Android
+components\Header.tsx:77 | 🍎 iPhone
+components\Header.tsx:114 | ☰
+components\Header.tsx:154 | 📱 Android
+components\Header.tsx:162 | 🍎 iPhone

@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabaseClient";
 import KitPreview from "../../components/club/KitPreview";
 
 type LeagueInfo = {
+  leagueId: string;
   leagueName: string;
   displayName: string;
   inviteCode: string;
@@ -41,68 +42,6 @@ type MemberStats = {
   worstTeamRate: number;
 };
 
-const demoStats: MemberStats[] = [
-  {
-    id: "1",
-    clubName: "Real Exact",
-    realName: "Mario Rossi",
-    avatarUrl: null,
-    totalPoints: 362,
-    exact: 18,
-    surprise: 7,
-    show: 11,
-    slam: 2,
-    bad: 5,
-    opposite: 4,
-    averagePoints: 36.2,
-    bestRound: 52,
-    worstRound: 14,
-    bestTeam: "Inter",
-    bestTeamRate: 78,
-    worstTeam: "Lazio",
-    worstTeamRate: 31,
-  },
-  {
-    id: "2",
-    clubName: "FantaGol United",
-    realName: "Luca Bianchi",
-    avatarUrl: null,
-    totalPoints: 358,
-    exact: 16,
-    surprise: 9,
-    show: 8,
-    slam: 1,
-    bad: 7,
-    opposite: 5,
-    averagePoints: 35.8,
-    bestRound: 49,
-    worstRound: 11,
-    bestTeam: "Milan",
-    bestTeamRate: 74,
-    worstTeam: "Roma",
-    worstTeamRate: 28,
-  },
-  {
-    id: "3",
-    clubName: "Bonus Show",
-    realName: "Andrea Verdi",
-    avatarUrl: null,
-    totalPoints: 351,
-    exact: 14,
-    surprise: 12,
-    show: 13,
-    slam: 3,
-    bad: 9,
-    opposite: 6,
-    averagePoints: 35.1,
-    bestRound: 55,
-    worstRound: 8,
-    bestTeam: "Napoli",
-    bestTeamRate: 81,
-    worstTeam: "Torino",
-    worstTeamRate: 26,
-  },
-];
 
 function StatPill({
   label,
@@ -270,14 +209,23 @@ function MemberCard({ member }: { member: MemberStats }) {
 export default function StatistichePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
+    leagueId: "",
     leagueName: "FantaGol",
     displayName: "Club FantaGol",
     inviteCode: "",
     role: "member",
   });
+  const [stats, setStats] = useState<MemberStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadLeagueInfo() {
+    let cancelled = false;
+
+    async function loadStatistics() {
+      setLoading(true);
+      setLoadError(null);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -287,38 +235,114 @@ export default function StatistichePage() {
         return;
       }
 
-      const { data } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (data || [])[0];
+      const { data: leagues, error: leaguesError } =
+        await supabase.rpc("get_my_leagues_rpc");
 
-      if (firstLeague) {
-        setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
-        });
+      if (leaguesError) {
+        if (!cancelled) {
+          setLoadError(leaguesError.message);
+          setLoading(false);
+        }
+        return;
       }
 
-      /*
-        Collegamento definitivo:
-        questa page leggerà dati aggregati dalle giornate chiuse:
-        - risultati Punti Puri per giornata
-        - bonus/malus per singola partita
-        - exact e altri eventi per utente
-        - rendimento per squadra pronosticata
-        - classifiche finali/parziali delle tre modalità
+      const availableLeagues = leagues || [];
+      const rememberedLeagueId =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("fantagol:lastLeagueId")
+          : null;
 
-        RPC prevista:
-        get_league_member_statistics_rpc(target_league_id uuid)
-      */
+      const selectedLeague =
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
+            league.league_id === rememberedLeagueId
+        ) || availableLeagues[0];
+
+      if (!selectedLeague?.league_id) {
+        if (!cancelled) {
+          setStats([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const selectedLeagueInfo: LeagueInfo = {
+        leagueId: selectedLeague.league_id,
+        leagueName: selectedLeague.league_name || "Lega FantaGol",
+        displayName: selectedLeague.display_name || "Club FantaGol",
+        inviteCode:
+          selectedLeague.invite_code || selectedLeague.league_id || "",
+        role: selectedLeague.role || "member",
+      };
+
+      const { data, error } = await supabase.rpc(
+        "get_league_member_statistics_rpc",
+        { target_league_id: selectedLeague.league_id }
+      );
+
+      if (cancelled) return;
+
+      setLeagueInfo(selectedLeagueInfo);
+
+      if (error) {
+        setLoadError(error.message);
+        setStats([]);
+        setLoading(false);
+        return;
+      }
+
+      const mappedStats: MemberStats[] = (data || []).map(
+        (row: Record<string, unknown>) => ({
+          id: String(row.member_id),
+          clubName: String(row.club_name || "Club FantaGol"),
+          realName: row.real_name ? String(row.real_name) : null,
+          avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
+          kitTemplate: String(row.kit_template || "solid"),
+          kitPrimaryColor: String(row.kit_primary_color || "#FFFFFF"),
+          kitSecondaryColor: String(row.kit_secondary_color || "#A6E824"),
+          kitThirdColor: String(row.kit_third_color || "#FFFFFF"),
+          kitLogoMode: String(row.kit_logo_mode || "center_horizontal"),
+          kitCrestPosition: String(
+            row.kit_crest_position || "left_chest"
+          ),
+          starsCount: Number(row.stars_count || 0),
+          totalPoints: Number(row.total_points || 0),
+          exact: Number(row.exact_count || 0),
+          surprise: Number(row.surprise_count || 0),
+          show: Number(row.goal_show_count || 0),
+          slam: Number(row.grand_slam_count || 0),
+          bad: Number(row.cantonata_count || 0),
+          opposite: Number(row.opposite_sign_count || 0),
+          averagePoints: Number(row.average_points || 0),
+          bestRound: Number(row.best_round || 0),
+          worstRound: Number(row.worst_round || 0),
+          bestTeam: String(row.best_team || "—"),
+          bestTeamRate: Number(row.best_team_rate || 0),
+          worstTeam: String(row.worst_team || "—"),
+          worstTeamRate: Number(row.worst_team_rate || 0),
+        })
+      );
+
+      setStats(mappedStats);
+      setLoading(false);
     }
 
-    loadLeagueInfo();
+    loadStatistics();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const sortedStats = useMemo(
-    () => [...demoStats].sort((a, b) => b.totalPoints - a.totalPoints),
-    []
+    () =>
+      [...stats].sort(
+        (a, b) =>
+          b.totalPoints - a.totalPoints ||
+          b.exact - a.exact ||
+          a.clubName.localeCompare(b.clubName)
+      ),
+    [stats]
   );
 
   return (
@@ -361,9 +385,23 @@ export default function StatistichePage() {
         </p>
 
         <div className="mt-8 space-y-5">
-          {sortedStats.map((member) => (
-            <MemberCard key={member.id} member={member} />
-          ))}
+          {loading ? (
+            <div className="rounded-3xl border border-gray-700 bg-[#111111] p-6 text-gray-400">
+              Caricamento statistiche reali…
+            </div>
+          ) : loadError ? (
+            <div className="rounded-3xl border border-red-500/30 bg-red-950/20 p-6 text-red-300">
+              Impossibile caricare le statistiche: {loadError}
+            </div>
+          ) : sortedStats.length === 0 ? (
+            <div className="rounded-3xl border border-gray-700 bg-[#111111] p-6 text-gray-400">
+              Nessun membro disponibile per questa lega.
+            </div>
+          ) : (
+            sortedStats.map((member) => (
+              <MemberCard key={member.id} member={member} />
+            ))
+          )}
         </div>
       </section>
     </main>

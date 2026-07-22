@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
+import FantaGolModeIcon from "../../components/app/FantaGolModeIcon";
 import KitPreview from "../../components/club/KitPreview";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -195,7 +196,13 @@ export default function ClubPage() {
               <div className="mt-5 grid gap-3">
                 <div className="flex items-center justify-between rounded-2xl border border-gray-800 bg-black px-5 py-4">
                   <div>
-                    <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#A6E824]/30 bg-[#A6E824]/10 text-[#A6E824]">🏆</span><div className="font-black">Fantacalcio</div></div>
+                    <div className="flex items-center gap-2">
+                      <FantaGolModeIcon
+                        mode="fantacalcio"
+                        className="h-8 w-8 rounded-lg"
+                      />
+                      <div className="font-black">Fantacalcio</div>
+                    </div>
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
@@ -205,7 +212,13 @@ export default function ClubPage() {
 
                 <div className="flex items-center justify-between rounded-2xl border border-gray-800 bg-black px-5 py-4">
                   <div>
-                    <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-300">⚔️</span><div className="font-black">One to One</div></div>
+                    <div className="flex items-center gap-2">
+                      <FantaGolModeIcon
+                        mode="one-to-one"
+                        className="h-8 w-8 rounded-lg"
+                      />
+                      <div className="font-black">One to One</div>
+                    </div>
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
@@ -215,7 +228,13 @@ export default function ClubPage() {
 
                 <div className="flex items-center justify-between rounded-2xl border border-gray-800 bg-black px-5 py-4">
                   <div>
-                    <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-500/10 text-violet-300">⭐</span><div className="font-black">Punti Puri</div></div>
+                    <div className="flex items-center gap-2">
+                      <FantaGolModeIcon
+                        mode="punti-puri"
+                        className="h-8 w-8 rounded-lg"
+                      />
+                      <div className="font-black">Punti Puri</div>
+                    </div>
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
