@@ -18,6 +18,8 @@ const COMMERCIAL_RUNTIME_RPC_NAMES = [
   "get_commercial_products_rpc",
   "get_reward_campaigns_rpc",
   "submit_my_reward_claim_rpc",
+  "get_my_reward_claims_rpc",
+  "get_my_reward_claim_rpc",
 ] as const satisfies readonly CommercialRuntimeRpcName[];
 
 describe("CommercialRuntimeRpcName", () => {
@@ -33,23 +35,20 @@ describe("CommercialRuntimeRpcName", () => {
       "get_commercial_products_rpc",
       "get_reward_campaigns_rpc",
       "submit_my_reward_claim_rpc",
+      "get_my_reward_claims_rpc",
+      "get_my_reward_claim_rpc",
     ]);
   });
 
-  it("contains ten unique RPC names", () => {
-    expect(COMMERCIAL_RUNTIME_RPC_NAMES).toHaveLength(10);
-    expect(
-      new Set(COMMERCIAL_RUNTIME_RPC_NAMES).size,
-    ).toBe(10);
+  it("contains twelve unique RPC names", () => {
+    expect(COMMERCIAL_RUNTIME_RPC_NAMES).toHaveLength(12);
+    expect(new Set(COMMERCIAL_RUNTIME_RPC_NAMES).size).toBe(12);
   });
 
   it("matches the exported RPC name union", () => {
-    type ListedRpcName =
-      (typeof COMMERCIAL_RUNTIME_RPC_NAMES)[number];
+    type ListedRpcName = (typeof COMMERCIAL_RUNTIME_RPC_NAMES)[number];
 
-    expectTypeOf<ListedRpcName>().toEqualTypeOf<
-      CommercialRuntimeRpcName
-    >();
+    expectTypeOf<ListedRpcName>().toEqualTypeOf<CommercialRuntimeRpcName>();
   });
 
   it("rejects RPC names outside the public union", () => {
@@ -57,17 +56,14 @@ describe("CommercialRuntimeRpcName", () => {
     const invalidRpcName: CommercialRuntimeRpcName =
       "unknown_commercial_runtime_rpc_internal";
 
-    expect(invalidRpcName).toBe(
-      "unknown_commercial_runtime_rpc_internal",
-    );
+    expect(invalidRpcName).toBe("unknown_commercial_runtime_rpc_internal");
   });
 });
 
 describe("CommercialRuntimeRpcFailure", () => {
   it("accepts the complete nullable failure contract", () => {
     const failure = {
-      rpcName:
-        "get_commercial_purchase_runtime_internal",
+      rpcName: "get_commercial_purchase_runtime_internal",
       code: null,
       message: "Commercial runtime failed.",
       details: null,
@@ -75,8 +71,7 @@ describe("CommercialRuntimeRpcFailure", () => {
     } satisfies CommercialRuntimeRpcFailure;
 
     expect(failure).toEqual({
-      rpcName:
-        "get_commercial_purchase_runtime_internal",
+      rpcName: "get_commercial_purchase_runtime_internal",
       code: null,
       message: "Commercial runtime failed.",
       details: null,
@@ -89,21 +84,21 @@ describe("CommercialRuntimeRpcFailure", () => {
       CommercialRuntimeRpcFailure["rpcName"]
     >().toEqualTypeOf<CommercialRuntimeRpcName>();
 
-    expectTypeOf<
-      CommercialRuntimeRpcFailure["code"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeRpcFailure["code"]>().toEqualTypeOf<
+      string | null
+    >();
 
     expectTypeOf<
       CommercialRuntimeRpcFailure["message"]
     >().toEqualTypeOf<string>();
 
-    expectTypeOf<
-      CommercialRuntimeRpcFailure["details"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeRpcFailure["details"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeRpcFailure["hint"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeRpcFailure["hint"]>().toEqualTypeOf<
+      string | null
+    >();
   });
 });
 
@@ -114,27 +109,20 @@ describe("CommercialRuntimeRpcResult", () => {
       ready: boolean;
     };
 
-    type Result =
-      CommercialRuntimeRpcResult<Payload>;
+    type Result = CommercialRuntimeRpcResult<Payload>;
 
-    expectTypeOf<Result["data"]>().toEqualTypeOf<
-      Payload
-    >();
+    expectTypeOf<Result["data"]>().toEqualTypeOf<Payload>();
 
-    expectTypeOf<
-      Result["rpcName"]
-    >().toEqualTypeOf<CommercialRuntimeRpcName>();
+    expectTypeOf<Result["rpcName"]>().toEqualTypeOf<CommercialRuntimeRpcName>();
   });
 
   it("accepts a typed RPC result object", () => {
     const result = {
       data: {
-        purchaseId:
-          "11111111-1111-4111-8111-111111111111",
+        purchaseId: "11111111-1111-4111-8111-111111111111",
         ready: true,
       },
-      rpcName:
-        "evaluate_commercial_purchase_runtime_readiness_internal",
+      rpcName: "evaluate_commercial_purchase_runtime_readiness_internal",
     } satisfies CommercialRuntimeRpcResult<{
       purchaseId: string;
       ready: boolean;
@@ -169,9 +157,7 @@ describe("CommercialRuntimeEvent", () => {
       occurred_at: "2026-07-23T15:00:00.000Z",
     } satisfies CommercialRuntimeEvent;
 
-    expect(event.event_type).toBe(
-      "authorization_requested",
-    );
+    expect(event.event_type).toBe("authorization_requested");
     expect(event.payload).toEqual({
       source: "unit-test",
       retryable: false,
@@ -202,44 +188,41 @@ describe("CommercialRuntimeEvent", () => {
 
     expect(event.sequence_number).toBe(2);
     expect(event.certified).toBe(true);
-    expect(event.tags).toEqual([
-      "runtime",
-      "commercial",
-    ]);
+    expect(event.tags).toEqual(["runtime", "commercial"]);
   });
 
   it("exposes nullable identifier and state fields", () => {
-    expectTypeOf<
-      CommercialRuntimeEvent["purchase_id"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["purchase_id"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["policy_id"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["policy_id"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["authorization_id"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["authorization_id"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["attempt_id"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["attempt_id"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["previous_state"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["previous_state"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["next_state"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["next_state"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["reason"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["reason"]>().toEqualTypeOf<
+      string | null
+    >();
 
-    expectTypeOf<
-      CommercialRuntimeEvent["causation_id"]
-    >().toEqualTypeOf<string | null>();
+    expectTypeOf<CommercialRuntimeEvent["causation_id"]>().toEqualTypeOf<
+      string | null
+    >();
   });
 
   it("requires the canonical event fields", () => {
@@ -249,9 +232,7 @@ describe("CommercialRuntimeEvent", () => {
       payload: {},
     };
 
-    expect(incompleteEvent.id).toBe(
-      "event-incomplete",
-    );
+    expect(incompleteEvent.id).toBe("event-incomplete");
   });
 
   it("rejects non-JSON-compatible extension fields", () => {
@@ -276,8 +257,6 @@ describe("CommercialRuntimeEvent", () => {
       invalid_extension: invalidExtension,
     } satisfies CommercialRuntimeEvent;
 
-    expect(typeof event.invalid_extension).toBe(
-      "function",
-    );
+    expect(typeof event.invalid_extension).toBe("function");
   });
 });

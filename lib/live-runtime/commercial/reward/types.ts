@@ -1,10 +1,7 @@
 import type { JsonObject } from "../json";
 
 export type CommercialRewardType =
-  | "PASS_REWARD"
-  | "PASS_PROMOTION"
-  | "PASS_GIFT"
-  | "PASS_REFERRAL";
+  "PASS_REWARD" | "PASS_PROMOTION" | "PASS_GIFT" | "PASS_REFERRAL";
 
 export type CommercialRewardClaimStatus =
   | "submitted"
@@ -15,11 +12,7 @@ export type CommercialRewardClaimStatus =
   | "expired";
 
 export type CommercialRewardVerificationStatus =
-  | "pending"
-  | "processing"
-  | "verified"
-  | "rejected"
-  | "expired";
+  "pending" | "processing" | "verified" | "rejected" | "expired";
 
 export type CommercialRewardClaimSubmissionErrorCode =
   | "REWARD_CAMPAIGN_NOT_AVAILABLE"
@@ -28,8 +21,7 @@ export type CommercialRewardClaimSubmissionErrorCode =
   | "REWARD_CLAIM_COOLDOWN_ACTIVE"
   | "COMMERCIAL_WALLET_NOT_ACTIVE";
 
-export interface CommercialRewardCampaign
-  extends JsonObject {
+export interface CommercialRewardCampaign extends JsonObject {
   campaign_id: string;
   campaign_code: string;
   source_code: string;
@@ -43,8 +35,47 @@ export interface CommercialRewardCampaign
   metadata: JsonObject;
 }
 
-export type CommercialRewardCampaigns =
-  CommercialRewardCampaign[];
+export type CommercialRewardCampaigns = CommercialRewardCampaign[];
+
+export interface CommercialRewardClaim extends JsonObject {
+  claim_id: string;
+  campaign_code: string;
+  source_code: string;
+  reward_type: CommercialRewardType;
+  passes_awarded: number;
+  claim_status: CommercialRewardClaimStatus;
+  verification_status: CommercialRewardVerificationStatus;
+  submitted_at: string;
+  verified_at: string | null;
+  rejected_at: string | null;
+  settled_at: string | null;
+  expired_at: string | null;
+}
+
+export type CommercialRewardClaims = CommercialRewardClaim[];
+
+export interface GetMyCommercialRewardClaimsInput {
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetMyCommercialRewardClaimInput {
+  claimId: string;
+}
+
+export interface CommercialRewardClaimLookupSuccess extends CommercialRewardClaim {
+  found: true;
+  external_claim_reference: string | null;
+  server_time: string;
+}
+
+export interface CommercialRewardClaimLookupFailure extends JsonObject {
+  found: false;
+  error_code: "REWARD_CLAIM_NOT_FOUND";
+}
+
+export type CommercialRewardClaimLookupResult =
+  CommercialRewardClaimLookupSuccess | CommercialRewardClaimLookupFailure;
 
 export interface SubmitCommercialRewardClaimInput {
   campaignCode: string;
@@ -58,8 +89,7 @@ export interface CommercialRewardClaimSubmissionSuccess {
   created: boolean;
   claim_id: string;
   claim_status: CommercialRewardClaimStatus;
-  verification_status:
-    CommercialRewardVerificationStatus;
+  verification_status: CommercialRewardVerificationStatus;
   campaign_code: string;
   source_code?: string;
   passes: number;
@@ -68,8 +98,7 @@ export interface CommercialRewardClaimSubmissionSuccess {
 
 export interface CommercialRewardClaimSubmissionFailure {
   submitted: false;
-  error_code:
-    CommercialRewardClaimSubmissionErrorCode;
+  error_code: CommercialRewardClaimSubmissionErrorCode;
   campaign_code?: string;
   source_code?: string;
   retry_after?: string;

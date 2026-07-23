@@ -1,10 +1,4 @@
-import {
-  describe,
-  expect,
-  expectTypeOf,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -30,25 +24,19 @@ import {
 } from "./purchase/service";
 
 import {
+  getMyRewardClaim,
+  getMyRewardClaims,
   getRewardCampaigns,
   submitMyRewardClaim,
 } from "./reward/service";
 
-import {
-  getCommercialProducts,
-} from "./product/service";
+import { getCommercialProducts } from "./product/service";
 
-import {
-  getMyCommercialLedger,
-} from "./ledger/service";
+import { getMyCommercialLedger } from "./ledger/service";
 
-import {
-  getMyCommercialWallet,
-} from "./wallet/service";
+import { getMyCommercialWallet } from "./wallet/service";
 
-import type {
-  CommercialRuntimeErrorCode as DirectCommercialRuntimeErrorCode,
-} from "./errors";
+import type { CommercialRuntimeErrorCode as DirectCommercialRuntimeErrorCode } from "./errors";
 
 import type {
   JsonObject as DirectJsonObject,
@@ -152,6 +140,8 @@ const EXPECTED_RUNTIME_EXPORTS = [
   "evaluateCommercialPurchaseReadiness",
   "getCommercialPurchaseRuntime",
   "getCommercialPurchaseRuntimeTimeline",
+  "getMyRewardClaim",
+  "getMyRewardClaims",
   "getRewardCampaigns",
   "submitMyRewardClaim",
   "getCommercialProducts",
@@ -164,106 +154,96 @@ const EXPECTED_RUNTIME_EXPORTS = [
 
 describe("commercial public runtime export surface", () => {
   it("exports exactly the approved runtime symbols", () => {
-    expect(
-      Object.keys(commercial).sort(),
-    ).toEqual([...EXPECTED_RUNTIME_EXPORTS].sort());
+    expect(Object.keys(commercial).sort()).toEqual(
+      [...EXPECTED_RUNTIME_EXPORTS].sort(),
+    );
   });
 
-  it("exports fourteen unique runtime symbols", () => {
-    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(14);
-    expect(
-      new Set(EXPECTED_RUNTIME_EXPORTS).size,
-    ).toBe(14);
+  it("exports sixteen unique runtime symbols", () => {
+    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(16);
+    expect(new Set(EXPECTED_RUNTIME_EXPORTS).size).toBe(16);
   });
 
   it("re-exports the error code registry by identity", () => {
-    expect(
-      commercial.COMMERCIAL_RUNTIME_ERROR_CODES,
-    ).toBe(COMMERCIAL_RUNTIME_ERROR_CODES);
+    expect(commercial.COMMERCIAL_RUNTIME_ERROR_CODES).toBe(
+      COMMERCIAL_RUNTIME_ERROR_CODES,
+    );
   });
 
   it("re-exports CommercialRuntimeError by identity", () => {
-    expect(
-      commercial.CommercialRuntimeError,
-    ).toBe(CommercialRuntimeError);
+    expect(commercial.CommercialRuntimeError).toBe(CommercialRuntimeError);
   });
 
   it("re-exports isCommercialRuntimeError by identity", () => {
-    expect(
-      commercial.isCommercialRuntimeError,
-    ).toBe(isCommercialRuntimeError);
+    expect(commercial.isCommercialRuntimeError).toBe(isCommercialRuntimeError);
   });
 
   it("re-exports hasCommercialRuntimeErrorCode by identity", () => {
-    expect(
-      commercial.hasCommercialRuntimeErrorCode,
-    ).toBe(hasCommercialRuntimeErrorCode);
+    expect(commercial.hasCommercialRuntimeErrorCode).toBe(
+      hasCommercialRuntimeErrorCode,
+    );
   });
 
   it("re-exports evaluateCommercialPurchaseReadiness by identity", () => {
-    expect(
-      commercial.evaluateCommercialPurchaseReadiness,
-    ).toBe(evaluateCommercialPurchaseReadiness);
+    expect(commercial.evaluateCommercialPurchaseReadiness).toBe(
+      evaluateCommercialPurchaseReadiness,
+    );
   });
 
   it("re-exports requestCommercialPurchaseAuthorization by identity", () => {
-    expect(
-      commercial.requestCommercialPurchaseAuthorization,
-    ).toBe(requestCommercialPurchaseAuthorization);
+    expect(commercial.requestCommercialPurchaseAuthorization).toBe(
+      requestCommercialPurchaseAuthorization,
+    );
   });
 
   it("re-exports decideCommercialPurchaseAuthorization by identity", () => {
-    expect(
-      commercial.decideCommercialPurchaseAuthorization,
-    ).toBe(decideCommercialPurchaseAuthorization);
+    expect(commercial.decideCommercialPurchaseAuthorization).toBe(
+      decideCommercialPurchaseAuthorization,
+    );
   });
 
   it("re-exports getCommercialPurchaseRuntime by identity", () => {
-    expect(
-      commercial.getCommercialPurchaseRuntime,
-    ).toBe(getCommercialPurchaseRuntime);
+    expect(commercial.getCommercialPurchaseRuntime).toBe(
+      getCommercialPurchaseRuntime,
+    );
   });
 
   it("re-exports getCommercialPurchaseRuntimeTimeline by identity", () => {
-    expect(
-      commercial.getCommercialPurchaseRuntimeTimeline,
-    ).toBe(getCommercialPurchaseRuntimeTimeline);
+    expect(commercial.getCommercialPurchaseRuntimeTimeline).toBe(
+      getCommercialPurchaseRuntimeTimeline,
+    );
+  });
+
+  it("re-exports getMyRewardClaim by identity", () => {
+    expect(commercial.getMyRewardClaim).toBe(getMyRewardClaim);
+  });
+
+  it("re-exports getMyRewardClaims by identity", () => {
+    expect(commercial.getMyRewardClaims).toBe(getMyRewardClaims);
   });
 
   it("re-exports getRewardCampaigns by identity", () => {
-    expect(
-      commercial.getRewardCampaigns,
-    ).toBe(getRewardCampaigns);
+    expect(commercial.getRewardCampaigns).toBe(getRewardCampaigns);
   });
 
   it("re-exports submitMyRewardClaim by identity", () => {
-    expect(
-      commercial.submitMyRewardClaim,
-    ).toBe(submitMyRewardClaim);
+    expect(commercial.submitMyRewardClaim).toBe(submitMyRewardClaim);
   });
 
   it("re-exports getCommercialProducts by identity", () => {
-    expect(
-      commercial.getCommercialProducts,
-    ).toBe(getCommercialProducts);
+    expect(commercial.getCommercialProducts).toBe(getCommercialProducts);
   });
 
   it("re-exports getMyCommercialLedger by identity", () => {
-    expect(
-      commercial.getMyCommercialLedger,
-    ).toBe(getMyCommercialLedger);
+    expect(commercial.getMyCommercialLedger).toBe(getMyCommercialLedger);
   });
 
   it("re-exports getMyCommercialWallet by identity", () => {
-    expect(
-      commercial.getMyCommercialWallet,
-    ).toBe(getMyCommercialWallet);
+    expect(commercial.getMyCommercialWallet).toBe(getMyCommercialWallet);
   });
 
   it("does not expose internal runtime helpers", () => {
-    expect(commercial).not.toHaveProperty(
-      "callCommercialRuntimeRpc",
-    );
+    expect(commercial).not.toHaveProperty("callCommercialRuntimeRpc");
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseReadinessResult",
     );
@@ -276,303 +256,159 @@ describe("commercial public runtime export surface", () => {
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseRuntimeTimeline",
     );
+    expect(commercial).not.toHaveProperty("normalizeRewardClaimLookupResult");
+    expect(commercial).not.toHaveProperty("normalizeRewardClaims");
     expect(commercial).not.toHaveProperty(
       "normalizeRewardClaimSubmissionResult",
     );
-    expect(commercial).not.toHaveProperty(
-      "normalizeRewardCampaigns",
-    );
-    expect(commercial).not.toHaveProperty(
-      "normalizeCommercialProducts",
-    );
-    expect(commercial).not.toHaveProperty(
-      "normalizeCommercialLedger",
-    );
-    expect(commercial).not.toHaveProperty(
-      "normalizeCommercialWallet",
-    );
-    expect(commercial).not.toHaveProperty(
-      "isJsonObject",
-    );
-    expect(commercial).not.toHaveProperty(
-      "asJsonObject",
-    );
+    expect(commercial).not.toHaveProperty("normalizeRewardCampaigns");
+    expect(commercial).not.toHaveProperty("normalizeCommercialProducts");
+    expect(commercial).not.toHaveProperty("normalizeCommercialLedger");
+    expect(commercial).not.toHaveProperty("normalizeCommercialWallet");
+    expect(commercial).not.toHaveProperty("isJsonObject");
+    expect(commercial).not.toHaveProperty("asJsonObject");
   });
 });
 
 describe("commercial public type export surface", () => {
   it("re-exports CommercialRuntimeErrorCode", () => {
-    expectTypeOf<
-      CommercialRuntimeErrorCode
-    >().toEqualTypeOf<
-      DirectCommercialRuntimeErrorCode
-    >();
+    expectTypeOf<CommercialRuntimeErrorCode>().toEqualTypeOf<DirectCommercialRuntimeErrorCode>();
   });
 
   it("re-exports JsonPrimitive", () => {
-    expectTypeOf<JsonPrimitive>().toEqualTypeOf<
-      DirectJsonPrimitive
-    >();
+    expectTypeOf<JsonPrimitive>().toEqualTypeOf<DirectJsonPrimitive>();
   });
 
   it("re-exports JsonValue", () => {
-    expectTypeOf<JsonValue>().toEqualTypeOf<
-      DirectJsonValue
-    >();
+    expectTypeOf<JsonValue>().toEqualTypeOf<DirectJsonValue>();
   });
 
   it("re-exports JsonObject", () => {
-    expectTypeOf<JsonObject>().toEqualTypeOf<
-      DirectJsonObject
-    >();
+    expectTypeOf<JsonObject>().toEqualTypeOf<DirectJsonObject>();
   });
 
   it("re-exports CommercialPurchaseAuthorizationDecision", () => {
-    expectTypeOf<
-      CommercialPurchaseAuthorizationDecision
-    >().toEqualTypeOf<
-      DirectCommercialPurchaseAuthorizationDecision
-    >();
+    expectTypeOf<CommercialPurchaseAuthorizationDecision>().toEqualTypeOf<DirectCommercialPurchaseAuthorizationDecision>();
   });
 
   it("re-exports CommercialPurchaseAuthorizationResult", () => {
-    expectTypeOf<
-      CommercialPurchaseAuthorizationResult
-    >().toEqualTypeOf<
-      DirectCommercialPurchaseAuthorizationResult
-    >();
+    expectTypeOf<CommercialPurchaseAuthorizationResult>().toEqualTypeOf<DirectCommercialPurchaseAuthorizationResult>();
   });
 
   it("re-exports CommercialPurchaseReadinessResult", () => {
-    expectTypeOf<
-      CommercialPurchaseReadinessResult
-    >().toEqualTypeOf<
-      DirectCommercialPurchaseReadinessResult
-    >();
+    expectTypeOf<CommercialPurchaseReadinessResult>().toEqualTypeOf<DirectCommercialPurchaseReadinessResult>();
   });
 
   it("re-exports CommercialPurchaseRuntimeSnapshot", () => {
-    expectTypeOf<
-      CommercialPurchaseRuntimeSnapshot
-    >().toEqualTypeOf<
-      DirectCommercialPurchaseRuntimeSnapshot
-    >();
+    expectTypeOf<CommercialPurchaseRuntimeSnapshot>().toEqualTypeOf<DirectCommercialPurchaseRuntimeSnapshot>();
   });
 
   it("re-exports CommercialPurchaseRuntimeTimeline", () => {
-    expectTypeOf<
-      CommercialPurchaseRuntimeTimeline
-    >().toEqualTypeOf<
-      DirectCommercialPurchaseRuntimeTimeline
-    >();
+    expectTypeOf<CommercialPurchaseRuntimeTimeline>().toEqualTypeOf<DirectCommercialPurchaseRuntimeTimeline>();
   });
 
   it("re-exports DecideCommercialPurchaseAuthorizationInput", () => {
-    expectTypeOf<
-      DecideCommercialPurchaseAuthorizationInput
-    >().toEqualTypeOf<
-      DirectDecideCommercialPurchaseAuthorizationInput
-    >();
+    expectTypeOf<DecideCommercialPurchaseAuthorizationInput>().toEqualTypeOf<DirectDecideCommercialPurchaseAuthorizationInput>();
   });
 
   it("re-exports EvaluateCommercialPurchaseReadinessInput", () => {
-    expectTypeOf<
-      EvaluateCommercialPurchaseReadinessInput
-    >().toEqualTypeOf<
-      DirectEvaluateCommercialPurchaseReadinessInput
-    >();
+    expectTypeOf<EvaluateCommercialPurchaseReadinessInput>().toEqualTypeOf<DirectEvaluateCommercialPurchaseReadinessInput>();
   });
 
   it("re-exports GetCommercialPurchaseRuntimeInput", () => {
-    expectTypeOf<
-      GetCommercialPurchaseRuntimeInput
-    >().toEqualTypeOf<
-      DirectGetCommercialPurchaseRuntimeInput
-    >();
+    expectTypeOf<GetCommercialPurchaseRuntimeInput>().toEqualTypeOf<DirectGetCommercialPurchaseRuntimeInput>();
   });
 
   it("re-exports GetCommercialPurchaseTimelineInput", () => {
-    expectTypeOf<
-      GetCommercialPurchaseTimelineInput
-    >().toEqualTypeOf<
-      DirectGetCommercialPurchaseTimelineInput
-    >();
+    expectTypeOf<GetCommercialPurchaseTimelineInput>().toEqualTypeOf<DirectGetCommercialPurchaseTimelineInput>();
   });
 
   it("re-exports RequestCommercialPurchaseAuthorizationInput", () => {
-    expectTypeOf<
-      RequestCommercialPurchaseAuthorizationInput
-    >().toEqualTypeOf<
-      DirectRequestCommercialPurchaseAuthorizationInput
-    >();
+    expectTypeOf<RequestCommercialPurchaseAuthorizationInput>().toEqualTypeOf<DirectRequestCommercialPurchaseAuthorizationInput>();
   });
 
   it("re-exports CommercialRewardCampaign", () => {
-    expectTypeOf<
-      CommercialRewardCampaign
-    >().toEqualTypeOf<
-      DirectCommercialRewardCampaign
-    >();
+    expectTypeOf<CommercialRewardCampaign>().toEqualTypeOf<DirectCommercialRewardCampaign>();
   });
 
   it("re-exports CommercialRewardCampaigns", () => {
-    expectTypeOf<
-      CommercialRewardCampaigns
-    >().toEqualTypeOf<
-      DirectCommercialRewardCampaigns
-    >();
+    expectTypeOf<CommercialRewardCampaigns>().toEqualTypeOf<DirectCommercialRewardCampaigns>();
   });
 
   it("re-exports CommercialRewardType", () => {
-    expectTypeOf<
-      CommercialRewardType
-    >().toEqualTypeOf<
-      DirectCommercialRewardType
-    >();
+    expectTypeOf<CommercialRewardType>().toEqualTypeOf<DirectCommercialRewardType>();
   });
 
   it("re-exports CommercialRewardClaimStatus", () => {
-    expectTypeOf<
-      CommercialRewardClaimStatus
-    >().toEqualTypeOf<
-      DirectCommercialRewardClaimStatus
-    >();
+    expectTypeOf<CommercialRewardClaimStatus>().toEqualTypeOf<DirectCommercialRewardClaimStatus>();
   });
 
   it("re-exports CommercialRewardVerificationStatus", () => {
-    expectTypeOf<
-      CommercialRewardVerificationStatus
-    >().toEqualTypeOf<
-      DirectCommercialRewardVerificationStatus
-    >();
+    expectTypeOf<CommercialRewardVerificationStatus>().toEqualTypeOf<DirectCommercialRewardVerificationStatus>();
   });
 
   it("re-exports CommercialRewardClaimSubmissionErrorCode", () => {
-    expectTypeOf<
-      CommercialRewardClaimSubmissionErrorCode
-    >().toEqualTypeOf<
-      DirectCommercialRewardClaimSubmissionErrorCode
-    >();
+    expectTypeOf<CommercialRewardClaimSubmissionErrorCode>().toEqualTypeOf<DirectCommercialRewardClaimSubmissionErrorCode>();
   });
 
   it("re-exports CommercialRewardClaimSubmissionSuccess", () => {
-    expectTypeOf<
-      CommercialRewardClaimSubmissionSuccess
-    >().toEqualTypeOf<
-      DirectCommercialRewardClaimSubmissionSuccess
-    >();
+    expectTypeOf<CommercialRewardClaimSubmissionSuccess>().toEqualTypeOf<DirectCommercialRewardClaimSubmissionSuccess>();
   });
 
   it("re-exports CommercialRewardClaimSubmissionFailure", () => {
-    expectTypeOf<
-      CommercialRewardClaimSubmissionFailure
-    >().toEqualTypeOf<
-      DirectCommercialRewardClaimSubmissionFailure
-    >();
+    expectTypeOf<CommercialRewardClaimSubmissionFailure>().toEqualTypeOf<DirectCommercialRewardClaimSubmissionFailure>();
   });
 
   it("re-exports CommercialRewardClaimSubmissionResult", () => {
-    expectTypeOf<
-      CommercialRewardClaimSubmissionResult
-    >().toEqualTypeOf<
-      DirectCommercialRewardClaimSubmissionResult
-    >();
+    expectTypeOf<CommercialRewardClaimSubmissionResult>().toEqualTypeOf<DirectCommercialRewardClaimSubmissionResult>();
   });
 
   it("re-exports SubmitCommercialRewardClaimInput", () => {
-    expectTypeOf<
-      SubmitCommercialRewardClaimInput
-    >().toEqualTypeOf<
-      DirectSubmitCommercialRewardClaimInput
-    >();
+    expectTypeOf<SubmitCommercialRewardClaimInput>().toEqualTypeOf<DirectSubmitCommercialRewardClaimInput>();
   });
 
   it("re-exports CommercialProduct", () => {
-    expectTypeOf<
-      CommercialProduct
-    >().toEqualTypeOf<
-      DirectCommercialProduct
-    >();
+    expectTypeOf<CommercialProduct>().toEqualTypeOf<DirectCommercialProduct>();
   });
 
   it("re-exports CommercialProducts", () => {
-    expectTypeOf<
-      CommercialProducts
-    >().toEqualTypeOf<
-      DirectCommercialProducts
-    >();
+    expectTypeOf<CommercialProducts>().toEqualTypeOf<DirectCommercialProducts>();
   });
 
   it("re-exports GetCommercialProductsInput", () => {
-    expectTypeOf<
-      GetCommercialProductsInput
-    >().toEqualTypeOf<
-      DirectGetCommercialProductsInput
-    >();
+    expectTypeOf<GetCommercialProductsInput>().toEqualTypeOf<DirectGetCommercialProductsInput>();
   });
 
   it("re-exports CommercialLedger", () => {
-    expectTypeOf<
-      CommercialLedger
-    >().toEqualTypeOf<
-      DirectCommercialLedger
-    >();
+    expectTypeOf<CommercialLedger>().toEqualTypeOf<DirectCommercialLedger>();
   });
 
   it("re-exports CommercialLedgerEntry", () => {
-    expectTypeOf<
-      CommercialLedgerEntry
-    >().toEqualTypeOf<
-      DirectCommercialLedgerEntry
-    >();
+    expectTypeOf<CommercialLedgerEntry>().toEqualTypeOf<DirectCommercialLedgerEntry>();
   });
 
   it("re-exports GetMyCommercialLedgerInput", () => {
-    expectTypeOf<
-      GetMyCommercialLedgerInput
-    >().toEqualTypeOf<
-      DirectGetMyCommercialLedgerInput
-    >();
+    expectTypeOf<GetMyCommercialLedgerInput>().toEqualTypeOf<DirectGetMyCommercialLedgerInput>();
   });
 
   it("re-exports CommercialWallet", () => {
-    expectTypeOf<
-      CommercialWallet
-    >().toEqualTypeOf<
-      DirectCommercialWallet
-    >();
+    expectTypeOf<CommercialWallet>().toEqualTypeOf<DirectCommercialWallet>();
   });
 
   it("re-exports CommercialWalletStatus", () => {
-    expectTypeOf<
-      CommercialWalletStatus
-    >().toEqualTypeOf<
-      DirectCommercialWalletStatus
-    >();
+    expectTypeOf<CommercialWalletStatus>().toEqualTypeOf<DirectCommercialWalletStatus>();
   });
 
   it("re-exports CommercialRuntimeEvent", () => {
-    expectTypeOf<
-      CommercialRuntimeEvent
-    >().toEqualTypeOf<
-      DirectCommercialRuntimeEvent
-    >();
+    expectTypeOf<CommercialRuntimeEvent>().toEqualTypeOf<DirectCommercialRuntimeEvent>();
   });
 
   it("re-exports CommercialRuntimeRpcFailure", () => {
-    expectTypeOf<
-      CommercialRuntimeRpcFailure
-    >().toEqualTypeOf<
-      DirectCommercialRuntimeRpcFailure
-    >();
+    expectTypeOf<CommercialRuntimeRpcFailure>().toEqualTypeOf<DirectCommercialRuntimeRpcFailure>();
   });
 
   it("re-exports CommercialRuntimeRpcName", () => {
-    expectTypeOf<
-      CommercialRuntimeRpcName
-    >().toEqualTypeOf<
-      DirectCommercialRuntimeRpcName
-    >();
+    expectTypeOf<CommercialRuntimeRpcName>().toEqualTypeOf<DirectCommercialRuntimeRpcName>();
   });
 
   it("re-exports CommercialRuntimeRpcResult", () => {
@@ -581,9 +417,7 @@ describe("commercial public type export surface", () => {
       ready: boolean;
     };
 
-    expectTypeOf<
-      CommercialRuntimeRpcResult<Payload>
-    >().toEqualTypeOf<
+    expectTypeOf<CommercialRuntimeRpcResult<Payload>>().toEqualTypeOf<
       DirectCommercialRuntimeRpcResult<Payload>
     >();
   });

@@ -1,7 +1,4 @@
-import type {
-  JsonObject,
-  JsonValue,
-} from "./json";
+import type { JsonObject, JsonValue } from "./json";
 
 export type CommercialRuntimeRpcName =
   | "evaluate_commercial_purchase_runtime_readiness_internal"
@@ -13,7 +10,9 @@ export type CommercialRuntimeRpcName =
   | "get_my_commercial_ledger_rpc"
   | "get_commercial_products_rpc"
   | "get_reward_campaigns_rpc"
-  | "submit_my_reward_claim_rpc";
+  | "submit_my_reward_claim_rpc"
+  | "get_my_reward_claims_rpc"
+  | "get_my_reward_claim_rpc";
 
 export interface CommercialRuntimeRpcFailure {
   rpcName: CommercialRuntimeRpcName;

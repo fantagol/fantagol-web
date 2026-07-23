@@ -5,15 +5,9 @@ export {
   isCommercialRuntimeError,
 } from "./errors";
 
-export type {
-  CommercialRuntimeErrorCode,
-} from "./errors";
+export type { CommercialRuntimeErrorCode } from "./errors";
 
-export type {
-  JsonObject,
-  JsonPrimitive,
-  JsonValue,
-} from "./json";
+export type { JsonObject, JsonPrimitive, JsonValue } from "./json";
 
 export {
   decideCommercialPurchaseAuthorization,
@@ -37,6 +31,8 @@ export type {
 } from "./purchase/types";
 
 export {
+  getMyRewardClaim,
+  getMyRewardClaims,
   getRewardCampaigns,
   submitMyRewardClaim,
 } from "./reward/service";
@@ -44,6 +40,11 @@ export {
 export type {
   CommercialRewardCampaign,
   CommercialRewardCampaigns,
+  CommercialRewardClaim,
+  CommercialRewardClaims,
+  CommercialRewardClaimLookupFailure,
+  CommercialRewardClaimLookupResult,
+  CommercialRewardClaimLookupSuccess,
   CommercialRewardClaimStatus,
   CommercialRewardClaimSubmissionErrorCode,
   CommercialRewardClaimSubmissionFailure,
@@ -51,12 +52,12 @@ export type {
   CommercialRewardClaimSubmissionSuccess,
   CommercialRewardType,
   CommercialRewardVerificationStatus,
+  GetMyCommercialRewardClaimInput,
+  GetMyCommercialRewardClaimsInput,
   SubmitCommercialRewardClaimInput,
 } from "./reward/types";
 
-export {
-  getCommercialProducts,
-} from "./product/service";
+export { getCommercialProducts } from "./product/service";
 
 export type {
   CommercialProduct,
@@ -64,9 +65,7 @@ export type {
   GetCommercialProductsInput,
 } from "./product/types";
 
-export {
-  getMyCommercialLedger,
-} from "./ledger/service";
+export { getMyCommercialLedger } from "./ledger/service";
 
 export type {
   CommercialLedger,
@@ -74,14 +73,9 @@ export type {
   GetMyCommercialLedgerInput,
 } from "./ledger/types";
 
-export {
-  getMyCommercialWallet,
-} from "./wallet/service";
+export { getMyCommercialWallet } from "./wallet/service";
 
-export type {
-  CommercialWallet,
-  CommercialWalletStatus,
-} from "./wallet/types";
+export type { CommercialWallet, CommercialWalletStatus } from "./wallet/types";
 
 export type {
   CommercialRuntimeEvent,

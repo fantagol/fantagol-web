@@ -3,6 +3,9 @@ import { isJsonObject } from "../json";
 import type {
   CommercialRewardCampaign,
   CommercialRewardCampaigns,
+  CommercialRewardClaim,
+  CommercialRewardClaims,
+  CommercialRewardClaimLookupResult,
   CommercialRewardClaimStatus,
   CommercialRewardClaimSubmissionErrorCode,
   CommercialRewardClaimSubmissionResult,
@@ -15,35 +18,31 @@ type UnknownObject = Record<string, unknown>;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const UPPER_CODE_PATTERN =
-  /^[A-Z][A-Z0-9_]+$/;
+const UPPER_CODE_PATTERN = /^[A-Z][A-Z0-9_]+$/;
 
-const REWARD_TYPES =
-  new Set<CommercialRewardType>([
-    "PASS_REWARD",
-    "PASS_PROMOTION",
-    "PASS_GIFT",
-    "PASS_REFERRAL",
-  ]);
+const REWARD_TYPES = new Set<CommercialRewardType>([
+  "PASS_REWARD",
+  "PASS_PROMOTION",
+  "PASS_GIFT",
+  "PASS_REFERRAL",
+]);
 
-const CLAIM_STATUSES =
-  new Set<CommercialRewardClaimStatus>([
-    "submitted",
-    "verification_pending",
-    "verified",
-    "rejected",
-    "settled",
-    "expired",
-  ]);
+const CLAIM_STATUSES = new Set<CommercialRewardClaimStatus>([
+  "submitted",
+  "verification_pending",
+  "verified",
+  "rejected",
+  "settled",
+  "expired",
+]);
 
-const VERIFICATION_STATUSES =
-  new Set<CommercialRewardVerificationStatus>([
-    "pending",
-    "processing",
-    "verified",
-    "rejected",
-    "expired",
-  ]);
+const VERIFICATION_STATUSES = new Set<CommercialRewardVerificationStatus>([
+  "pending",
+  "processing",
+  "verified",
+  "rejected",
+  "expired",
+]);
 
 const SUBMISSION_ERROR_CODES =
   new Set<CommercialRewardClaimSubmissionErrorCode>([
@@ -54,27 +53,17 @@ const SUBMISSION_ERROR_CODES =
     "COMMERCIAL_WALLET_NOT_ACTIVE",
   ]);
 
-function requireObject(
-  value: unknown,
-  context: string,
-): JsonObject {
+function requireObject(value: unknown, context: string): JsonObject {
   if (!isJsonObject(value)) {
-    throw new TypeError(
-      `${context} must be a JSON object.`,
-    );
+    throw new TypeError(`${context} must be a JSON object.`);
   }
 
   return value;
 }
 
-function requireArray(
-  value: unknown,
-  context: string,
-): unknown[] {
+function requireArray(value: unknown, context: string): unknown[] {
   if (!Array.isArray(value)) {
-    throw new TypeError(
-      `${context} must be an array.`,
-    );
+    throw new TypeError(`${context} must be an array.`);
   }
 
   return value;
@@ -88,9 +77,7 @@ function requireBoolean(
   const value = object[fieldName];
 
   if (typeof value !== "boolean") {
-    throw new TypeError(
-      `${context}.${fieldName} must be a boolean.`,
-    );
+    throw new TypeError(`${context}.${fieldName} must be a boolean.`);
   }
 
   return value;
@@ -101,16 +88,8 @@ function requireLiteralTrue(
   fieldName: string,
   context: string,
 ): true {
-  if (
-    requireBoolean(
-      object,
-      fieldName,
-      context,
-    ) !== true
-  ) {
-    throw new TypeError(
-      `${context}.${fieldName} must be true.`,
-    );
+  if (requireBoolean(object, fieldName, context) !== true) {
+    throw new TypeError(`${context}.${fieldName} must be true.`);
   }
 
   return true;
@@ -121,16 +100,8 @@ function requireLiteralFalse(
   fieldName: string,
   context: string,
 ): false {
-  if (
-    requireBoolean(
-      object,
-      fieldName,
-      context,
-    ) !== false
-  ) {
-    throw new TypeError(
-      `${context}.${fieldName} must be false.`,
-    );
+  if (requireBoolean(object, fieldName, context) !== false) {
+    throw new TypeError(`${context}.${fieldName} must be false.`);
   }
 
   return false;
@@ -143,13 +114,8 @@ function requireUuid(
 ): string {
   const value = object[fieldName];
 
-  if (
-    typeof value !== "string" ||
-    !UUID_PATTERN.test(value.trim())
-  ) {
-    throw new TypeError(
-      `${context}.${fieldName} must be a valid UUID.`,
-    );
+  if (typeof value !== "string" || !UUID_PATTERN.test(value.trim())) {
+    throw new TypeError(`${context}.${fieldName} must be a valid UUID.`);
   }
 
   return value.trim();
@@ -162,13 +128,8 @@ function requireNonEmptyString(
 ): string {
   const value = object[fieldName];
 
-  if (
-    typeof value !== "string" ||
-    !value.trim()
-  ) {
-    throw new TypeError(
-      `${context}.${fieldName} must be a non-empty string.`,
-    );
+  if (typeof value !== "string" || !value.trim()) {
+    throw new TypeError(`${context}.${fieldName} must be a non-empty string.`);
   }
 
   return value;
@@ -185,10 +146,7 @@ function requireOptionalNonEmptyString(
     return undefined;
   }
 
-  if (
-    typeof value !== "string" ||
-    !value.trim()
-  ) {
+  if (typeof value !== "string" || !value.trim()) {
     throw new TypeError(
       `${context}.${fieldName} must be a non-empty string when present.`,
     );
@@ -208,10 +166,7 @@ function requireNullableString(
     return null;
   }
 
-  if (
-    typeof value !== "string" ||
-    !value.trim()
-  ) {
+  if (typeof value !== "string" || !value.trim()) {
     throw new TypeError(
       `${context}.${fieldName} must be a non-empty string or null.`,
     );
@@ -225,16 +180,10 @@ function requireUpperCode(
   fieldName: string,
   context: string,
 ): string {
-  const value = requireNonEmptyString(
-    object,
-    fieldName,
-    context,
-  );
+  const value = requireNonEmptyString(object, fieldName, context);
 
   if (!UPPER_CODE_PATTERN.test(value)) {
-    throw new TypeError(
-      `${context}.${fieldName} must be an uppercase code.`,
-    );
+    throw new TypeError(`${context}.${fieldName} must be an uppercase code.`);
   }
 
   return value;
@@ -245,11 +194,7 @@ function requireOptionalUpperCode(
   fieldName: string,
   context: string,
 ): string | undefined {
-  const value = requireOptionalNonEmptyString(
-    object,
-    fieldName,
-    context,
-  );
+  const value = requireOptionalNonEmptyString(object, fieldName, context);
 
   if (value === undefined) {
     return undefined;
@@ -270,13 +215,9 @@ function requireRewardType(
 ): CommercialRewardType {
   if (
     typeof value !== "string" ||
-    !REWARD_TYPES.has(
-      value as CommercialRewardType,
-    )
+    !REWARD_TYPES.has(value as CommercialRewardType)
   ) {
-    throw new TypeError(
-      `${context} is invalid.`,
-    );
+    throw new TypeError(`${context} is invalid.`);
   }
 
   return value as CommercialRewardType;
@@ -288,13 +229,9 @@ function requireClaimStatus(
 ): CommercialRewardClaimStatus {
   if (
     typeof value !== "string" ||
-    !CLAIM_STATUSES.has(
-      value as CommercialRewardClaimStatus,
-    )
+    !CLAIM_STATUSES.has(value as CommercialRewardClaimStatus)
   ) {
-    throw new TypeError(
-      `${context} is invalid.`,
-    );
+    throw new TypeError(`${context} is invalid.`);
   }
 
   return value as CommercialRewardClaimStatus;
@@ -306,13 +243,9 @@ function requireVerificationStatus(
 ): CommercialRewardVerificationStatus {
   if (
     typeof value !== "string" ||
-    !VERIFICATION_STATUSES.has(
-      value as CommercialRewardVerificationStatus,
-    )
+    !VERIFICATION_STATUSES.has(value as CommercialRewardVerificationStatus)
   ) {
-    throw new TypeError(
-      `${context} is invalid.`,
-    );
+    throw new TypeError(`${context} is invalid.`);
   }
 
   return value as CommercialRewardVerificationStatus;
@@ -328,9 +261,7 @@ function requireSubmissionErrorCode(
       value as CommercialRewardClaimSubmissionErrorCode,
     )
   ) {
-    throw new TypeError(
-      `${context} is invalid.`,
-    );
+    throw new TypeError(`${context} is invalid.`);
   }
 
   return value as CommercialRewardClaimSubmissionErrorCode;
@@ -343,11 +274,7 @@ function requirePositiveSafeInteger(
 ): number {
   const value = object[fieldName];
 
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 1
-  ) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
     throw new TypeError(
       `${context}.${fieldName} must be a positive safe integer.`,
     );
@@ -363,11 +290,7 @@ function requireNonNegativeSafeInteger(
 ): number {
   const value = object[fieldName];
 
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < 0
-  ) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new TypeError(
       `${context}.${fieldName} must be a non-negative safe integer.`,
     );
@@ -388,9 +311,7 @@ function requireTimestamp(
     !value.trim() ||
     Number.isNaN(Date.parse(value))
   ) {
-    throw new TypeError(
-      `${context}.${fieldName} must be a valid timestamp.`,
-    );
+    throw new TypeError(`${context}.${fieldName} must be a valid timestamp.`);
   }
 
   return value;
@@ -448,215 +369,189 @@ function normalizeRewardCampaign(
   value: unknown,
   index: number,
 ): CommercialRewardCampaign {
-  const context =
-    `reward_campaigns[${index}]`;
+  const context = `reward_campaigns[${index}]`;
 
-  const object = requireObject(
-    value,
-    context,
-  );
+  const object = requireObject(value, context);
 
-  const startsAt = requireNullableTimestamp(
-    object,
-    "starts_at",
-    context,
-  );
+  const startsAt = requireNullableTimestamp(object, "starts_at", context);
 
-  const endsAt = requireNullableTimestamp(
-    object,
-    "ends_at",
-    context,
-  );
+  const endsAt = requireNullableTimestamp(object, "ends_at", context);
 
   if (
     startsAt !== null &&
     endsAt !== null &&
     Date.parse(startsAt) >= Date.parse(endsAt)
   ) {
-    throw new TypeError(
-      `${context}.ends_at must be later than starts_at.`,
-    );
+    throw new TypeError(`${context}.ends_at must be later than starts_at.`);
   }
 
   return {
     ...object,
-    campaign_id: requireUuid(
-      object,
-      "campaign_id",
-      context,
-    ),
-    campaign_code: requireUpperCode(
-      object,
-      "campaign_code",
-      context,
-    ),
-    source_code: requireUpperCode(
-      object,
-      "source_code",
-      context,
-    ),
-    title: requireNonEmptyString(
-      object,
-      "title",
-      context,
-    ),
-    description: requireNullableString(
-      object,
-      "description",
-      context,
-    ),
+    campaign_id: requireUuid(object, "campaign_id", context),
+    campaign_code: requireUpperCode(object, "campaign_code", context),
+    source_code: requireUpperCode(object, "source_code", context),
+    title: requireNonEmptyString(object, "title", context),
+    description: requireNullableString(object, "description", context),
     reward_type: requireRewardType(
       object.reward_type,
       `${context}.reward_type`,
     ),
-    passes_per_claim:
-      requirePositiveSafeInteger(
-        object,
-        "passes_per_claim",
-        context,
-      ),
-    cooldown_seconds:
-      requireNonNegativeSafeInteger(
-        object,
-        "cooldown_seconds",
-        context,
-      ),
+    passes_per_claim: requirePositiveSafeInteger(
+      object,
+      "passes_per_claim",
+      context,
+    ),
+    cooldown_seconds: requireNonNegativeSafeInteger(
+      object,
+      "cooldown_seconds",
+      context,
+    ),
     starts_at: startsAt,
     ends_at: endsAt,
-    metadata: requireObject(
-      object.metadata,
-      `${context}.metadata`,
-    ),
+    metadata: requireObject(object.metadata, `${context}.metadata`),
   };
+}
+
+function normalizeRewardClaim(
+  value: unknown,
+  context: string,
+): CommercialRewardClaim {
+  const object = requireObject(value, context);
+
+  return {
+    ...object,
+    claim_id: requireUuid(object, "claim_id", context),
+    campaign_code: requireUpperCode(object, "campaign_code", context),
+    source_code: requireUpperCode(object, "source_code", context),
+    reward_type: requireRewardType(
+      object.reward_type,
+      `${context}.reward_type`,
+    ),
+    passes_awarded: requirePositiveSafeInteger(
+      object,
+      "passes_awarded",
+      context,
+    ),
+    claim_status: requireClaimStatus(
+      object.claim_status,
+      `${context}.claim_status`,
+    ),
+    verification_status: requireVerificationStatus(
+      object.verification_status,
+      `${context}.verification_status`,
+    ),
+    submitted_at: requireTimestamp(object, "submitted_at", context),
+    verified_at: requireNullableTimestamp(object, "verified_at", context),
+    rejected_at: requireNullableTimestamp(object, "rejected_at", context),
+    settled_at: requireNullableTimestamp(object, "settled_at", context),
+    expired_at: requireNullableTimestamp(object, "expired_at", context),
+  };
+}
+
+export function normalizeRewardClaims(value: unknown): CommercialRewardClaims {
+  return requireArray(value, "reward_claims").map((claim, index) =>
+    normalizeRewardClaim(claim, `reward_claims[${index}]`),
+  );
+}
+
+export function normalizeRewardClaimLookupResult(
+  value: unknown,
+): CommercialRewardClaimLookupResult {
+  const context = "reward_claim_lookup";
+  const object = requireObject(value, context);
+
+  if (object.found === false) {
+    const errorCode = requireNonEmptyString(object, "error_code", context);
+
+    if (errorCode !== "REWARD_CLAIM_NOT_FOUND") {
+      throw new TypeError(`${context}.error_code is invalid.`);
+    }
+
+    return {
+      ...object,
+      found: requireLiteralFalse(object, "found", context),
+      error_code: "REWARD_CLAIM_NOT_FOUND",
+    };
+  }
+
+  if (object.found === true) {
+    const claim = normalizeRewardClaim(object, context);
+
+    return {
+      ...claim,
+      found: requireLiteralTrue(object, "found", context),
+      external_claim_reference: requireNullableString(
+        object,
+        "external_claim_reference",
+        context,
+      ),
+      server_time: requireTimestamp(object, "server_time", context),
+    };
+  }
+
+  throw new TypeError(`${context}.found must be a boolean.`);
 }
 
 export function normalizeRewardCampaigns(
   value: unknown,
 ): CommercialRewardCampaigns {
-  return requireArray(
-    value,
-    "reward_campaigns",
-  ).map(normalizeRewardCampaign);
+  return requireArray(value, "reward_campaigns").map(normalizeRewardCampaign);
 }
 
 export function normalizeRewardClaimSubmissionResult(
   value: unknown,
 ): CommercialRewardClaimSubmissionResult {
-  const context =
-    "reward_claim_submission";
+  const context = "reward_claim_submission";
 
-  const object = requireObject(
-    value,
-    context,
-  );
+  const object = requireObject(value, context);
 
   if (object.submitted === true) {
-    const sourceCode =
-      requireOptionalUpperCode(
-        object,
-        "source_code",
-        context,
-      );
+    const sourceCode = requireOptionalUpperCode(object, "source_code", context);
 
     return {
       ...object,
-      submitted: requireLiteralTrue(
-        object,
-        "submitted",
-        context,
-      ),
-      created: requireBoolean(
-        object,
-        "created",
-        context,
-      ),
-      claim_id: requireUuid(
-        object,
-        "claim_id",
-        context,
-      ),
+      submitted: requireLiteralTrue(object, "submitted", context),
+      created: requireBoolean(object, "created", context),
+      claim_id: requireUuid(object, "claim_id", context),
       claim_status: requireClaimStatus(
         object.claim_status,
         `${context}.claim_status`,
       ),
-      verification_status:
-        requireVerificationStatus(
-          object.verification_status,
-          `${context}.verification_status`,
-        ),
-      campaign_code: requireUpperCode(
-        object,
-        "campaign_code",
-        context,
+      verification_status: requireVerificationStatus(
+        object.verification_status,
+        `${context}.verification_status`,
       ),
-      ...(sourceCode === undefined
-        ? {}
-        : { source_code: sourceCode }),
-      passes: requirePositiveSafeInteger(
-        object,
-        "passes",
-        context,
-      ),
-      server_time: requireTimestamp(
-        object,
-        "server_time",
-        context,
-      ),
+      campaign_code: requireUpperCode(object, "campaign_code", context),
+      ...(sourceCode === undefined ? {} : { source_code: sourceCode }),
+      passes: requirePositiveSafeInteger(object, "passes", context),
+      server_time: requireTimestamp(object, "server_time", context),
     };
   }
 
   if (object.submitted === false) {
-    const campaignCode =
-      requireOptionalUpperCode(
-        object,
-        "campaign_code",
-        context,
-      );
+    const campaignCode = requireOptionalUpperCode(
+      object,
+      "campaign_code",
+      context,
+    );
 
-    const sourceCode =
-      requireOptionalUpperCode(
-        object,
-        "source_code",
-        context,
-      );
+    const sourceCode = requireOptionalUpperCode(object, "source_code", context);
 
-    const retryAfter =
-      requireOptionalTimestamp(
-        object,
-        "retry_after",
-        context,
-      );
+    const retryAfter = requireOptionalTimestamp(object, "retry_after", context);
 
     return {
       ...object,
-      submitted: requireLiteralFalse(
-        object,
-        "submitted",
-        context,
+      submitted: requireLiteralFalse(object, "submitted", context),
+      error_code: requireSubmissionErrorCode(
+        object.error_code,
+        `${context}.error_code`,
       ),
-      error_code:
-        requireSubmissionErrorCode(
-          object.error_code,
-          `${context}.error_code`,
-        ),
-      ...(campaignCode === undefined
-        ? {}
-        : { campaign_code: campaignCode }),
-      ...(sourceCode === undefined
-        ? {}
-        : { source_code: sourceCode }),
-      ...(retryAfter === undefined
-        ? {}
-        : { retry_after: retryAfter }),
-      server_time: requireTimestamp(
-        object,
-        "server_time",
-        context,
-      ),
+      ...(campaignCode === undefined ? {} : { campaign_code: campaignCode }),
+      ...(sourceCode === undefined ? {} : { source_code: sourceCode }),
+      ...(retryAfter === undefined ? {} : { retry_after: retryAfter }),
+      server_time: requireTimestamp(object, "server_time", context),
     };
   }
 
-  throw new TypeError(
-    `${context}.submitted must be a boolean.`,
-  );
+  throw new TypeError(`${context}.submitted must be a boolean.`);
 }
