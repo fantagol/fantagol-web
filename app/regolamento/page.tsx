@@ -108,7 +108,7 @@ export default function RegolamentoPage() {
           </div>
 
           <p className="mt-6 text-gray-400">
-            Il punteggio massimo ottenibile su una singola partita è di 14 punti.
+            Il punteggio massimo ottenibile su una singola partita è di 15 punti.
           </p>
         </section>
 
