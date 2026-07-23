@@ -13,6 +13,7 @@ const COMMERCIAL_RUNTIME_RPC_NAMES = [
   "decide_commercial_purchase_authorization_internal",
   "get_commercial_purchase_runtime_internal",
   "get_commercial_purchase_runtime_timeline_internal",
+  "get_my_commercial_wallet_rpc",
 ] as const satisfies readonly CommercialRuntimeRpcName[];
 
 describe("CommercialRuntimeRpcName", () => {
@@ -23,14 +24,15 @@ describe("CommercialRuntimeRpcName", () => {
       "decide_commercial_purchase_authorization_internal",
       "get_commercial_purchase_runtime_internal",
       "get_commercial_purchase_runtime_timeline_internal",
+      "get_my_commercial_wallet_rpc",
     ]);
   });
 
-  it("contains five unique RPC names", () => {
-    expect(COMMERCIAL_RUNTIME_RPC_NAMES).toHaveLength(5);
+  it("contains six unique RPC names", () => {
+    expect(COMMERCIAL_RUNTIME_RPC_NAMES).toHaveLength(6);
     expect(
       new Set(COMMERCIAL_RUNTIME_RPC_NAMES).size,
-    ).toBe(5);
+    ).toBe(6);
   });
 
   it("matches the exported RPC name union", () => {

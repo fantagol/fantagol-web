@@ -1,0 +1,619 @@
+FANTAGOL
+MILESTONE 11.4.2 — PASS LEDGER RUNTIME INTEGRATION AUDIT
+Generated: 2026-07-23 14:52:46
+Repository: C:\Users\io\Desktop\fantagol-web
+
+============================================================
+1. COMMERCIAL RUNTIME FILE INVENTORY
+============================================================
+
+.\lib\live-runtime\commercial\errors.test.ts
+.\lib\live-runtime\commercial\errors.ts
+.\lib\live-runtime\commercial\index.test.ts
+.\lib\live-runtime\commercial\index.ts
+.\lib\live-runtime\commercial\json.test.ts
+.\lib\live-runtime\commercial\json.ts
+.\lib\live-runtime\commercial\purchase\service.test.ts
+.\lib\live-runtime\commercial\purchase\service.ts
+.\lib\live-runtime\commercial\purchase\types.ts
+.\lib\live-runtime\commercial\purchase\validation.test.ts
+.\lib\live-runtime\commercial\purchase\validation.ts
+.\lib\live-runtime\commercial\rpc.test.ts
+.\lib\live-runtime\commercial\rpc.ts
+.\lib\live-runtime\commercial\types.test.ts
+.\lib\live-runtime\commercial\types.ts
+
+============================================================
+2. LOYALTY DISPATCH FILE INVENTORY
+============================================================
+
+.\lib\live-runtime\loyalty-dispatch\handler.ts
+.\lib\live-runtime\loyalty-dispatch\index.ts
+.\lib\live-runtime\loyalty-dispatch\service.ts
+.\lib\live-runtime\loyalty-dispatch\types.ts
+
+============================================================
+3. PACKAGE SCRIPTS
+============================================================
+
+build = next build
+dev = next dev
+lint = eslint
+start = next start
+test = vitest
+test:commercial = vitest run lib/live-runtime/commercial/purchase/validation.test.ts
+test:run = vitest run
+
+============================================================
+4. PASS LEDGER CONTRACT REFERENCES
+============================================================
+
+
+FILE: .\supabase\migrations\039_round_simulation_engine_foundation.sql
+68: ledger_version integer,
+176: constraint round_simulations_ledger_version_check
+177: check (ledger_version is null or ledger_version > 0),
+658: rs.ledger_version,
+686: rs.ledger_version,
+
+FILE: .\supabase\migrations\054_round_certification_command_engine.sql
+438: ledger_version integer,
+456: v_ledger_version integer;
+574: coalesce(v_simulation.ledger_version, 1),
+600: v_ledger_version := v_next_version;
+1046: 'ledger_version', v_ledger_version,
+1098: ledger_version = v_ledger_version,
+1120: 'ledger_version', v_ledger_version,
+1143: v_ledger_version,
+
+FILE: .\supabase\migrations\101_commercial_platform_foundation.sql
+84: available_passes integer not null default 0,
+86: lifetime_consumed integer not null default 0,
+87: lifetime_purchased integer not null default 0,
+88: lifetime_rewarded integer not null default 0,
+89: lifetime_promotional integer not null default 0,
+90: ledger_version bigint not null default 0,
+106: constraint commercial_wallets_available_passes_check
+107: check (available_passes >= 0),
+112: constraint commercial_wallets_lifetime_consumed_check
+113: check (lifetime_consumed >= 0),
+115: constraint commercial_wallets_lifetime_purchased_check
+116: check (lifetime_purchased >= 0),
+118: constraint commercial_wallets_lifetime_rewarded_check
+119: check (lifetime_rewarded >= 0),
+121: constraint commercial_wallets_lifetime_promotional_check
+122: check (lifetime_promotional >= 0),
+124: constraint commercial_wallets_ledger_version_check
+125: check (ledger_version >= 0),
+145: transaction_type text not null,
+166: constraint commercial_ledger_transaction_type_check
+168: transaction_type in (
+169: 'PASS_PURCHASE',
+170: 'PASS_REWARD',
+171: 'PASS_PROMOTION',
+172: 'PASS_GIFT',
+173: 'PASS_REFERRAL',
+174: 'PASS_CONSUMPTION',
+175: 'PASS_REFUND',
+176: 'MANUAL_ADJUSTMENT'
+512: new.available_passes is distinct from old.available_passes
+514: or new.lifetime_consumed is distinct from old.lifetime_consumed
+515: or new.lifetime_purchased is distinct from old.lifetime_purchased
+516: or new.lifetime_rewarded is distinct from old.lifetime_rewarded
+517: or new.lifetime_promotional is distinct from old.lifetime_promotional
+518: or new.ledger_version is distinct from old.ledger_version
+686: create or replace function public.commercial_append_ledger_internal(
+688: p_transaction_type text,
+706: v_transaction_type text := upper(trim(p_transaction_type));
+712: v_lifetime_consumed_delta integer := 0;
+713: v_lifetime_purchased_delta integer := 0;
+714: v_lifetime_rewarded_delta integer := 0;
+715: v_lifetime_promotional_delta integer := 0;
+750: or v_existing.transaction_type is distinct from v_transaction_type
+777: v_balance_after := v_wallet.available_passes + p_amount;
+788: v_lifetime_consumed_delta := abs(p_amount);
+791: if v_transaction_type = 'PASS_PURCHASE' and p_amount > 0 then
+792: v_lifetime_purchased_delta := p_amount;
+793: elsif v_transaction_type = 'PASS_REWARD' and p_amount > 0 then
+794: v_lifetime_rewarded_delta := p_amount;
+795: elsif v_transaction_type in (
+796: 'PASS_PROMOTION',
+797: 'PASS_GIFT',
+798: 'PASS_REFERRAL'
+800: v_lifetime_promotional_delta := p_amount;
+812: transaction_type,
+827: v_transaction_type,
+829: v_wallet.available_passes,
+831: v_wallet.ledger_version + 1,
+843: available_passes = v_balance_after,
+846: lifetime_consumed =
+847: lifetime_consumed + v_lifetime_consumed_delta,
+848: lifetime_purchased =
+849: lifetime_purchased + v_lifetime_purchased_delta,
+850: lifetime_rewarded =
+851: lifetime_rewarded + v_lifetime_rewarded_delta,
+852: lifetime_promotional =
+853: lifetime_promotional + v_lifetime_promotional_delta,
+854: ledger_version = ledger_version + 1
+866: 'transaction_type', v_transaction_type,
+868: 'balance_before', v_wallet.available_passes,
+881: create or replace function public.grant_commercial_passes_internal(
+884: p_transaction_type text default 'MANUAL_ADJUSTMENT',
+903: v_ledger := public.commercial_append_ledger_internal(
+905: p_transaction_type,
+920: 'available_passes', v_ledger.balance_after
+929: create or replace function public.get_my_commercial_wallet_rpc()
+946: 'available_passes', v_wallet.available_passes,
+948: 'lifetime_consumed', v_wallet.lifetime_consumed,
+949: 'lifetime_purchased', v_wallet.lifetime_purchased,
+950: 'lifetime_rewarded', v_wallet.lifetime_rewarded,
+951: 'lifetime_promotional', v_wallet.lifetime_promotional,
+952: 'ledger_version', v_wallet.ledger_version,
+958: create or replace function public.get_my_commercial_ledger_rpc(
+964: transaction_type text,
+989: l.transaction_type,
+1084: 'available_passes', v_wallet.available_passes,
+1097: 'available_passes', v_wallet.available_passes,
+1108: create or replace function public.start_my_premium_access_session_rpc(
+1206: 'available_passes', v_wallet.available_passes,
+1231: 'available_passes', v_wallet.available_passes
+1273: 'available_passes', v_wallet.available_passes,
+1278: if v_wallet.available_passes < v_resource.pass_cost then
+1285: 'available_passes', v_wallet.available_passes,
+1290: v_ledger := public.commercial_append_ledger_internal(
+1292: 'PASS_CONSUMPTION',
+1338: 'source', 'start_my_premium_access_session_rpc'
+1372: 'available_passes', v_ledger.balance_after,
+1544: revoke all on function public.commercial_append_ledger_internal(
+1548: revoke all on function public.grant_commercial_passes_internal(
+1556: revoke all on function public.get_my_commercial_wallet_rpc()
+1559: revoke all on function public.get_my_commercial_ledger_rpc(
+1566: revoke all on function public.start_my_premium_access_session_rpc(
+1570: grant execute on function public.get_my_commercial_wallet_rpc()
+1573: grant execute on function public.get_my_commercial_ledger_rpc(
+1580: grant execute on function public.start_my_premium_access_session_rpc(
+1584: grant execute on function public.grant_commercial_passes_internal(
+1603: grant execute on function public.commercial_append_ledger_internal(
+1646: comment on function public.get_my_commercial_wallet_rpc() is
+1649: comment on function public.get_my_commercial_ledger_rpc(integer, integer) is
+1655: comment on function public.start_my_premium_access_session_rpc(text, text) is
+1658: comment on function public.grant_commercial_passes_internal(
+
+FILE: .\supabase\migrations\102_pass_purchase_engine_foundation.sql
+3: -- Migration: 102_pass_purchase_engine_foundation.sql
+14: --   - Atomic PASS_PURCHASE ledger credit
+1214: v_ledger := public.commercial_append_ledger_internal(
+1216: 'PASS_PURCHASE',
+1290: 'available_passes', v_ledger.balance_after,
+1490: if v_wallet.available_passes < v_purchase.passes_awarded then
+1495: 'available_passes', v_wallet.available_passes,
+1500: v_refund_ledger := public.commercial_append_ledger_internal(
+1502: 'PASS_REFUND',
+1552: 'available_passes', v_refund_ledger.balance_after,
+
+FILE: .\supabase\migrations\103_reward_engine_foundation.sql
+152: reward_type text not null,
+187: constraint reward_campaigns_reward_type_check
+189: reward_type in (
+190: 'PASS_REWARD',
+191: 'PASS_PROMOTION',
+192: 'PASS_GIFT',
+193: 'PASS_REFERRAL'
+272: reward_type text not null,
+337: constraint reward_claims_reward_type_check
+339: reward_type in (
+340: 'PASS_REWARD',
+341: 'PASS_PROMOTION',
+342: 'PASS_GIFT',
+343: 'PASS_REFERRAL'
+623: or new.reward_type is distinct from old.reward_type
+685: reward_type text,
+703: c.reward_type,
+894: reward_type,
+911: v_campaign.reward_type,
+942: 'reward_type', v_claim.reward_type,
+1046: reward_type,
+1063: v_campaign.reward_type,
+1206: create or replace function public.settle_reward_claim_internal(
+1396: v_ledger := public.commercial_append_ledger_internal(
+1398: v_claim.reward_type,
+1472: 'reward_type', v_claim.reward_type,
+1484: 'reward_type', v_claim.reward_type,
+1486: 'available_passes', v_ledger.balance_after,
+1625: reward_type text,
+1653: c.reward_type,
+1702: 'reward_type', v_claim.reward_type,
+1828: revoke all on function public.settle_reward_claim_internal(
+1844: grant execute on function public.settle_reward_claim_internal(
+1949: reward_type,
+1963: 'PASS_REWARD',
+1981: reward_type = excluded.reward_type,
+2004: comment on function public.settle_reward_claim_internal(
+
+FILE: .\supabase\migrations\104_loyalty_reward_policy_foundation.sql
+770: create or replace function public.award_loyalty_reward_internal(
+859: 'available_passes', v_existing.balance_after,
+947: 'available_passes', v_existing.balance_after,
+1041: v_settlement := public.settle_reward_claim_internal(
+1152: 'available_passes', v_ledger.balance_after,
+1227: 'available_passes', v_wallet.available_passes,
+1230: v_wallet.available_passes
+1294: 'balance_before', v_wallet.available_passes,
+1295: 'balance_after', v_wallet.available_passes,
+1327: 'balance_after', v_wallet.available_passes,
+1338: 'balance_after', v_wallet.available_passes,
+1445: revoke all on function public.award_loyalty_reward_internal(
+1454: grant execute on function public.award_loyalty_reward_internal(
+1623: reward_type,
+1637: 'PASS_REWARD',
+1659: reward_type = excluded.reward_type,
+1836: comment on function public.award_loyalty_reward_internal(
+
+FILE: .\supabase\migrations\105_loyalty_reward_runtime_integration.sql
+31: 'public.award_loyalty_reward_internal(uuid,text,text,text,timestamp with time zone,uuid,uuid,uuid,uuid,uuid,uuid,jsonb,jsonb)'
+35: message = 'MIGRATION_105_REQUIRES_AWARD_LOYALTY_REWARD_INTERNAL';
+700: v_award_result := public.award_loyalty_reward_internal(
+
+FILE: .\supabase\migrations\111_pass_ledger_contract_alignment.sql
+10: --       PASS_PURCHASE
+11: --       PASS_REWARD
+12: --       PASS_CONSUMPTION
+13: --       PASS_REFUND
+14: --       MANUAL_ADJUSTMENT
+15: --   - Freeze lifetime_promotional as a legacy read-only projection.
+18: --   - PASS_PROMOTION
+19: --   - PASS_GIFT
+20: --   - PASS_REFERRAL
+44: where reward_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL')
+47: comment on column public.reward_campaigns.reward_type is
+48: 'Active contract accepts PASS_REWARD only. Deprecated values are retained solely for historical compatibility.';
+49: comment on column public.reward_claims.reward_type is
+50: 'Active contract accepts PASS_REWARD only. Deprecated values are retained solely for historical compatibility.';
+51: comment on column public.commercial_wallets.lifetime_promotional is
+60: if new.transaction_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL') then
+63: message = 'COMMERCIAL_LEDGER_TRANSACTION_TYPE_DEPRECATED',
+64: detail = format('transaction_type %s is retained for historical compatibility only', new.transaction_type),
+65: hint = 'Use PASS_REWARD for approved server-authoritative rewards.';
+68: if new.transaction_type not in ('PASS_PURCHASE','PASS_REWARD','PASS_CONSUMPTION','PASS_REFUND','MANUAL_ADJUSTMENT') then
+71: message = 'COMMERCIAL_LEDGER_TRANSACTION_TYPE_NOT_ALLOWED',
+72: detail = format('transaction_type %s is outside the active Premium Pass contract', coalesce(new.transaction_type, '<null>'));
+90: if new.reward_type <> 'PASS_REWARD' then
+94: detail = format('reward_type %s is outside the active reward contract', coalesce(new.reward_type, '<null>')),
+95: hint = 'Every approved Premium Pass reward campaign must use PASS_REWARD.';
+103: before insert or update of reward_type on public.reward_campaigns
+112: if new.reward_type <> 'PASS_REWARD' then
+116: detail = format('reward_type %s is outside the active reward contract', coalesce(new.reward_type, '<null>')),
+117: hint = 'Every new Premium Pass reward claim must use PASS_REWARD.';
+125: before insert or update of reward_type on public.reward_claims
+134: if new.lifetime_promotional is distinct from old.lifetime_promotional then
+138: detail = 'lifetime_promotional is retained for historical compatibility and cannot change';
+146: before update of lifetime_promotional on public.commercial_wallets
+165: where reward_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL')
+
+FILE: .\supabase\migrations\114_commercial_purchase_runtime_lifecycle_certification.sql
+57: v_wallet_lifetime_purchased_before bigint;
+58: v_wallet_lifetime_purchased_after bigint;
+99: available_passes,
+101: lifetime_consumed,
+102: lifetime_purchased,
+103: lifetime_rewarded,
+104: lifetime_promotional,
+105: ledger_version
+174: v_wallet_available_before := v_wallet.available_passes;
+175: v_wallet_lifetime_purchased_before := v_wallet.lifetime_purchased;
+467: select available_passes, lifetime_purchased
+468: into v_wallet_available_after, v_wallet_lifetime_purchased_after
+478: or v_wallet_lifetime_purchased_after <> v_wallet_lifetime_purchased_before then
+
+FILE: .\supabase\migrations\116_commercial_checkout_lifecycle_certification.sql
+88: available_passes,
+90: lifetime_consumed,
+91: lifetime_purchased,
+92: lifetime_rewarded,
+93: lifetime_promotional,
+94: ledger_version
+
+============================================================
+5. COMMERCIAL SUPABASE RPC CALLS
+============================================================
+
+
+FILE: .\app\archivio\page.tsx
+66: const { data, error } = await supabase.rpc(
+
+FILE: .\app\calendario\page.tsx
+145: const { data } = await supabase.rpc("get_my_leagues_rpc");
+
+FILE: .\app\classifiche\page.tsx
+65: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+FILE: .\app\club\kit\page.tsx
+93: const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
+105: const { data, error } = await supabase.rpc("get_my_club_rpc");
+140: const { error } = await supabase.rpc("update_my_club_kit_rpc", {
+
+FILE: .\app\club\page.tsx
+57: const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
+69: const { data, error } = await supabase.rpc("get_my_club_rpc");
+
+FILE: .\app\club\profilo\page.tsx
+71: const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
+83: const { data, error } = await supabase.rpc("get_my_club_rpc");
+357: const { error } = await supabase.rpc("update_my_club_profile_rpc", {
+
+FILE: .\app\control-room\[id]\page.tsx
+1129: supabase.rpc("get_my_leagues_rpc"),
+1130: supabase.rpc("get_control_room_overview_rpc", {
+1365: const { data, error } = await supabase.rpc(
+
+FILE: .\app\control-room\page.tsx
+89: const { data } = await supabase.rpc("get_my_leagues_rpc");
+
+FILE: .\app\crea-lega\page.tsx
+17: const { data, error } = await supabase.rpc("create_league_rpc", {
+
+FILE: .\app\invito\[codice]\page.tsx
+30: const { data, error } = await supabase.rpc("join_league_rpc", {
+
+FILE: .\app\leghe\[id]\fantacalcio\page.tsx
+375: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+388: const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+421: const { data: roundData, error: roundError } = await supabase.rpc(
+445: supabase.rpc("get_my_round_predictions_rpc", {
+448: supabase.rpc("get_my_strategy_status_rpc", {
+779: const { data, error } = await supabase.rpc("save_strategy_draft_rpc", {
+852: const { error: saveError } = await supabase.rpc(
+870: const { data, error } = await supabase.rpc("submit_strategy_rpc", {
+
+FILE: .\app\leghe\[id]\giornata\page.tsx
+347: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+360: const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+389: const { data: currentRoundData, error: currentRoundError } = await supabase.rpc(
+409: const { data: predictionData, error: predictionError } = await supabase.rpc(
+721: const { error } = await supabase.rpc("save_prediction_draft_rpc", {
+809: const { data, error } = await supabase.rpc("submit_round_predictions_rpc", {
+
+FILE: .\app\leghe\[id]\impostazioni\hooks\useLeagueAdministration.ts
+78: const { data: leaguesData, error: leaguesError } = await supabase.rpc(
+110: supabase.rpc("get_league_lifecycle_state_rpc", {
+113: supabase.rpc("get_active_league_scoring_profile_rpc", {
+116: supabase.rpc("get_league_admin_events_rpc", {
+120: supabase.rpc("get_current_league_members_rpc", {
+218: const { error } = await supabase.rpc(
+246: const { error } = await supabase.rpc("assign_league_vice_rpc", {
+265: const { error } = await supabase.rpc("remove_league_member_rpc", {
+285: const { error } = await supabase.rpc(
+306: const { error } = await supabase.rpc("lock_league_roster_rpc", {
+328: const { error } = await supabase.rpc("reopen_league_roster_rpc", {
+345: const { error } = await supabase.rpc(
+
+FILE: .\app\leghe\[id]\onetoone\page.tsx
+426: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+439: const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+470: const { data: roundData, error: roundError } = await supabase.rpc(
+496: supabase.rpc("get_my_round_predictions_rpc", {
+499: supabase.rpc("get_my_strategy_status_rpc", {
+891: const { data, error } = await supabase.rpc("save_strategy_draft_rpc", {
+1049: const { error: saveError } = await supabase.rpc(
+1067: const { data, error } = await supabase.rpc("submit_strategy_rpc", {
+
+FILE: .\app\leghe\[id]\page.tsx
+379: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+405: await supabase.rpc("get_my_current_league_round_rpc", {
+424: await supabase.rpc("get_my_round_predictions_rpc", {
+
+FILE: .\app\leghe\layout.tsx
+47: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+FILE: .\app\leghe\page.tsx
+36: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+FILE: .\app\membri\page.tsx
+115: const { data: leaguesData, error: leaguesError } = await supabase.rpc(
+141: const { data: membersData, error: membersError } = await supabase.rpc(
+174: const { error } = await supabase.rpc("assign_league_vice_rpc", {
+195: const { error } = await supabase.rpc("revoke_league_vice_rpc", {
+
+FILE: .\app\statistiche\[id]\page.tsx
+248: await supabase.rpc("get_my_leagues_rpc");
+278: const { data, error } = await supabase.rpc(
+
+FILE: .\app\statistiche\page.tsx
+239: await supabase.rpc("get_my_leagues_rpc");
+278: const { data, error } = await supabase.rpc(
+
+FILE: .\components\app\HamburgerDrawer.tsx
+684: const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+702: await supabase.rpc("get_league_lifecycle_state_rpc", {
+732: const { data: clubData } = await supabase.rpc("get_my_club_rpc");
+807: const { data, error } = await supabase.rpc(
+937: const { error } = await supabase.rpc("lock_league_roster_rpc", {
+984: const { error } = await supabase.rpc("reopen_league_roster_rpc", {
+
+FILE: .\lib\live-runtime\commercial\errors.test.ts
+4: COMMERCIAL_RUNTIME_ERROR_CODES,
+11: "get_commercial_purchase_runtime_internal";
+21: describe("COMMERCIAL_RUNTIME_ERROR_CODES", () => {
+23: expect(COMMERCIAL_RUNTIME_ERROR_CODES).toEqual({
+25: "COMMERCIAL_PURCHASE_NOT_FOUND",
+27: "COMMERCIAL_PURCHASE_AUTHORIZATION_NOT_FOUND",
+29: "COMMERCIAL_PURCHASE_AUTHORIZATION_ALREADY_DECIDED",
+31: "COMMERCIAL_PURCHASE_AUTHORIZATION_DECISION_INVALID",
+33: "COMMERCIAL_PURCHASE_AUTHORIZATION_IDEMPOTENCY_CONFLICT",
+35: "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_FOUND",
+37: "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_APPROVED",
+39: "COMMERCIAL_PURCHASE_RUNTIME_EVENT_ARGUMENT_INVALID",
+47: COMMERCIAL_RUNTIME_ERROR_CODES,
+176: COMMERCIAL_RUNTIME_ERROR_CODES
+196: COMMERCIAL_RUNTIME_ERROR_CODES
+203: COMMERCIAL_RUNTIME_ERROR_CODES
+218: COMMERCIAL_RUNTIME_ERROR_CODES
+230: COMMERCIAL_RUNTIME_ERROR_CODES
+239: COMMERCIAL_RUNTIME_ERROR_CODES
+
+FILE: .\lib\live-runtime\commercial\errors.ts
+6: export const COMMERCIAL_RUNTIME_ERROR_CODES = {
+7: PURCHASE_NOT_FOUND: "COMMERCIAL_PURCHASE_NOT_FOUND",
+9: "COMMERCIAL_PURCHASE_AUTHORIZATION_NOT_FOUND",
+11: "COMMERCIAL_PURCHASE_AUTHORIZATION_ALREADY_DECIDED",
+13: "COMMERCIAL_PURCHASE_AUTHORIZATION_DECISION_INVALID",
+15: "COMMERCIAL_PURCHASE_AUTHORIZATION_IDEMPOTENCY_CONFLICT",
+17: "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_FOUND",
+19: "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_APPROVED",
+21: "COMMERCIAL_PURCHASE_RUNTIME_EVENT_ARGUMENT_INVALID",
+27: (typeof COMMERCIAL_RUNTIME_ERROR_CODES)[keyof typeof COMMERCIAL_RUNTIME_ERROR_CODES];
+
+FILE: .\lib\live-runtime\commercial\index.test.ts
+18: COMMERCIAL_RUNTIME_ERROR_CODES,
+84: "COMMERCIAL_RUNTIME_ERROR_CODES",
+111: commercial.COMMERCIAL_RUNTIME_ERROR_CODES,
+112: ).toBe(COMMERCIAL_RUNTIME_ERROR_CODES);
+
+FILE: .\lib\live-runtime\commercial\index.ts
+2: COMMERCIAL_RUNTIME_ERROR_CODES,
+
+FILE: .\lib\live-runtime\commercial\purchase\service.test.ts
+106: "evaluate_commercial_purchase_runtime_readiness_internal",
+121: "evaluate_commercial_purchase_runtime_readiness_internal",
+142: "evaluate_commercial_purchase_runtime_readiness_internal",
+152: "evaluate_commercial_purchase_runtime_readiness_internal",
+190: "request_commercial_purchase_authorization_internal",
+204: "request_commercial_purchase_authorization_internal",
+230: "request_commercial_purchase_authorization_internal",
+244: "request_commercial_purchase_authorization_internal",
+316: "decide_commercial_purchase_authorization_internal",
+330: "decide_commercial_purchase_authorization_internal",
+350: "decide_commercial_purchase_authorization_internal",
+363: "decide_commercial_purchase_authorization_internal",
+415: "get_commercial_purchase_runtime_internal",
+426: "get_commercial_purchase_runtime_internal",
+449: "get_commercial_purchase_runtime_timeline_internal",
+460: "get_commercial_purchase_runtime_timeline_internal",
+508: "get_commercial_purchase_runtime_internal",
+
+FILE: .\lib\live-runtime\commercial\purchase\service.ts
+66: "evaluate_commercial_purchase_runtime_readiness_internal",
+102: "request_commercial_purchase_authorization_internal",
+132: "decide_commercial_purchase_authorization_internal",
+156: "get_commercial_purchase_runtime_internal",
+177: "get_commercial_purchase_runtime_timeline_internal",
+
+FILE: .\lib\live-runtime\commercial\purchase\types.ts
+192: error_code: "COMMERCIAL_PURCHASE_NOT_FOUND";
+212: | "COMMERCIAL_PURCHASE_NOT_FOUND"
+213: | "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_APPROVED";
+225: error_code: "COMMERCIAL_PURCHASE_AUTHORIZATION_NOT_FOUND";
+229: error_code: "COMMERCIAL_PURCHASE_AUTHORIZATION_ALREADY_DECIDED";
+
+FILE: .\lib\live-runtime\commercial\purchase\validation.test.ts
+59: error_code: "COMMERCIAL_PURCHASE_NOT_FOUND",
+65: error_code: "COMMERCIAL_PURCHASE_NOT_FOUND",
+
+FILE: .\lib\live-runtime\commercial\purchase\validation.ts
+686: object.error_code === "COMMERCIAL_PURCHASE_NOT_FOUND"
+691: error_code: "COMMERCIAL_PURCHASE_NOT_FOUND",
+752: object.error_code === "COMMERCIAL_PURCHASE_NOT_FOUND" ||
+754: "COMMERCIAL_PURCHASE_RUNTIME_POLICY_NOT_APPROVED"
+796: "COMMERCIAL_PURCHASE_AUTHORIZATION_NOT_FOUND"
+802: "COMMERCIAL_PURCHASE_AUTHORIZATION_NOT_FOUND",
+809: "COMMERCIAL_PURCHASE_AUTHORIZATION_ALREADY_DECIDED"
+815: "COMMERCIAL_PURCHASE_AUTHORIZATION_ALREADY_DECIDED",
+
+FILE: .\lib\live-runtime\commercial\rpc.test.ts
+19: "get_commercial_purchase_runtime_internal";
+38: await callCommercialRuntimeRpc(RPC_NAME, {});
+59: await callCommercialRuntimeRpc(RPC_NAME, args);
+80: await callCommercialRuntimeRpc(RPC_NAME, args);
+167: await callCommercialRuntimeRpc(
+204: callCommercialRuntimeRpc(
+228: callCommercialRuntimeRpc(
+254: callCommercialRuntimeRpc(
+282: callCommercialRuntimeRpc(
+305: callCommercialRuntimeRpc(
+322: callCommercialRuntimeRpc(
+
+FILE: .\lib\live-runtime\commercial\rpc.ts
+39: const { data, error } = await supabase.rpc(
+
+FILE: .\lib\live-runtime\commercial\types.test.ts
+10: const COMMERCIAL_RUNTIME_RPC_NAMES = [
+11: "evaluate_commercial_purchase_runtime_readiness_internal",
+12: "request_commercial_purchase_authorization_internal",
+13: "decide_commercial_purchase_authorization_internal",
+14: "get_commercial_purchase_runtime_internal",
+15: "get_commercial_purchase_runtime_timeline_internal",
+20: expect(COMMERCIAL_RUNTIME_RPC_NAMES).toEqual([
+21: "evaluate_commercial_purchase_runtime_readiness_internal",
+22: "request_commercial_purchase_authorization_internal",
+23: "decide_commercial_purchase_authorization_internal",
+24: "get_commercial_purchase_runtime_internal",
+25: "get_commercial_purchase_runtime_timeline_internal",
+30: expect(COMMERCIAL_RUNTIME_RPC_NAMES).toHaveLength(5);
+32: new Set(COMMERCIAL_RUNTIME_RPC_NAMES).size,
+38: (typeof COMMERCIAL_RUNTIME_RPC_NAMES)[number];
+48: "unknown_commercial_runtime_rpc_internal";
+51: "unknown_commercial_runtime_rpc_internal",
+60: "get_commercial_purchase_runtime_internal",
+69: "get_commercial_purchase_runtime_internal",
+127: "evaluate_commercial_purchase_runtime_readiness_internal",
+135: "evaluate_commercial_purchase_runtime_readiness_internal",
+151: actor: "commercial_runtime",
+181: actor: "commercial_runtime",
+259: actor: "commercial_runtime",
+
+FILE: .\lib\live-runtime\commercial\types.ts
+7: | "evaluate_commercial_purchase_runtime_readiness_internal"
+8: | "request_commercial_purchase_authorization_internal"
+9: | "decide_commercial_purchase_authorization_internal"
+10: | "get_commercial_purchase_runtime_internal"
+11: | "get_commercial_purchase_runtime_timeline_internal";
+
+FILE: .\lib\live-runtime\loyalty-dispatch\service.ts
+67: const { data, error } = await supabase.rpc(
+117: const { data, error } = await supabase.rpc(
+146: const { data, error } = await supabase.rpc(
+
+============================================================
+6. LEGACY CONTRACT REFERENCES
+============================================================
+
+.\supabase\migrations\101_commercial_platform_foundation.sql:89: lifetime_promotional integer not null default 0,
+.\supabase\migrations\101_commercial_platform_foundation.sql:121: constraint commercial_wallets_lifetime_promotional_check
+.\supabase\migrations\101_commercial_platform_foundation.sql:122: check (lifetime_promotional >= 0),
+.\supabase\migrations\101_commercial_platform_foundation.sql:171: 'PASS_PROMOTION',
+.\supabase\migrations\101_commercial_platform_foundation.sql:172: 'PASS_GIFT',
+.\supabase\migrations\101_commercial_platform_foundation.sql:173: 'PASS_REFERRAL',
+.\supabase\migrations\101_commercial_platform_foundation.sql:517: or new.lifetime_promotional is distinct from old.lifetime_promotional
+.\supabase\migrations\101_commercial_platform_foundation.sql:715: v_lifetime_promotional_delta integer := 0;
+.\supabase\migrations\101_commercial_platform_foundation.sql:796: 'PASS_PROMOTION',
+.\supabase\migrations\101_commercial_platform_foundation.sql:797: 'PASS_GIFT',
+.\supabase\migrations\101_commercial_platform_foundation.sql:798: 'PASS_REFERRAL'
+.\supabase\migrations\101_commercial_platform_foundation.sql:800: v_lifetime_promotional_delta := p_amount;
+.\supabase\migrations\101_commercial_platform_foundation.sql:852: lifetime_promotional =
+.\supabase\migrations\101_commercial_platform_foundation.sql:853: lifetime_promotional + v_lifetime_promotional_delta,
+.\supabase\migrations\101_commercial_platform_foundation.sql:951: 'lifetime_promotional', v_wallet.lifetime_promotional,
+.\supabase\migrations\103_reward_engine_foundation.sql:191: 'PASS_PROMOTION',
+.\supabase\migrations\103_reward_engine_foundation.sql:192: 'PASS_GIFT',
+.\supabase\migrations\103_reward_engine_foundation.sql:193: 'PASS_REFERRAL'
+.\supabase\migrations\103_reward_engine_foundation.sql:341: 'PASS_PROMOTION',
+.\supabase\migrations\103_reward_engine_foundation.sql:342: 'PASS_GIFT',
+.\supabase\migrations\103_reward_engine_foundation.sql:343: 'PASS_REFERRAL'
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:15: --   - Freeze lifetime_promotional as a legacy read-only projection.
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:18: --   - PASS_PROMOTION
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:19: --   - PASS_GIFT
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:20: --   - PASS_REFERRAL
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:44: where reward_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL')
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:51: comment on column public.commercial_wallets.lifetime_promotional is
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:60: if new.transaction_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL') then
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:134: if new.lifetime_promotional is distinct from old.lifetime_promotional then
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:138: detail = 'lifetime_promotional is retained for historical compatibility and cannot change';
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:146: before update of lifetime_promotional on public.commercial_wallets
+.\supabase\migrations\111_pass_ledger_contract_alignment.sql:165: where reward_type in ('PASS_PROMOTION','PASS_GIFT','PASS_REFERRAL')
+.\supabase\migrations\114_commercial_purchase_runtime_lifecycle_certification.sql:104: lifetime_promotional,
+.\supabase\migrations\116_commercial_checkout_lifecycle_certification.sql:93: lifetime_promotional,
+
+============================================================
+7. GIT STATUS
+============================================================
+
+WORKING TREE CLEAN

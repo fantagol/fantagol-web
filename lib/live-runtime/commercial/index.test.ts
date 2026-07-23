@@ -29,6 +29,10 @@ import {
   requestCommercialPurchaseAuthorization,
 } from "./purchase/service";
 
+import {
+  getMyCommercialWallet,
+} from "./wallet/service";
+
 import type {
   CommercialRuntimeErrorCode as DirectCommercialRuntimeErrorCode,
 } from "./errors";
@@ -53,6 +57,11 @@ import type {
 } from "./purchase/types";
 
 import type {
+  CommercialWallet as DirectCommercialWallet,
+  CommercialWalletStatus as DirectCommercialWalletStatus,
+} from "./wallet/types";
+
+import type {
   CommercialRuntimeEvent as DirectCommercialRuntimeEvent,
   CommercialRuntimeRpcFailure as DirectCommercialRuntimeRpcFailure,
   CommercialRuntimeRpcName as DirectCommercialRuntimeRpcName,
@@ -66,6 +75,8 @@ import type {
   CommercialPurchaseRuntimeSnapshot,
   CommercialPurchaseRuntimeTimeline,
   CommercialRuntimeErrorCode,
+  CommercialWallet,
+  CommercialWalletStatus,
   CommercialRuntimeEvent,
   CommercialRuntimeRpcFailure,
   CommercialRuntimeRpcName,
@@ -87,6 +98,7 @@ const EXPECTED_RUNTIME_EXPORTS = [
   "evaluateCommercialPurchaseReadiness",
   "getCommercialPurchaseRuntime",
   "getCommercialPurchaseRuntimeTimeline",
+  "getMyCommercialWallet",
   "hasCommercialRuntimeErrorCode",
   "isCommercialRuntimeError",
   "requestCommercialPurchaseAuthorization",
@@ -99,11 +111,11 @@ describe("commercial public runtime export surface", () => {
     ).toEqual([...EXPECTED_RUNTIME_EXPORTS].sort());
   });
 
-  it("exports nine unique runtime symbols", () => {
-    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(9);
+  it("exports ten unique runtime symbols", () => {
+    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(10);
     expect(
       new Set(EXPECTED_RUNTIME_EXPORTS).size,
-    ).toBe(9);
+    ).toBe(10);
   });
 
   it("re-exports the error code registry by identity", () => {
@@ -160,6 +172,12 @@ describe("commercial public runtime export surface", () => {
     ).toBe(getCommercialPurchaseRuntimeTimeline);
   });
 
+  it("re-exports getMyCommercialWallet by identity", () => {
+    expect(
+      commercial.getMyCommercialWallet,
+    ).toBe(getMyCommercialWallet);
+  });
+
   it("does not expose internal runtime helpers", () => {
     expect(commercial).not.toHaveProperty(
       "callCommercialRuntimeRpc",
@@ -175,6 +193,9 @@ describe("commercial public runtime export surface", () => {
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseRuntimeTimeline",
+    );
+    expect(commercial).not.toHaveProperty(
+      "normalizeCommercialWallet",
     );
     expect(commercial).not.toHaveProperty(
       "isJsonObject",
@@ -289,6 +310,22 @@ describe("commercial public type export surface", () => {
       RequestCommercialPurchaseAuthorizationInput
     >().toEqualTypeOf<
       DirectRequestCommercialPurchaseAuthorizationInput
+    >();
+  });
+
+  it("re-exports CommercialWallet", () => {
+    expectTypeOf<
+      CommercialWallet
+    >().toEqualTypeOf<
+      DirectCommercialWallet
+    >();
+  });
+
+  it("re-exports CommercialWalletStatus", () => {
+    expectTypeOf<
+      CommercialWalletStatus
+    >().toEqualTypeOf<
+      DirectCommercialWalletStatus
     >();
   });
 

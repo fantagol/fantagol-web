@@ -36,6 +36,15 @@ export type {
   RequestCommercialPurchaseAuthorizationInput,
 } from "./purchase/types";
 
+export {
+  getMyCommercialWallet,
+} from "./wallet/service";
+
+export type {
+  CommercialWallet,
+  CommercialWalletStatus,
+} from "./wallet/types";
+
 export type {
   CommercialRuntimeEvent,
   CommercialRuntimeRpcFailure,
