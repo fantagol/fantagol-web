@@ -37,6 +37,16 @@ export type {
 } from "./purchase/types";
 
 export {
+  getCommercialProducts,
+} from "./product/service";
+
+export type {
+  CommercialProduct,
+  CommercialProducts,
+  GetCommercialProductsInput,
+} from "./product/types";
+
+export {
   getMyCommercialLedger,
 } from "./ledger/service";
 
