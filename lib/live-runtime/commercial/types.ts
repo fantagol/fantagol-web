@@ -1,4 +1,7 @@
-import type { JsonObject, JsonValue } from "./json";
+import type {
+  JsonObject,
+  JsonValue,
+} from "./json";
 
 export type CommercialRuntimeRpcName =
   | "evaluate_commercial_purchase_runtime_readiness_internal"
@@ -22,18 +25,18 @@ export interface CommercialRuntimeRpcResult<T> {
 
 export interface CommercialRuntimeEvent {
   id: string;
-  event_type: string;
-  actor: string;
-  correlation_id: string;
   purchase_id: string | null;
   policy_id: string | null;
   authorization_id: string | null;
-  execution_attempt_id: string | null;
-  runtime_state: string | null;
-  authorization_status: string | null;
+  attempt_id: string | null;
+  event_type: string;
+  previous_state: string | null;
+  next_state: string | null;
+  actor: string;
   reason: string | null;
-  caused_by_event_id: string | null;
-  metadata: JsonObject;
-  created_at: string;
+  correlation_id: string;
+  causation_id: string | null;
+  payload: JsonObject;
+  occurred_at: string;
   [key: string]: JsonValue | undefined;
 }
