@@ -1,12 +1,16 @@
 import "server-only";
 
-import { asJsonObject, isJsonObject } from "../json";
 import { callCommercialRuntimeRpc } from "../rpc";
+import {
+  normalizeCommercialPurchaseAuthorizationResult,
+  normalizeCommercialPurchaseReadinessResult,
+  normalizeCommercialPurchaseRuntimeSnapshot,
+  normalizeCommercialPurchaseRuntimeTimeline,
+} from "./validation";
 import type {
   CommercialPurchaseAuthorizationResult,
   CommercialPurchaseReadinessResult,
   CommercialPurchaseRuntimeSnapshot,
-  CommercialPurchaseRuntimeEventRecord,
   CommercialPurchaseRuntimeTimeline,
   DecideCommercialPurchaseAuthorizationInput,
   EvaluateCommercialPurchaseReadinessInput,
@@ -49,142 +53,6 @@ function requireUuid(
   return normalized;
 }
 
-function requireTimelineString(
-  entry: Record<string, unknown>,
-  fieldName: string,
-  index: number,
-): string {
-  const value = entry[fieldName];
-
-  if (typeof value !== "string" || !value.trim()) {
-    throw new TypeError(
-      `Commercial purchase runtime timeline entry ${index}.${fieldName} must be a non-empty string.`,
-    );
-  }
-
-  return value;
-}
-
-function optionalTimelineString(
-  entry: Record<string, unknown>,
-  fieldName: string,
-  index: number,
-): string | null {
-  const value = entry[fieldName];
-
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value !== "string") {
-    throw new TypeError(
-      `Commercial purchase runtime timeline entry ${index}.${fieldName} must be a string or null.`,
-    );
-  }
-
-  return value;
-}
-
-function normalizeTimeline(
-  value: unknown,
-): CommercialPurchaseRuntimeTimeline {
-  if (!Array.isArray(value)) {
-    throw new TypeError(
-      "Commercial purchase runtime timeline must be an array.",
-    );
-  }
-
-  return value.map(
-    (
-      entry,
-      index,
-    ): CommercialPurchaseRuntimeEventRecord => {
-      if (!isJsonObject(entry)) {
-        throw new TypeError(
-          `Commercial purchase runtime timeline entry ${index} must be a JSON object.`,
-        );
-      }
-
-      const payload = entry.payload;
-
-      if (!isJsonObject(payload)) {
-        throw new TypeError(
-          `Commercial purchase runtime timeline entry ${index}.payload must be a JSON object.`,
-        );
-      }
-
-      return {
-        id: requireTimelineString(
-          entry,
-          "id",
-          index,
-        ),
-        purchase_id: optionalTimelineString(
-          entry,
-          "purchase_id",
-          index,
-        ),
-        policy_id: optionalTimelineString(
-          entry,
-          "policy_id",
-          index,
-        ),
-        authorization_id: optionalTimelineString(
-          entry,
-          "authorization_id",
-          index,
-        ),
-        attempt_id: optionalTimelineString(
-          entry,
-          "attempt_id",
-          index,
-        ),
-        event_type: requireTimelineString(
-          entry,
-          "event_type",
-          index,
-        ),
-        previous_state: optionalTimelineString(
-          entry,
-          "previous_state",
-          index,
-        ),
-        next_state: optionalTimelineString(
-          entry,
-          "next_state",
-          index,
-        ),
-        actor: requireTimelineString(
-          entry,
-          "actor",
-          index,
-        ),
-        reason: optionalTimelineString(
-          entry,
-          "reason",
-          index,
-        ),
-        correlation_id: requireTimelineString(
-          entry,
-          "correlation_id",
-          index,
-        ),
-        causation_id: optionalTimelineString(
-          entry,
-          "causation_id",
-          index,
-        ),
-        payload,
-        occurred_at: requireTimelineString(
-          entry,
-          "occurred_at",
-          index,
-        ),
-      };
-    },
-  );
-}
-
 export async function evaluateCommercialPurchaseReadiness(
   input: EvaluateCommercialPurchaseReadinessInput,
 ): Promise<CommercialPurchaseReadinessResult> {
@@ -201,10 +69,9 @@ export async function evaluateCommercialPurchaseReadiness(
       },
     );
 
-  return asJsonObject(
+  return normalizeCommercialPurchaseReadinessResult(
     result.data,
-    "Commercial purchase readiness result",
-  ) as CommercialPurchaseReadinessResult;
+  );
 }
 
 export async function requestCommercialPurchaseAuthorization(
@@ -242,10 +109,9 @@ export async function requestCommercialPurchaseAuthorization(
       },
     );
 
-  return asJsonObject(
+  return normalizeCommercialPurchaseAuthorizationResult(
     result.data,
-    "Commercial purchase authorization result",
-  ) as CommercialPurchaseAuthorizationResult;
+  );
 }
 
 export async function decideCommercialPurchaseAuthorization(
@@ -272,10 +138,9 @@ export async function decideCommercialPurchaseAuthorization(
       },
     );
 
-  return asJsonObject(
+  return normalizeCommercialPurchaseAuthorizationResult(
     result.data,
-    "Commercial purchase authorization decision result",
-  ) as CommercialPurchaseAuthorizationResult;
+  );
 }
 
 export async function getCommercialPurchaseRuntime(
@@ -294,10 +159,9 @@ export async function getCommercialPurchaseRuntime(
       },
     );
 
-  return asJsonObject(
+  return normalizeCommercialPurchaseRuntimeSnapshot(
     result.data,
-    "Commercial purchase runtime snapshot",
-  ) as CommercialPurchaseRuntimeSnapshot;
+  );
 }
 
 export async function getCommercialPurchaseRuntimeTimeline(
@@ -316,5 +180,7 @@ export async function getCommercialPurchaseRuntimeTimeline(
       },
     );
 
-  return normalizeTimeline(result.data);
+  return normalizeCommercialPurchaseRuntimeTimeline(
+    result.data,
+  );
 }
