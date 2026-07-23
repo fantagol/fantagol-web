@@ -31,6 +31,7 @@ import {
 
 import {
   getRewardCampaigns,
+  submitMyRewardClaim,
 } from "./reward/service";
 
 import {
@@ -71,7 +72,14 @@ import type {
 import type {
   CommercialRewardCampaign as DirectCommercialRewardCampaign,
   CommercialRewardCampaigns as DirectCommercialRewardCampaigns,
+  CommercialRewardClaimStatus as DirectCommercialRewardClaimStatus,
+  CommercialRewardClaimSubmissionErrorCode as DirectCommercialRewardClaimSubmissionErrorCode,
+  CommercialRewardClaimSubmissionFailure as DirectCommercialRewardClaimSubmissionFailure,
+  CommercialRewardClaimSubmissionResult as DirectCommercialRewardClaimSubmissionResult,
+  CommercialRewardClaimSubmissionSuccess as DirectCommercialRewardClaimSubmissionSuccess,
   CommercialRewardType as DirectCommercialRewardType,
+  CommercialRewardVerificationStatus as DirectCommercialRewardVerificationStatus,
+  SubmitCommercialRewardClaimInput as DirectSubmitCommercialRewardClaimInput,
 } from "./reward/types";
 
 import type {
@@ -107,7 +115,14 @@ import type {
   CommercialRuntimeErrorCode,
   CommercialRewardCampaign,
   CommercialRewardCampaigns,
+  CommercialRewardClaimStatus,
+  CommercialRewardClaimSubmissionErrorCode,
+  CommercialRewardClaimSubmissionFailure,
+  CommercialRewardClaimSubmissionResult,
+  CommercialRewardClaimSubmissionSuccess,
   CommercialRewardType,
+  CommercialRewardVerificationStatus,
+  SubmitCommercialRewardClaimInput,
   CommercialProduct,
   CommercialProducts,
   CommercialLedger,
@@ -138,6 +153,7 @@ const EXPECTED_RUNTIME_EXPORTS = [
   "getCommercialPurchaseRuntime",
   "getCommercialPurchaseRuntimeTimeline",
   "getRewardCampaigns",
+  "submitMyRewardClaim",
   "getCommercialProducts",
   "getMyCommercialLedger",
   "getMyCommercialWallet",
@@ -153,11 +169,11 @@ describe("commercial public runtime export surface", () => {
     ).toEqual([...EXPECTED_RUNTIME_EXPORTS].sort());
   });
 
-  it("exports thirteen unique runtime symbols", () => {
-    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(13);
+  it("exports fourteen unique runtime symbols", () => {
+    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(14);
     expect(
       new Set(EXPECTED_RUNTIME_EXPORTS).size,
-    ).toBe(13);
+    ).toBe(14);
   });
 
   it("re-exports the error code registry by identity", () => {
@@ -220,6 +236,12 @@ describe("commercial public runtime export surface", () => {
     ).toBe(getRewardCampaigns);
   });
 
+  it("re-exports submitMyRewardClaim by identity", () => {
+    expect(
+      commercial.submitMyRewardClaim,
+    ).toBe(submitMyRewardClaim);
+  });
+
   it("re-exports getCommercialProducts by identity", () => {
     expect(
       commercial.getCommercialProducts,
@@ -253,6 +275,9 @@ describe("commercial public runtime export surface", () => {
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseRuntimeTimeline",
+    );
+    expect(commercial).not.toHaveProperty(
+      "normalizeRewardClaimSubmissionResult",
     );
     expect(commercial).not.toHaveProperty(
       "normalizeRewardCampaigns",
@@ -403,6 +428,62 @@ describe("commercial public type export surface", () => {
       CommercialRewardType
     >().toEqualTypeOf<
       DirectCommercialRewardType
+    >();
+  });
+
+  it("re-exports CommercialRewardClaimStatus", () => {
+    expectTypeOf<
+      CommercialRewardClaimStatus
+    >().toEqualTypeOf<
+      DirectCommercialRewardClaimStatus
+    >();
+  });
+
+  it("re-exports CommercialRewardVerificationStatus", () => {
+    expectTypeOf<
+      CommercialRewardVerificationStatus
+    >().toEqualTypeOf<
+      DirectCommercialRewardVerificationStatus
+    >();
+  });
+
+  it("re-exports CommercialRewardClaimSubmissionErrorCode", () => {
+    expectTypeOf<
+      CommercialRewardClaimSubmissionErrorCode
+    >().toEqualTypeOf<
+      DirectCommercialRewardClaimSubmissionErrorCode
+    >();
+  });
+
+  it("re-exports CommercialRewardClaimSubmissionSuccess", () => {
+    expectTypeOf<
+      CommercialRewardClaimSubmissionSuccess
+    >().toEqualTypeOf<
+      DirectCommercialRewardClaimSubmissionSuccess
+    >();
+  });
+
+  it("re-exports CommercialRewardClaimSubmissionFailure", () => {
+    expectTypeOf<
+      CommercialRewardClaimSubmissionFailure
+    >().toEqualTypeOf<
+      DirectCommercialRewardClaimSubmissionFailure
+    >();
+  });
+
+  it("re-exports CommercialRewardClaimSubmissionResult", () => {
+    expectTypeOf<
+      CommercialRewardClaimSubmissionResult
+    >().toEqualTypeOf<
+      DirectCommercialRewardClaimSubmissionResult
+    >();
+  });
+
+  it("re-exports SubmitCommercialRewardClaimInput", () => {
+    expectTypeOf<
+      SubmitCommercialRewardClaimInput
+    >().toEqualTypeOf<
+      DirectSubmitCommercialRewardClaimInput
     >();
   });
 

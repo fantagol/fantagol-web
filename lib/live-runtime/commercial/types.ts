@@ -12,7 +12,8 @@ export type CommercialRuntimeRpcName =
   | "get_my_commercial_wallet_rpc"
   | "get_my_commercial_ledger_rpc"
   | "get_commercial_products_rpc"
-  | "get_reward_campaigns_rpc";
+  | "get_reward_campaigns_rpc"
+  | "submit_my_reward_claim_rpc";
 
 export interface CommercialRuntimeRpcFailure {
   rpcName: CommercialRuntimeRpcName;

@@ -38,12 +38,20 @@ export type {
 
 export {
   getRewardCampaigns,
+  submitMyRewardClaim,
 } from "./reward/service";
 
 export type {
   CommercialRewardCampaign,
   CommercialRewardCampaigns,
+  CommercialRewardClaimStatus,
+  CommercialRewardClaimSubmissionErrorCode,
+  CommercialRewardClaimSubmissionFailure,
+  CommercialRewardClaimSubmissionResult,
+  CommercialRewardClaimSubmissionSuccess,
   CommercialRewardType,
+  CommercialRewardVerificationStatus,
+  SubmitCommercialRewardClaimInput,
 } from "./reward/types";
 
 export {
