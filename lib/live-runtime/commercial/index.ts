@@ -37,6 +37,16 @@ export type {
 } from "./purchase/types";
 
 export {
+  getRewardCampaigns,
+} from "./reward/service";
+
+export type {
+  CommercialRewardCampaign,
+  CommercialRewardCampaigns,
+  CommercialRewardType,
+} from "./reward/types";
+
+export {
   getCommercialProducts,
 } from "./product/service";
 

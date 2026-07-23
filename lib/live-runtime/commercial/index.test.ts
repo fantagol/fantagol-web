@@ -30,6 +30,10 @@ import {
 } from "./purchase/service";
 
 import {
+  getRewardCampaigns,
+} from "./reward/service";
+
+import {
   getCommercialProducts,
 } from "./product/service";
 
@@ -65,6 +69,12 @@ import type {
 } from "./purchase/types";
 
 import type {
+  CommercialRewardCampaign as DirectCommercialRewardCampaign,
+  CommercialRewardCampaigns as DirectCommercialRewardCampaigns,
+  CommercialRewardType as DirectCommercialRewardType,
+} from "./reward/types";
+
+import type {
   CommercialProduct as DirectCommercialProduct,
   CommercialProducts as DirectCommercialProducts,
   GetCommercialProductsInput as DirectGetCommercialProductsInput,
@@ -95,6 +105,9 @@ import type {
   CommercialPurchaseRuntimeSnapshot,
   CommercialPurchaseRuntimeTimeline,
   CommercialRuntimeErrorCode,
+  CommercialRewardCampaign,
+  CommercialRewardCampaigns,
+  CommercialRewardType,
   CommercialProduct,
   CommercialProducts,
   CommercialLedger,
@@ -124,6 +137,7 @@ const EXPECTED_RUNTIME_EXPORTS = [
   "evaluateCommercialPurchaseReadiness",
   "getCommercialPurchaseRuntime",
   "getCommercialPurchaseRuntimeTimeline",
+  "getRewardCampaigns",
   "getCommercialProducts",
   "getMyCommercialLedger",
   "getMyCommercialWallet",
@@ -139,11 +153,11 @@ describe("commercial public runtime export surface", () => {
     ).toEqual([...EXPECTED_RUNTIME_EXPORTS].sort());
   });
 
-  it("exports twelve unique runtime symbols", () => {
-    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(12);
+  it("exports thirteen unique runtime symbols", () => {
+    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(13);
     expect(
       new Set(EXPECTED_RUNTIME_EXPORTS).size,
-    ).toBe(12);
+    ).toBe(13);
   });
 
   it("re-exports the error code registry by identity", () => {
@@ -200,6 +214,12 @@ describe("commercial public runtime export surface", () => {
     ).toBe(getCommercialPurchaseRuntimeTimeline);
   });
 
+  it("re-exports getRewardCampaigns by identity", () => {
+    expect(
+      commercial.getRewardCampaigns,
+    ).toBe(getRewardCampaigns);
+  });
+
   it("re-exports getCommercialProducts by identity", () => {
     expect(
       commercial.getCommercialProducts,
@@ -233,6 +253,9 @@ describe("commercial public runtime export surface", () => {
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseRuntimeTimeline",
+    );
+    expect(commercial).not.toHaveProperty(
+      "normalizeRewardCampaigns",
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialProducts",
@@ -356,6 +379,30 @@ describe("commercial public type export surface", () => {
       RequestCommercialPurchaseAuthorizationInput
     >().toEqualTypeOf<
       DirectRequestCommercialPurchaseAuthorizationInput
+    >();
+  });
+
+  it("re-exports CommercialRewardCampaign", () => {
+    expectTypeOf<
+      CommercialRewardCampaign
+    >().toEqualTypeOf<
+      DirectCommercialRewardCampaign
+    >();
+  });
+
+  it("re-exports CommercialRewardCampaigns", () => {
+    expectTypeOf<
+      CommercialRewardCampaigns
+    >().toEqualTypeOf<
+      DirectCommercialRewardCampaigns
+    >();
+  });
+
+  it("re-exports CommercialRewardType", () => {
+    expectTypeOf<
+      CommercialRewardType
+    >().toEqualTypeOf<
+      DirectCommercialRewardType
     >();
   });
 
