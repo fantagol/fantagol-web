@@ -9,7 +9,8 @@ export type CommercialRuntimeRpcName =
   | "decide_commercial_purchase_authorization_internal"
   | "get_commercial_purchase_runtime_internal"
   | "get_commercial_purchase_runtime_timeline_internal"
-  | "get_my_commercial_wallet_rpc";
+  | "get_my_commercial_wallet_rpc"
+  | "get_my_commercial_ledger_rpc";
 
 export interface CommercialRuntimeRpcFailure {
   rpcName: CommercialRuntimeRpcName;

@@ -30,6 +30,10 @@ import {
 } from "./purchase/service";
 
 import {
+  getMyCommercialLedger,
+} from "./ledger/service";
+
+import {
   getMyCommercialWallet,
 } from "./wallet/service";
 
@@ -57,6 +61,12 @@ import type {
 } from "./purchase/types";
 
 import type {
+  CommercialLedger as DirectCommercialLedger,
+  CommercialLedgerEntry as DirectCommercialLedgerEntry,
+  GetMyCommercialLedgerInput as DirectGetMyCommercialLedgerInput,
+} from "./ledger/types";
+
+import type {
   CommercialWallet as DirectCommercialWallet,
   CommercialWalletStatus as DirectCommercialWalletStatus,
 } from "./wallet/types";
@@ -75,6 +85,8 @@ import type {
   CommercialPurchaseRuntimeSnapshot,
   CommercialPurchaseRuntimeTimeline,
   CommercialRuntimeErrorCode,
+  CommercialLedger,
+  CommercialLedgerEntry,
   CommercialWallet,
   CommercialWalletStatus,
   CommercialRuntimeEvent,
@@ -85,6 +97,7 @@ import type {
   EvaluateCommercialPurchaseReadinessInput,
   GetCommercialPurchaseRuntimeInput,
   GetCommercialPurchaseTimelineInput,
+  GetMyCommercialLedgerInput,
   JsonObject,
   JsonPrimitive,
   JsonValue,
@@ -98,6 +111,7 @@ const EXPECTED_RUNTIME_EXPORTS = [
   "evaluateCommercialPurchaseReadiness",
   "getCommercialPurchaseRuntime",
   "getCommercialPurchaseRuntimeTimeline",
+  "getMyCommercialLedger",
   "getMyCommercialWallet",
   "hasCommercialRuntimeErrorCode",
   "isCommercialRuntimeError",
@@ -111,11 +125,11 @@ describe("commercial public runtime export surface", () => {
     ).toEqual([...EXPECTED_RUNTIME_EXPORTS].sort());
   });
 
-  it("exports ten unique runtime symbols", () => {
-    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(10);
+  it("exports eleven unique runtime symbols", () => {
+    expect(EXPECTED_RUNTIME_EXPORTS).toHaveLength(11);
     expect(
       new Set(EXPECTED_RUNTIME_EXPORTS).size,
-    ).toBe(10);
+    ).toBe(11);
   });
 
   it("re-exports the error code registry by identity", () => {
@@ -172,6 +186,12 @@ describe("commercial public runtime export surface", () => {
     ).toBe(getCommercialPurchaseRuntimeTimeline);
   });
 
+  it("re-exports getMyCommercialLedger by identity", () => {
+    expect(
+      commercial.getMyCommercialLedger,
+    ).toBe(getMyCommercialLedger);
+  });
+
   it("re-exports getMyCommercialWallet by identity", () => {
     expect(
       commercial.getMyCommercialWallet,
@@ -193,6 +213,9 @@ describe("commercial public runtime export surface", () => {
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialPurchaseRuntimeTimeline",
+    );
+    expect(commercial).not.toHaveProperty(
+      "normalizeCommercialLedger",
     );
     expect(commercial).not.toHaveProperty(
       "normalizeCommercialWallet",
@@ -310,6 +333,30 @@ describe("commercial public type export surface", () => {
       RequestCommercialPurchaseAuthorizationInput
     >().toEqualTypeOf<
       DirectRequestCommercialPurchaseAuthorizationInput
+    >();
+  });
+
+  it("re-exports CommercialLedger", () => {
+    expectTypeOf<
+      CommercialLedger
+    >().toEqualTypeOf<
+      DirectCommercialLedger
+    >();
+  });
+
+  it("re-exports CommercialLedgerEntry", () => {
+    expectTypeOf<
+      CommercialLedgerEntry
+    >().toEqualTypeOf<
+      DirectCommercialLedgerEntry
+    >();
+  });
+
+  it("re-exports GetMyCommercialLedgerInput", () => {
+    expectTypeOf<
+      GetMyCommercialLedgerInput
+    >().toEqualTypeOf<
+      DirectGetMyCommercialLedgerInput
     >();
   });
 
