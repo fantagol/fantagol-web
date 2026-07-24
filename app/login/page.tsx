@@ -11,34 +11,34 @@ function normalizeInternalDestination(
   candidate: string | null | undefined,
 ): string {
   if (!candidate) {
-    return "/inizia";
+    return "/leghe";
   }
 
   const value = candidate.trim();
 
   if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/inizia";
+    return "/leghe";
   }
 
   try {
     const url = new URL(value, "https://fantagol.local");
 
     if (url.origin !== "https://fantagol.local") {
-      return "/inizia";
+      return "/leghe";
     }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/inizia";
+    return "/leghe";
   }
 }
 
 export default function LoginPage() {
-  const [alreadyLogged, setAlreadyLogged] = useState(false);
-  const [returnTo, setReturnTo] = useState("/inizia");
+  const [returnTo, setReturnTo] = useState("/leghe");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -58,8 +58,11 @@ export default function LoginPage() {
       } = await supabase.auth.getSession();
 
       if (session?.user) {
-        setAlreadyLogged(true);
+        window.location.replace(destination);
+        return;
       }
+
+      setSessionChecked(true);
     }
 
     void checkSession();
@@ -125,22 +128,11 @@ export default function LoginPage() {
             pronostici.
           </p>
 
-          {alreadyLogged && (
-            <div className="mb-6 rounded-2xl border border-[#A6E824]/40 bg-[#A6E824]/10 p-4 text-center">
-              <p className="font-semibold text-[#A6E824]">
-                Sei già connesso.
-              </p>
-
-              <Link
-                href={returnTo}
-                className="mt-3 inline-block rounded-xl bg-[#A6E824] px-5 py-2 font-semibold text-black transition hover:brightness-110"
-              >
-                Continua
-              </Link>
+          {!sessionChecked ? (
+            <div className="flex min-h-48 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-[#A6E824]" />
             </div>
-          )}
-
-          {!alreadyLogged && (
+          ) : (
             <>
               <button
                 type="button"
