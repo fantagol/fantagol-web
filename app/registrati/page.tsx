@@ -1,46 +1,115 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 import { supabase } from "../../lib/supabaseClient";
 
+const PENDING_AUTH_DESTINATION_KEY = "fantagol.pendingAuthDestination.v1";
+
+function normalizeInternalDestination(
+  candidate: string | null | undefined,
+): string {
+  if (!candidate) {
+    return "/leghe";
+  }
+
+  const value = candidate.trim();
+
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return "/leghe";
+  }
+
+  try {
+    const url = new URL(value, "https://fantagol.local");
+
+    if (url.origin !== "https://fantagol.local") {
+      return "/leghe";
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/leghe";
+  }
+}
+
 export default function RegistratiPage() {
+  const [returnTo, setReturnTo] = useState("/leghe");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const destination = normalizeInternalDestination(
+      searchParams.get("returnTo"),
+    );
+
+    queueMicrotask(() => {
+      setReturnTo(destination);
+    });
+
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, destination);
+  }, []);
 
   async function handleGoogleLogin() {
+    setLoading(true);
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
+
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("returnTo", returnTo);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) alert(error.message);
-  }
-
-  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-        },
-        emailRedirectTo: `${window.location.origin}/leghe`,
+        redirectTo: callbackUrl.toString(),
       },
     });
 
     if (error) {
+      setLoading(false);
+      alert(error.message);
+    }
+  }
+
+  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
+
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("returnTo", returnTo);
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username: username.trim(),
+        },
+        emailRedirectTo: callbackUrl.toString(),
+      },
+    });
+
+    if (error) {
+      setLoading(false);
       alert(error.message);
       return;
     }
 
-    alert("Registrazione completata. Controlla la tua email per confermare l'account.");
+    if (data.session?.user) {
+      window.location.assign(returnTo);
+      return;
+    }
+
+    setLoading(false);
+    alert(
+      "Registrazione completata. Controlla la tua email per confermare l'account.",
+    );
   }
+
+  const loginHref = `/login?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -61,7 +130,8 @@ export default function RegistratiPage() {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200"
+            disabled={loading}
+            className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:opacity-60"
           >
             Continua con Google
           </button>
@@ -75,60 +145,73 @@ export default function RegistratiPage() {
           <form onSubmit={handleRegister} className="space-y-4">
             <input
               type="text"
+              required
               placeholder="Nome utente"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(event) => setUsername(event.target.value)}
               className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
             />
 
             <input
               type="email"
+              required
               placeholder="Email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
             />
 
             <input
               type="password"
+              required
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
             />
 
-<label className="flex items-start gap-3 text-sm text-gray-400">
-  <input
-    type="checkbox"
-    required
-    className="mt-1 h-4 w-4 rounded border-gray-700 bg-[#111111] accent-[#A6E824]"
-  />
-  <span>
-    Accetto i{" "}
-    <a href="/termini" className="font-semibold text-[#A6E824] hover:brightness-110">
-      Termini di utilizzo
-    </a>{" "}
-    e ho letto l&apos;
-    <a href="/privacy" className="font-semibold text-[#A6E824] hover:brightness-110">
-      Informativa Privacy
-    </a>
-    .
-  </span>
-</label>
+            <label className="flex items-start gap-3 text-sm text-gray-400">
+              <input
+                type="checkbox"
+                required
+                className="mt-1 h-4 w-4 rounded border-gray-700 bg-[#111111] accent-[#A6E824]"
+              />
+              <span>
+                Accetto i{" "}
+                <Link
+                  href="/termini"
+                  className="font-semibold text-[#A6E824] hover:brightness-110"
+                >
+                  Termini di utilizzo
+                </Link>{" "}
+                e ho letto l&apos;
+                <Link
+                  href="/privacy"
+                  className="font-semibold text-[#A6E824] hover:brightness-110"
+                >
+                  Informativa Privacy
+                </Link>
+                .
+              </span>
+            </label>
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
+              disabled={loading}
+              className="w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110 disabled:opacity-60"
             >
-              Registrati
+              {loading ? "Registrazione in corso..." : "Registrati"}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-400">
             Hai già un account?{" "}
-            <a href="/login" className="font-semibold text-[#A6E824] hover:brightness-110">
+            <Link
+              href={loginHref}
+              className="font-semibold text-[#A6E824] hover:brightness-110"
+            >
               Accedi
-            </a>
+            </Link>
           </p>
         </div>
       </section>

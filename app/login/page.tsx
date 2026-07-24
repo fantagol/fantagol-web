@@ -5,10 +5,53 @@ import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 import { supabase } from "../../lib/supabaseClient";
 
+const PENDING_AUTH_DESTINATION_KEY = "fantagol.pendingAuthDestination.v1";
+
+function normalizeInternalDestination(
+  candidate: string | null | undefined,
+): string {
+  if (!candidate) {
+    return "/leghe";
+  }
+
+  const value = candidate.trim();
+
+  if (!value.startsWith("/") || value.startsWith("//")) {
+    return "/leghe";
+  }
+
+  try {
+    const url = new URL(value, "https://fantagol.local");
+
+    if (url.origin !== "https://fantagol.local") {
+      return "/leghe";
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/leghe";
+  }
+}
+
 export default function LoginPage() {
   const [alreadyLogged, setAlreadyLogged] = useState(false);
+  const [returnTo, setReturnTo] = useState("/leghe");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const destination = normalizeInternalDestination(
+      searchParams.get("returnTo"),
+    );
+
+    queueMicrotask(() => {
+      setReturnTo(destination);
+    });
+
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, destination);
+
     async function checkSession() {
       const {
         data: { session },
@@ -19,21 +62,49 @@ export default function LoginPage() {
       }
     }
 
-    checkSession();
+    void checkSession();
   }, []);
 
   async function handleGoogleLogin() {
+    setLoading(true);
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
+
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("returnTo", returnTo);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     });
 
     if (error) {
+      setLoading(false);
       alert(error.message);
     }
   }
+
+  async function handleEmailLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setLoading(false);
+      alert(error.message);
+      return;
+    }
+
+    window.location.assign(returnTo);
+  }
+
+  const registrationHref = `/registrati?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -61,10 +132,10 @@ export default function LoginPage() {
               </p>
 
               <Link
-                href="/leghe"
+                href={returnTo}
                 className="mt-3 inline-block rounded-xl bg-[#A6E824] px-5 py-2 font-semibold text-black transition hover:brightness-110"
               >
-                Vai alle tue leghe
+                Continua
               </Link>
             </div>
           )}
@@ -74,7 +145,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200"
+                disabled={loading}
+                className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:opacity-60"
               >
                 Continua con Google
               </button>
@@ -85,15 +157,21 @@ export default function LoginPage() {
                 <div className="h-px flex-1 bg-gray-700" />
               </div>
 
-              <form className="space-y-4">
+              <form onSubmit={handleEmailLogin} className="space-y-4">
                 <input
                   type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="Email"
                   className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
                 />
 
                 <input
                   type="password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Password"
                   className="w-full rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
                 />
@@ -108,29 +186,30 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110 disabled:opacity-60"
                 >
-                  Accedi
+                  {loading ? "Accesso in corso..." : "Accedi"}
                 </button>
 
                 <div className="py-1 text-center">
-                  <a
+                  <Link
                     href="/password-reset"
                     className="text-sm font-semibold text-[#A6E824] hover:brightness-110"
                   >
                     Password dimenticata?
-                  </a>
+                  </Link>
                 </div>
               </form>
 
               <p className="mt-6 text-center text-sm text-gray-400">
                 Non hai un account?{" "}
-                <a
-                  href="/registrati"
+                <Link
+                  href={registrationHref}
                   className="font-semibold text-[#A6E824] hover:brightness-110"
                 >
                   Registrati
-                </a>
+                </Link>
               </p>
             </>
           )}
