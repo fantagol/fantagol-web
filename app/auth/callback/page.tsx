@@ -8,24 +8,24 @@ const PENDING_AUTH_DESTINATION_KEY = "fantagol.pendingAuthDestination.v1";
 function normalizeInternalDestination(
   candidate: string | null | undefined,
 ): string {
-  if (!candidate) return "/leghe";
+  if (!candidate) return "/inizia";
 
   const value = candidate.trim();
 
   if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/leghe";
+    return "/inizia";
   }
 
   try {
     const url = new URL(value, "https://fantagol.local");
 
     if (url.origin !== "https://fantagol.local") {
-      return "/leghe";
+      return "/inizia";
     }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/leghe";
+    return "/inizia";
   }
 }
 

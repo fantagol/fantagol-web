@@ -1,113 +1,160 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Header from "../../components/Header";
 import { supabase } from "../../lib/supabaseClient";
 
-const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
+type Membership = {
+  id: string;
+  display_name: string;
+  role: string;
+  status: string;
+  leagues: {
+    id: string;
+    name: string;
+    invite_code: string;
+  } | null;
+};
 
 type MyLeagueRpcRow = {
+  membership_id: string;
+  display_name: string;
+  role: string;
+  status: string;
   league_id: string;
-  membership_id?: string | null;
-  league_name?: string | null;
-  display_name?: string | null;
-  invite_code?: string | null;
-  role?: string | null;
-  status?: string | null;
+  league_name: string;
+  invite_code: string;
 };
 
 export default function LeghePage() {
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadLeagues = useCallback(async () => {
+    setLoading(true);
 
-    async function resolveLeagueEntry() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-      if (cancelled) return;
-
-      if (!session?.user) {
-        window.location.replace("/login");
-        return;
-      }
-
-      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
-
-      if (cancelled) return;
-
-      if (error) {
-        setErrorMessage(error.message);
-        return;
-      }
-
-      const leagues = ((data || []) as MyLeagueRpcRow[]).filter(
-        (row) => Boolean(row.league_id)
-      );
-
-      if (leagues.length === 0) {
-        window.location.replace("/crea-lega");
-        return;
-      }
-
-      const storedLeagueId = window.localStorage.getItem(
-        LAST_LEAGUE_STORAGE_KEY
-      );
-
-      const targetLeague =
-        leagues.find((row) => row.league_id === storedLeagueId) || leagues[0];
+    if (!session?.user) {
+      const destination = "/leghe";
 
       window.localStorage.setItem(
-        LAST_LEAGUE_STORAGE_KEY,
-        targetLeague.league_id
+        "fantagol.pendingAuthDestination.v1",
+        destination,
       );
 
-      window.location.replace(`/leghe/${targetLeague.league_id}`);
+      window.location.replace(
+        `/login?returnTo=${encodeURIComponent(destination)}`,
+      );
+      return;
     }
 
-    void resolveLeagueEntry();
+    const { data, error } = await supabase.rpc("get_my_leagues_rpc");
 
-    return () => {
-      cancelled = true;
-    };
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const rows = (data ?? []) as MyLeagueRpcRow[];
+
+    const loadedMemberships: Membership[] = rows.map((row) => ({
+      id: row.membership_id,
+      display_name: row.display_name,
+      role: row.role,
+      status: row.status,
+      leagues: {
+        id: row.league_id,
+        name: row.league_name,
+        invite_code: row.invite_code,
+      },
+    }));
+
+    const activeMemberships = loadedMemberships.filter(
+      (membership) => membership.status === "active" && membership.leagues?.id,
+    );
+
+    if (activeMemberships.length === 0) {
+      window.location.replace("/inizia");
+      return;
+    }
+
+    if (activeMemberships.length === 1) {
+      window.location.replace(`/leghe/${activeMemberships[0].leagues!.id}`);
+      return;
+    }
+
+    setMemberships(activeMemberships);
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadLeagues();
+    });
+  }, [loadLeagues]);
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111417] p-8 text-center shadow-2xl shadow-black/70">
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-[#A6E824]">
-          FantaGol
+    <main className="min-h-screen bg-black text-white">
+      <Header />
+
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
+          Le mie leghe
         </p>
 
-        {errorMessage ? (
-          <>
-            <h1 className="mt-4 text-2xl font-black">
-              Impossibile aprire la lega
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-red-200">
-              {errorMessage}
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-6 rounded-xl bg-[#A6E824] px-5 py-3 text-sm font-black text-black transition hover:brightness-110"
-            >
-              Riprova
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className="mt-4 text-2xl font-black">
-              Accesso alla tua lega...
-            </h1>
-            <p className="mt-3 text-sm text-gray-400">
-              Stiamo aprendo automaticamente l&apos;ultima lega utilizzata.
-            </p>
-            <div className="mx-auto mt-6 h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-[#A6E824]" />
-          </>
+        <h1 className="text-4xl font-black">Scegli la lega</h1>
+
+        <p className="mt-3 text-gray-400">
+          Partecipi a più leghe. Scegli quale vuoi aprire.
+        </p>
+
+        {loading && (
+          <p className="mt-10 text-gray-400">Caricamento leghe...</p>
         )}
-      </div>
+
+        {!loading && memberships.length > 1 && (
+          <div className="mt-10 grid gap-5 md:grid-cols-2">
+            {memberships.map((membership) => (
+              <a
+                key={membership.id}
+                href={`/leghe/${membership.leagues?.id}`}
+                className="rounded-3xl border border-gray-700 bg-gradient-to-b from-[#1f2427] to-[#0d0d0d] p-6 transition hover:border-[#A6E824]"
+              >
+                <h2 className="text-2xl font-black">
+                  {membership.leagues?.name}
+                </h2>
+
+                <p className="mt-2 text-gray-400">
+                  Nome nella lega: {membership.display_name}
+                </p>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Ruolo: {membership.role}
+                </p>
+
+                <p className="mt-4 text-sm font-semibold text-[#A6E824]">
+                  Entra nella lega →
+                </p>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {!loading && (
+          <div className="mt-8 text-center">
+            <a
+              href="/inizia"
+              className="text-sm font-semibold text-gray-400 transition hover:text-white"
+            >
+              Torna alle opzioni iniziali
+            </a>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

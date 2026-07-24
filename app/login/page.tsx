@@ -11,31 +11,31 @@ function normalizeInternalDestination(
   candidate: string | null | undefined,
 ): string {
   if (!candidate) {
-    return "/leghe";
+    return "/inizia";
   }
 
   const value = candidate.trim();
 
   if (!value.startsWith("/") || value.startsWith("//")) {
-    return "/leghe";
+    return "/inizia";
   }
 
   try {
     const url = new URL(value, "https://fantagol.local");
 
     if (url.origin !== "https://fantagol.local") {
-      return "/leghe";
+      return "/inizia";
     }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/leghe";
+    return "/inizia";
   }
 }
 
 export default function LoginPage() {
   const [alreadyLogged, setAlreadyLogged] = useState(false);
-  const [returnTo, setReturnTo] = useState("/leghe");
+  const [returnTo, setReturnTo] = useState("/inizia");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
