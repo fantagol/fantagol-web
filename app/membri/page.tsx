@@ -112,9 +112,8 @@ export default function MembriPage() {
 
     setCurrentUserId(session.user.id);
 
-    const { data: leaguesData, error: leaguesError } = await supabase.rpc(
-      "get_my_leagues_rpc"
-    );
+    const { data: leaguesData, error: leaguesError } =
+      await supabase.rpc("get_my_leagues_rpc");
 
     if (leaguesError) {
       setErrorMessage(leaguesError.message);
@@ -122,27 +121,40 @@ export default function MembriPage() {
       return;
     }
 
-    const firstLeague = (leaguesData || [])[0];
+    const availableLeagues = leaguesData || [];
+    const rememberedLeagueId =
+      window.localStorage.getItem("fantagol:last-league-id") || "";
 
-    if (!firstLeague) {
+    const selectedLeague =
+      availableLeagues.find(
+        (league: { league_id?: string }) =>
+          league.league_id === rememberedLeagueId,
+      ) || availableLeagues[0];
+
+    if (!selectedLeague?.league_id) {
       setErrorMessage("Nessuna lega attiva trovata.");
       setLoading(false);
       return;
     }
 
+    window.localStorage.setItem(
+      "fantagol:last-league-id",
+      selectedLeague.league_id,
+    );
+
     setLeagueInfo({
-      leagueId: firstLeague.league_id || "",
-      leagueName: firstLeague.league_name || "Lega FantaGol",
-      displayName: firstLeague.display_name || "Club FantaGol",
-      inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-      role: firstLeague.role || "member",
+      leagueId: selectedLeague.league_id,
+      leagueName: selectedLeague.league_name || "Lega FantaGol",
+      displayName: selectedLeague.display_name || "Club FantaGol",
+      inviteCode: selectedLeague.invite_code || selectedLeague.league_id || "",
+      role: selectedLeague.role || "member",
     });
 
     const { data: membersData, error: membersError } = await supabase.rpc(
       "get_current_league_members_rpc",
       {
-        target_league_id: firstLeague.league_id,
-      }
+        target_league_id: selectedLeague.league_id,
+      },
     );
 
     if (membersError) {
@@ -152,9 +164,7 @@ export default function MembriPage() {
     }
 
     setMembers(
-      ((membersData || []) as LeagueMembershipRow[]).map(
-        mapMembershipToMember
-      )
+      ((membersData || []) as LeagueMembershipRow[]).map(mapMembershipToMember),
     );
     setLoading(false);
   }, []);
@@ -212,11 +222,11 @@ export default function MembriPage() {
       (member) =>
         member.userId === currentUserId &&
         member.role === "admin" &&
-        member.status === "active"
+        member.status === "active",
     );
 
   const activeVice = members.find(
-    (member) => member.role === "vice" && member.status === "active"
+    (member) => member.role === "vice" && member.status === "active",
   );
 
   return (
@@ -295,9 +305,7 @@ export default function MembriPage() {
                 member.role === "member" &&
                 !activeVice;
               const canRevokeVice =
-                isAdmin &&
-                member.status === "active" &&
-                member.role === "vice";
+                isAdmin && member.status === "active" && member.role === "vice";
 
               return (
                 <article

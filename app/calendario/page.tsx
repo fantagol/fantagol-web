@@ -55,9 +55,24 @@ const roundData = {
       { pos: 3, club: "Bonus Show", pts: 31 },
     ],
     fantacalcio: [
-      { home: "Real Exact", away: "Bonus Show", score: "3-1", points: "38 - 31" },
-      { home: "FantaGol United", away: "Club Sorpresa", score: "2-2", points: "34 - 33" },
-      { home: "Gol Show FC", away: "Exact Boys", score: "1-0", points: "25 - 18" },
+      {
+        home: "Real Exact",
+        away: "Bonus Show",
+        score: "3-1",
+        points: "38 - 31",
+      },
+      {
+        home: "FantaGol United",
+        away: "Club Sorpresa",
+        score: "2-2",
+        points: "34 - 33",
+      },
+      {
+        home: "Gol Show FC",
+        away: "Exact Boys",
+        score: "1-0",
+        points: "25 - 18",
+      },
     ],
     onetoone: [
       { home: "Real Exact", away: "Bonus Show", score: "6-4" },
@@ -73,9 +88,24 @@ const roundData = {
       { pos: 3, club: "FantaGol United", pts: 17 },
     ],
     fantacalcio: [
-      { home: "Bonus Show", away: "Real Exact", score: "2-1", points: "21 - 19" },
-      { home: "FantaGol United", away: "Club Sorpresa", score: "1-1", points: "17 - 16" },
-      { home: "Gol Show FC", away: "Exact Boys", score: "0-0", points: "9 - 8" },
+      {
+        home: "Bonus Show",
+        away: "Real Exact",
+        score: "2-1",
+        points: "21 - 19",
+      },
+      {
+        home: "FantaGol United",
+        away: "Club Sorpresa",
+        score: "1-1",
+        points: "17 - 16",
+      },
+      {
+        home: "Gol Show FC",
+        away: "Exact Boys",
+        score: "0-0",
+        points: "9 - 8",
+      },
     ],
     onetoone: [
       { home: "Bonus Show", away: "Real Exact", score: "4-3" },
@@ -92,7 +122,12 @@ const roundData = {
     ],
     fantacalcio: [
       { home: "Real Exact", away: "Bonus Show", score: "—", points: "—" },
-      { home: "FantaGol United", away: "Club Sorpresa", score: "—", points: "—" },
+      {
+        home: "FantaGol United",
+        away: "Club Sorpresa",
+        score: "—",
+        points: "—",
+      },
       { home: "Gol Show FC", away: "Exact Boys", score: "—", points: "—" },
     ],
     onetoone: [
@@ -143,14 +178,28 @@ export default function CalendarioPage() {
       }
 
       const { data } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (data || [])[0];
+      const availableLeagues = data || [];
+      const rememberedLeagueId =
+        window.localStorage.getItem("fantagol:last-league-id") || "";
 
-      if (firstLeague) {
+      const selectedLeague =
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
+            league.league_id === rememberedLeagueId,
+        ) || availableLeagues[0];
+
+      if (selectedLeague?.league_id) {
+        window.localStorage.setItem(
+          "fantagol:last-league-id",
+          selectedLeague.league_id,
+        );
+
         setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
+          leagueName: selectedLeague.league_name || "Lega FantaGol",
+          displayName: selectedLeague.display_name || "Club FantaGol",
+          inviteCode:
+            selectedLeague.invite_code || selectedLeague.league_id || "",
+          role: selectedLeague.role || "member",
         });
       }
     }
@@ -160,7 +209,7 @@ export default function CalendarioPage() {
 
   const activeRound = useMemo(
     () => rounds.find((round) => round.round === selectedRound) || rounds[0],
-    [selectedRound]
+    [selectedRound],
   );
 
   const data = roundData[activeRound.status];
@@ -201,7 +250,8 @@ export default function CalendarioPage() {
         <h1 className="mt-3 text-5xl font-black">Giornate</h1>
 
         <p className="mt-4 max-w-2xl text-gray-400">
-          Seleziona una giornata per vedere punti puri, risultati Fantacalcio e scontri One to One.
+          Seleziona una giornata per vedere punti puri, risultati Fantacalcio e
+          scontri One to One.
         </p>
 
         <div className="mt-8 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
@@ -225,7 +275,9 @@ export default function CalendarioPage() {
                 }`}
               >
                 <div className="text-sm font-black">G{round.round}</div>
-                <div className={`mt-1 text-[10px] font-black uppercase ${statusClass(round.status, selected)}`}>
+                <div
+                  className={`mt-1 text-[10px] font-black uppercase ${statusClass(round.status, selected)}`}
+                >
                   {statusLabel(round.status)}
                 </div>
               </button>
@@ -296,11 +348,13 @@ export default function CalendarioPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-red-300/30 bg-red-950/20 text-2xl">
                 ⛔
               </div>
-              <h3 className="mt-4 text-2xl font-black">Giornata non utilizzata</h3>
+              <h3 className="mt-4 text-2xl font-black">
+                Giornata non utilizzata
+              </h3>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-gray-400">
-                La lega è stata avviata a campionato già iniziato. Questa giornata resta
-                congelata: non ci sono pronostici, punti puri, risultati Fantacalcio o
-                scontri One to One da visualizzare.
+                La lega è stata avviata a campionato già iniziato. Questa
+                giornata resta congelata: non ci sono pronostici, punti puri,
+                risultati Fantacalcio o scontri One to One da visualizzare.
               </p>
             </div>
           )}
@@ -312,9 +366,13 @@ export default function CalendarioPage() {
                   key={row.pos}
                   className="grid grid-cols-[42px_1fr_auto] items-center gap-3 border-b border-white/10 px-4 py-4 last:border-b-0"
                 >
-                  <div className="text-lg font-black text-gray-500">{row.pos}</div>
+                  <div className="text-lg font-black text-gray-500">
+                    {row.pos}
+                  </div>
                   <div className="font-black">{row.club}</div>
-                  <div className="text-2xl font-black text-[#A6E824]">{row.pts}</div>
+                  <div className="text-2xl font-black text-[#A6E824]">
+                    {row.pts}
+                  </div>
                 </div>
               ))}
             </div>
@@ -378,4 +436,3 @@ export default function CalendarioPage() {
     </main>
   );
 }
-

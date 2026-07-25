@@ -37,7 +37,8 @@ const standings = {
 
 const modeDescriptions = {
   puntipuri: "Classifica assoluta basata sulla somma dei punti FantaGol.",
-  fantacalcio: "I punti FantaGol vengono convertiti in gol tramite le fasce ufficiali.",
+  fantacalcio:
+    "I punti FantaGol vengono convertiti in gol tramite le fasce ufficiali.",
   onetoone: "Campionato a scontri diretti con calendario andata e ritorno.",
 };
 
@@ -66,14 +67,28 @@ export default function ClassifichePage() {
 
       if (error) return;
 
-      const firstLeague = (data || [])[0];
+      const availableLeagues = data || [];
+      const rememberedLeagueId =
+        window.localStorage.getItem("fantagol:last-league-id") || "";
 
-      if (firstLeague) {
+      const selectedLeague =
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
+            league.league_id === rememberedLeagueId,
+        ) || availableLeagues[0];
+
+      if (selectedLeague?.league_id) {
+        window.localStorage.setItem(
+          "fantagol:last-league-id",
+          selectedLeague.league_id,
+        );
+
         setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
+          leagueName: selectedLeague.league_name || "Lega FantaGol",
+          displayName: selectedLeague.display_name || "Club FantaGol",
+          inviteCode:
+            selectedLeague.invite_code || selectedLeague.league_id || "",
+          role: selectedLeague.role || "member",
         });
       }
     }
@@ -117,7 +132,8 @@ export default function ClassifichePage() {
         <h1 className="mt-3 text-5xl font-black">Classifiche</h1>
 
         <p className="mt-4 max-w-2xl text-gray-400">
-          Le tre classifiche ufficiali della lega: Punti Puri, Fantacalcio e One to One.
+          Le tre classifiche ufficiali della lega: Punti Puri, Fantacalcio e One
+          to One.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-3">
@@ -130,7 +146,10 @@ export default function ClassifichePage() {
             }`}
           >
             <span className="flex items-center gap-2">
-              <FantaGolModeIcon mode="punti-puri" className="h-8 w-8 rounded-lg" />
+              <FantaGolModeIcon
+                mode="punti-puri"
+                className="h-8 w-8 rounded-lg"
+              />
               <span>Punti Puri</span>
             </span>
           </button>
@@ -144,7 +163,10 @@ export default function ClassifichePage() {
             }`}
           >
             <span className="flex items-center gap-2">
-              <FantaGolModeIcon mode="fantacalcio" className="h-8 w-8 rounded-lg" />
+              <FantaGolModeIcon
+                mode="fantacalcio"
+                className="h-8 w-8 rounded-lg"
+              />
               <span>Fantacalcio</span>
             </span>
           </button>
@@ -158,7 +180,10 @@ export default function ClassifichePage() {
             }`}
           >
             <span className="flex items-center gap-2">
-              <FantaGolModeIcon mode="one-to-one" className="h-8 w-8 rounded-lg" />
+              <FantaGolModeIcon
+                mode="one-to-one"
+                className="h-8 w-8 rounded-lg"
+              />
               <span>One to One</span>
             </span>
           </button>
@@ -202,9 +227,7 @@ export default function ClassifichePage() {
                       {club.pos}
                     </td>
 
-                    <td className="px-5 py-4 font-bold">
-                      {club.club}
-                    </td>
+                    <td className="px-5 py-4 font-bold">{club.club}</td>
 
                     <td className="px-5 py-4 text-right font-black text-[#A6E824]">
                       {club.pts}
@@ -219,4 +242,3 @@ export default function ClassifichePage() {
     </main>
   );
 }
-

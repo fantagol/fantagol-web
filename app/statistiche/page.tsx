@@ -42,7 +42,6 @@ type MemberStats = {
   worstTeamRate: number;
 };
 
-
 function StatPill({
   label,
   value,
@@ -98,7 +97,9 @@ function TeamRate({
           </div>
         </div>
 
-        <div className={`text-2xl font-black ${tone === "green" ? "text-[#A6E824]" : "text-red-400"}`}>
+        <div
+          className={`text-2xl font-black ${tone === "green" ? "text-[#A6E824]" : "text-red-400"}`}
+        >
           {rate}%
         </div>
       </div>
@@ -108,7 +109,10 @@ function TeamRate({
 
 function MemberCard({ member }: { member: MemberStats }) {
   return (
-    <a href={`/statistiche/${member.id}`} className="block rounded-3xl border border-gray-700 bg-[#111111] p-5 shadow-2xl shadow-black/30 transition hover:border-[#A6E824]/60 hover:brightness-110">
+    <a
+      href={`/statistiche/${member.id}`}
+      className="block rounded-3xl border border-gray-700 bg-[#111111] p-5 shadow-2xl shadow-black/30 transition hover:border-[#A6E824]/60 hover:brightness-110"
+    >
       <div className="flex items-center gap-4">
         <div className="flex h-20 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#111417]">
           <div className="scale-[0.38]">
@@ -135,7 +139,9 @@ function MemberCard({ member }: { member: MemberStats }) {
           <div className="text-[10px] font-black uppercase tracking-[0.16em]">
             Totale
           </div>
-          <div className="text-2xl font-black leading-none">{member.totalPoints}</div>
+          <div className="text-2xl font-black leading-none">
+            {member.totalPoints}
+          </div>
         </div>
       </div>
 
@@ -197,11 +203,12 @@ function MemberCard({ member }: { member: MemberStats }) {
           Tocca la card
         </span>
         <div className="flex items-center gap-2 rounded-full border border-[#A6E824]/40 bg-[#A6E824]/10 px-3 py-2">
-          <span className="text-sm font-black text-[#A6E824]">Apri dettaglio</span>
+          <span className="text-sm font-black text-[#A6E824]">
+            Apri dettaglio
+          </span>
           <span className="text-lg font-black text-[#A6E824]">→</span>
         </div>
       </div>
-
     </a>
   );
 }
@@ -249,13 +256,13 @@ export default function StatistichePage() {
       const availableLeagues = leagues || [];
       const rememberedLeagueId =
         typeof window !== "undefined"
-          ? window.localStorage.getItem("fantagol:lastLeagueId")
+          ? window.localStorage.getItem("fantagol:last-league-id")
           : null;
 
       const selectedLeague =
         availableLeagues.find(
           (league: { league_id?: string }) =>
-            league.league_id === rememberedLeagueId
+            league.league_id === rememberedLeagueId,
         ) || availableLeagues[0];
 
       if (!selectedLeague?.league_id) {
@@ -277,7 +284,7 @@ export default function StatistichePage() {
 
       const { data, error } = await supabase.rpc(
         "get_league_member_statistics_rpc",
-        { target_league_id: selectedLeague.league_id }
+        { target_league_id: selectedLeague.league_id },
       );
 
       if (cancelled) return;
@@ -302,9 +309,7 @@ export default function StatistichePage() {
           kitSecondaryColor: String(row.kit_secondary_color || "#A6E824"),
           kitThirdColor: String(row.kit_third_color || "#FFFFFF"),
           kitLogoMode: String(row.kit_logo_mode || "center_horizontal"),
-          kitCrestPosition: String(
-            row.kit_crest_position || "left_chest"
-          ),
+          kitCrestPosition: String(row.kit_crest_position || "left_chest"),
           starsCount: Number(row.stars_count || 0),
           totalPoints: Number(row.total_points || 0),
           exact: Number(row.exact_count || 0),
@@ -320,7 +325,7 @@ export default function StatistichePage() {
           bestTeamRate: Number(row.best_team_rate || 0),
           worstTeam: String(row.worst_team || "—"),
           worstTeamRate: Number(row.worst_team_rate || 0),
-        })
+        }),
       );
 
       setStats(mappedStats);
@@ -340,9 +345,9 @@ export default function StatistichePage() {
         (a, b) =>
           b.totalPoints - a.totalPoints ||
           b.exact - a.exact ||
-          a.clubName.localeCompare(b.clubName)
+          a.clubName.localeCompare(b.clubName),
       ),
-    [stats]
+    [stats],
   );
 
   return (
@@ -381,7 +386,8 @@ export default function StatistichePage() {
         <h1 className="mt-3 text-5xl font-black">Statistiche</h1>
 
         <p className="mt-4 max-w-3xl text-gray-400">
-          Schede sintetiche dei membri. Tocca una card per il dettaglio completo.
+          Schede sintetiche dei membri. Tocca una card per il dettaglio
+          completo.
         </p>
 
         <div className="mt-8 space-y-5">
@@ -407,4 +413,3 @@ export default function StatistichePage() {
     </main>
   );
 }
-

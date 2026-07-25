@@ -776,8 +776,14 @@ export default function HamburgerDrawer({
         ),
       );
 
+      const rememberedLeagueId =
+        window.localStorage.getItem(LAST_LEAGUE_STORAGE_KEY) || "";
+
       const current =
-        leagues.find((item) => item.leagueId === leagueId) || leagues[0];
+        leagues.find((item) => item.leagueId === leagueId) ||
+        leagues.find((item) => item.leagueId === rememberedLeagueId) ||
+        leagues[0];
+
       if (!current) return;
 
       rememberLeague(current.leagueId);

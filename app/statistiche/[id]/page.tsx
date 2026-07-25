@@ -82,7 +82,6 @@ type MemberDetail = {
   splits: StatisticsSplits;
 };
 
-
 function trendLabel(trend: TeamStat["trend"]) {
   if (trend === "up") return "↗ In crescita";
   if (trend === "down") return "↘ In calo";
@@ -130,15 +129,23 @@ function TeamDeepCard({ stat }: { stat: TeamStat }) {
     <article className="rounded-3xl border border-gray-800 bg-black/30 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-xl font-black text-white">{stat.team}</h3>
-          <p className={`mt-1 text-xs font-black uppercase ${trendClass(stat.trend)}`}>
+          <h3 className="truncate text-xl font-black text-white">
+            {stat.team}
+          </h3>
+          <p
+            className={`mt-1 text-xs font-black uppercase ${trendClass(stat.trend)}`}
+          >
             {trendLabel(stat.trend)}
           </p>
         </div>
 
         <div className="text-right">
-          <div className="text-2xl font-black text-[#A6E824]">{stat.accuracy}%</div>
-          <div className="text-[10px] font-black uppercase text-gray-500">totale</div>
+          <div className="text-2xl font-black text-[#A6E824]">
+            {stat.accuracy}%
+          </div>
+          <div className="text-[10px] font-black uppercase text-gray-500">
+            totale
+          </div>
         </div>
       </div>
 
@@ -155,7 +162,9 @@ function TeamDeepCard({ stat }: { stat: TeamStat }) {
             Lettura in casa
           </div>
           <div className="mt-2 flex items-end justify-between gap-3">
-            <div className="text-2xl font-black text-[#A6E824]">{stat.homeAccuracy}%</div>
+            <div className="text-2xl font-black text-[#A6E824]">
+              {stat.homeAccuracy}%
+            </div>
             <div className="text-right text-xs font-bold text-gray-500">
               <div>{stat.homePoints} pt</div>
               <div>{stat.homeExact} exact</div>
@@ -168,7 +177,9 @@ function TeamDeepCard({ stat }: { stat: TeamStat }) {
             Lettura fuori
           </div>
           <div className="mt-2 flex items-end justify-between gap-3">
-            <div className="text-2xl font-black text-[#A6E824]">{stat.awayAccuracy}%</div>
+            <div className="text-2xl font-black text-[#A6E824]">
+              {stat.awayAccuracy}%
+            </div>
             <div className="text-right text-xs font-bold text-gray-500">
               <div>{stat.awayPoints} pt</div>
               <div>{stat.awayExact} exact</div>
@@ -197,7 +208,10 @@ function RoundTrendChart({ trend }: { trend: RoundTrend[] }) {
       <h2 className="text-2xl font-black">Andamento giornate</h2>
       <div className="mt-6 flex h-40 items-end gap-2 rounded-2xl border border-white/10 bg-black/30 p-4">
         {trend.map((item) => (
-          <div key={item.round} className="flex h-full flex-1 flex-col justify-end gap-2">
+          <div
+            key={item.round}
+            className="flex h-full flex-1 flex-col justify-end gap-2"
+          >
             <div
               className="rounded-t bg-[#A6E824]"
               style={{ height: `${Math.max(10, (item.points / max) * 100)}%` }}
@@ -258,13 +272,13 @@ export default function StatisticheMembroPage() {
       const availableLeagues = leagues || [];
       const rememberedLeagueId =
         typeof window !== "undefined"
-          ? window.localStorage.getItem("fantagol:lastLeagueId")
+          ? window.localStorage.getItem("fantagol:last-league-id")
           : null;
 
       const selectedLeague =
         availableLeagues.find(
           (league: { league_id?: string }) =>
-            league.league_id === rememberedLeagueId
+            league.league_id === rememberedLeagueId,
         ) || availableLeagues[0];
 
       if (!selectedLeague?.league_id) {
@@ -280,7 +294,7 @@ export default function StatisticheMembroPage() {
         {
           target_league_id: selectedLeague.league_id,
           target_member_id: params.id,
-        }
+        },
       );
 
       if (cancelled) return;
@@ -343,19 +357,11 @@ export default function StatisticheMembroPage() {
         clubName: String(rawMember.clubName || "Club FantaGol"),
         realName: String(rawMember.realName || ""),
         kitTemplate: String(rawMember.kitTemplate || "solid"),
-        kitPrimaryColor: String(
-          rawMember.kitPrimaryColor || "#FFFFFF"
-        ),
-        kitSecondaryColor: String(
-          rawMember.kitSecondaryColor || "#A6E824"
-        ),
+        kitPrimaryColor: String(rawMember.kitPrimaryColor || "#FFFFFF"),
+        kitSecondaryColor: String(rawMember.kitSecondaryColor || "#A6E824"),
         kitThirdColor: String(rawMember.kitThirdColor || "#FFFFFF"),
-        kitLogoMode: String(
-          rawMember.kitLogoMode || "center_horizontal"
-        ),
-        kitCrestPosition: String(
-          rawMember.kitCrestPosition || "left_chest"
-        ),
+        kitLogoMode: String(rawMember.kitLogoMode || "center_horizontal"),
+        kitCrestPosition: String(rawMember.kitCrestPosition || "left_chest"),
         starsCount: Number(rawMember.starsCount || 0),
         totalPoints: Number(rawMember.totalPoints || 0),
         averagePoints: Number(rawMember.averagePoints || 0),
@@ -371,26 +377,16 @@ export default function StatisticheMembroPage() {
         roundTrend: payload.roundTrend || [],
         splits: {
           signAccuracy: Number(payload.splits?.signAccuracy || 0),
-          overUnderAccuracy: Number(
-            payload.splits?.overUnderAccuracy || 0
-          ),
-          goalNoGoalAccuracy: Number(
-            payload.splits?.goalNoGoalAccuracy || 0
-          ),
+          overUnderAccuracy: Number(payload.splits?.overUnderAccuracy || 0),
+          goalNoGoalAccuracy: Number(payload.splits?.goalNoGoalAccuracy || 0),
           homeExact: Number(payload.splits?.homeExact || 0),
           awayExact: Number(payload.splits?.awayExact || 0),
-          underdogAccuracy: Number(
-            payload.splits?.underdogAccuracy || 0
-          ),
-          standardAccuracy: Number(
-            payload.splits?.standardAccuracy || 0
-          ),
+          underdogAccuracy: Number(payload.splits?.underdogAccuracy || 0),
+          standardAccuracy: Number(payload.splits?.standardAccuracy || 0),
           evaluatedPredictions: Number(
-            payload.splits?.evaluatedPredictions || 0
+            payload.splits?.evaluatedPredictions || 0,
           ),
-          surpriseCandidates: Number(
-            payload.splits?.surpriseCandidates || 0
-          ),
+          surpriseCandidates: Number(payload.splits?.surpriseCandidates || 0),
           officialRounds: Number(payload.splits?.officialRounds || 0),
         },
       });
@@ -411,7 +407,7 @@ export default function StatisticheMembroPage() {
             .sort((a, b) => b.accuracy - a.accuracy)
             .slice(0, 3)
         : [],
-    [member]
+    [member],
   );
 
   const riskyTeams = useMemo(
@@ -421,7 +417,7 @@ export default function StatisticheMembroPage() {
             .sort((a, b) => a.accuracy - b.accuracy)
             .slice(0, 3)
         : [],
-    [member]
+    [member],
   );
 
   return (
@@ -471,176 +467,209 @@ export default function StatisticheMembroPage() {
           </div>
         </section>
       ) : (
-      <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
-        <Link href="/statistiche" className="text-sm font-black text-[#A6E824] hover:underline">
-          ← Torna alle statistiche
-        </Link>
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
+          <Link
+            href="/statistiche"
+            className="text-sm font-black text-[#A6E824] hover:underline"
+          >
+            ← Torna alle statistiche
+          </Link>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-3xl border border-gray-700 bg-[#111111] p-6">
-            <div className="mx-auto flex h-40 w-28 items-center justify-center overflow-hidden rounded-2xl bg-[#171b1d]">
-              <div className="scale-[0.68]">
-                <KitPreview
-                  primary={member.kitPrimaryColor}
-                  secondary={member.kitSecondaryColor}
-                  third={member.kitThirdColor}
-                  template={member.kitTemplate}
-                  logoMode={member.kitLogoMode}
-                  crestPosition={member.kitCrestPosition}
-                  starsCount={member.starsCount}
-                />
+          <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
+            <aside className="rounded-3xl border border-gray-700 bg-[#111111] p-6">
+              <div className="mx-auto flex h-40 w-28 items-center justify-center overflow-hidden rounded-2xl bg-[#171b1d]">
+                <div className="scale-[0.68]">
+                  <KitPreview
+                    primary={member.kitPrimaryColor}
+                    secondary={member.kitSecondaryColor}
+                    third={member.kitThirdColor}
+                    template={member.kitTemplate}
+                    logoMode={member.kitLogoMode}
+                    crestPosition={member.kitCrestPosition}
+                    starsCount={member.starsCount}
+                  />
+                </div>
+              </div>
+
+              <h1 className="mt-6 text-center text-4xl font-black">
+                {member.clubName}
+              </h1>
+              <p className="mt-2 text-center text-sm font-semibold text-gray-500">
+                {member.realName}
+              </p>
+
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <MiniMetric label="Totale" value={member.totalPoints} />
+                <MiniMetric label="Media" value={member.averagePoints} />
+                <MiniMetric label="Exact" value={member.exact} />
+                <MiniMetric label="Slam" value={member.slam} tone="violet" />
+              </div>
+            </aside>
+
+            <div className="space-y-6">
+              <section className="rounded-3xl border border-[#A6E824]/30 bg-[#A6E824]/10 p-6">
+                <h2 className="text-2xl font-black text-[#A6E824]">
+                  Sintesi squadre
+                </h2>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border border-[#A6E824]/25 bg-black/30 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
+                      Migliore lettura
+                    </div>
+                    <div className="mt-2 text-2xl font-black text-[#A6E824]">
+                      {member.bestTeam.team}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <MiniMetric
+                        label="Casa"
+                        value={`${member.bestTeam.homeAccuracy}%`}
+                      />
+                      <MiniMetric
+                        label="Fuori"
+                        value={`${member.bestTeam.awayAccuracy}%`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-red-500/25 bg-black/30 p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
+                      Peggiore lettura
+                    </div>
+                    <div className="mt-2 text-2xl font-black text-red-400">
+                      {member.worstTeam.team}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <MiniMetric
+                        label="Casa"
+                        value={`${member.worstTeam.homeAccuracy}%`}
+                        tone="red"
+                      />
+                      <MiniMetric
+                        label="Fuori"
+                        value={`${member.worstTeam.awayAccuracy}%`}
+                        tone="red"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <RoundTrendChart trend={member.roundTrend} />
+            </div>
+          </div>
+
+          <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
+            <h2 className="text-2xl font-black">Rendimento per squadra</h2>
+            <div className="mt-5 grid gap-3">
+              {member.teamStats.length > 0 ? (
+                member.teamStats.map((stat) => (
+                  <TeamDeepCard key={stat.team} stat={stat} />
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5 text-gray-500">
+                  Nessuna giornata ufficiale disponibile.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-3xl border border-gray-700 bg-[#111111] p-5">
+              <h2 className="text-2xl font-black">Migliori letture</h2>
+
+              <div className="mt-4 space-y-3">
+                {bestTeams.map((team, index) => (
+                  <div
+                    key={team.team}
+                    className="flex items-center justify-between rounded-2xl bg-black/30 p-4"
+                  >
+                    <div className="font-black">
+                      {index + 1}. {team.team}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-black text-[#A6E824]">
+                        {team.accuracy}%
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-500">
+                        C {team.homeAccuracy}% / F {team.awayAccuracy}%
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <h1 className="mt-6 text-center text-4xl font-black">{member.clubName}</h1>
-            <p className="mt-2 text-center text-sm font-semibold text-gray-500">
-              {member.realName}
-            </p>
+            <div className="rounded-3xl border border-gray-700 bg-[#111111] p-5">
+              <h2 className="text-2xl font-black">Peggiori letture</h2>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <MiniMetric label="Totale" value={member.totalPoints} />
-              <MiniMetric label="Media" value={member.averagePoints} />
-              <MiniMetric label="Exact" value={member.exact} />
-              <MiniMetric label="Slam" value={member.slam} tone="violet" />
-            </div>
-          </aside>
-
-          <div className="space-y-6">
-            <section className="rounded-3xl border border-[#A6E824]/30 bg-[#A6E824]/10 p-6">
-              <h2 className="text-2xl font-black text-[#A6E824]">
-                Sintesi squadre
-              </h2>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-[#A6E824]/25 bg-black/30 p-4">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
-                    Migliore lettura
+              <div className="mt-4 space-y-3">
+                {riskyTeams.map((team, index) => (
+                  <div
+                    key={team.team}
+                    className="flex items-center justify-between rounded-2xl bg-black/30 p-4"
+                  >
+                    <div className="font-black">
+                      {index + 1}. {team.team}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-black text-red-400">
+                        {team.accuracy}%
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-500">
+                        C {team.homeAccuracy}% / F {team.awayAccuracy}%
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-2 text-2xl font-black text-[#A6E824]">
-                    {member.bestTeam.team}
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <MiniMetric label="Casa" value={`${member.bestTeam.homeAccuracy}%`} />
-                    <MiniMetric label="Fuori" value={`${member.bestTeam.awayAccuracy}%`} />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-red-500/25 bg-black/30 p-4">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
-                    Peggiore lettura
-                  </div>
-                  <div className="mt-2 text-2xl font-black text-red-400">
-                    {member.worstTeam.team}
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <MiniMetric label="Casa" value={`${member.worstTeam.homeAccuracy}%`} tone="red" />
-                    <MiniMetric label="Fuori" value={`${member.worstTeam.awayAccuracy}%`} tone="red" />
-                  </div>
-                </div>
+                ))}
               </div>
-            </section>
-
-            <RoundTrendChart trend={member.roundTrend} />
-          </div>
-        </div>
-
-        <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
-          <h2 className="text-2xl font-black">Rendimento per squadra</h2>
-          <div className="mt-5 grid gap-3">
-            {member.teamStats.length > 0 ? (
-              member.teamStats.map((stat) => (
-                <TeamDeepCard key={stat.team} stat={stat} />
-              ))
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-5 text-gray-500">
-                Nessuna giornata ufficiale disponibile.
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl border border-gray-700 bg-[#111111] p-5">
-            <h2 className="text-2xl font-black">Migliori letture</h2>
-
-            <div className="mt-4 space-y-3">
-              {bestTeams.map((team, index) => (
-                <div key={team.team} className="flex items-center justify-between rounded-2xl bg-black/30 p-4">
-                  <div className="font-black">
-                    {index + 1}. {team.team}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-black text-[#A6E824]">{team.accuracy}%</div>
-                    <div className="text-[10px] font-bold text-gray-500">C {team.homeAccuracy}% / F {team.awayAccuracy}%</div>
-                  </div>
-                </div>
-              ))}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-3xl border border-gray-700 bg-[#111111] p-5">
-            <h2 className="text-2xl font-black">Peggiori letture</h2>
-
-            <div className="mt-4 space-y-3">
-              {riskyTeams.map((team, index) => (
-                <div key={team.team} className="flex items-center justify-between rounded-2xl bg-black/30 p-4">
-                  <div className="font-black">
-                    {index + 1}. {team.team}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-black text-red-400">{team.accuracy}%</div>
-                    <div className="text-[10px] font-bold text-gray-500">C {team.homeAccuracy}% / F {team.awayAccuracy}%</div>
-                  </div>
-                </div>
-              ))}
+          <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
+            <h2 className="text-2xl font-black">Split generali</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <MiniMetric
+                label="Precisione 1X2"
+                value={`${member.splits.signAccuracy}%`}
+              />
+              <MiniMetric
+                label="Precisione U/O"
+                value={`${member.splits.overUnderAccuracy}%`}
+                tone="muted"
+              />
+              <MiniMetric
+                label="Precisione G/NG"
+                value={`${member.splits.goalNoGoalAccuracy}%`}
+                tone="muted"
+              />
+              <MiniMetric label="Exact casa" value={member.splits.homeExact} />
+              <MiniMetric
+                label="Exact trasferta"
+                value={member.splits.awayExact}
+              />
+              <MiniMetric
+                label="Pronostici valutati"
+                value={member.splits.evaluatedPredictions}
+                tone="orange"
+              />
+              <MiniMetric
+                label="Lettura standard"
+                value={`${member.splits.standardAccuracy}%`}
+              />
+              <MiniMetric
+                label="Giornate ufficiali"
+                value={member.splits.officialRounds}
+                tone="orange"
+              />
+              <MiniMetric
+                label="Underdog"
+                value={`${member.splits.underdogAccuracy}%`}
+                tone="violet"
+              />
             </div>
-          </div>
+          </section>
         </section>
-
-        <section className="mt-6 rounded-3xl border border-gray-700 bg-[#111111] p-5">
-          <h2 className="text-2xl font-black">Split generali</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <MiniMetric
-              label="Precisione 1X2"
-              value={`${member.splits.signAccuracy}%`}
-            />
-            <MiniMetric
-              label="Precisione U/O"
-              value={`${member.splits.overUnderAccuracy}%`}
-              tone="muted"
-            />
-            <MiniMetric
-              label="Precisione G/NG"
-              value={`${member.splits.goalNoGoalAccuracy}%`}
-              tone="muted"
-            />
-            <MiniMetric label="Exact casa" value={member.splits.homeExact} />
-            <MiniMetric
-              label="Exact trasferta"
-              value={member.splits.awayExact}
-            />
-            <MiniMetric
-              label="Pronostici valutati"
-              value={member.splits.evaluatedPredictions}
-              tone="orange"
-            />
-            <MiniMetric
-              label="Lettura standard"
-              value={`${member.splits.standardAccuracy}%`}
-            />
-            <MiniMetric
-              label="Giornate ufficiali"
-              value={member.splits.officialRounds}
-              tone="orange"
-            />
-            <MiniMetric
-              label="Underdog"
-              value={`${member.splits.underdogAccuracy}%`}
-              tone="violet"
-            />
-          </div>
-        </section>
-      </section>
       )}
     </main>
   );
