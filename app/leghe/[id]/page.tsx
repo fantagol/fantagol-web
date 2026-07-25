@@ -617,7 +617,7 @@ export default function LeagueDashboardPage() {
           <DashboardQuickAction icon="live" label="Live" href={`/leghe/${leagueId}/giornata`} />
           <DashboardQuickAction icon="ranking" label="Classifiche" href={leaguePath.rankings(leagueId)} />
           <DashboardQuickAction icon="calendar" label="Calendario" href={leaguePath.calendar(leagueId)} />
-          <DashboardQuickAction icon="members" label="Membri" href="/membri" />
+          <DashboardQuickAction icon="members" label="Membri" href={leaguePath.members(leagueId)} />
         </div>
       </section>
 
