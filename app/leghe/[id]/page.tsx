@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
+import { leaguePath } from "../../../lib/navigation/league-paths";
 
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
@@ -614,7 +615,7 @@ export default function LeagueDashboardPage() {
           <DashboardQuickAction icon="control" label="Control Room" href="/control-room" special />
           <DashboardQuickAction icon="target" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
           <DashboardQuickAction icon="live" label="Live" href={`/leghe/${leagueId}/giornata`} />
-          <DashboardQuickAction icon="ranking" label="Classifiche" href="/classifiche" />
+          <DashboardQuickAction icon="ranking" label="Classifiche" href={leaguePath.rankings(leagueId)} />
           <DashboardQuickAction icon="calendar" label="Calendario" href="/calendario" />
           <DashboardQuickAction icon="members" label="Membri" href="/membri" />
         </div>
