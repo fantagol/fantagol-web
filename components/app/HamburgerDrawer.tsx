@@ -869,6 +869,11 @@ export default function HamburgerDrawer({
     return leagueId ? leaguePath.rankings(leagueId) : "/classifiche";
   }
 
+  function getLeagueCalendarPath() {
+    const leagueId = getResolvedLeagueId();
+    return leagueId ? leaguePath.calendar(leagueId) : "/calendario";
+  }
+
   async function refreshLifecycleState(targetLeagueId: string) {
     const { data, error } = await supabase.rpc(
       "get_league_lifecycle_state_rpc",
@@ -1282,7 +1287,7 @@ export default function HamburgerDrawer({
             icon="calendar"
             title="Calendario"
             subtitle="Giornate chiuse, live e future"
-            onClick={() => goTo("/calendario")}
+            onClick={() => goTo(getLeagueCalendarPath())}
           />
 
           <DrawerMenuItem

@@ -616,7 +616,7 @@ export default function LeagueDashboardPage() {
           <DashboardQuickAction icon="target" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
           <DashboardQuickAction icon="live" label="Live" href={`/leghe/${leagueId}/giornata`} />
           <DashboardQuickAction icon="ranking" label="Classifiche" href={leaguePath.rankings(leagueId)} />
-          <DashboardQuickAction icon="calendar" label="Calendario" href="/calendario" />
+          <DashboardQuickAction icon="calendar" label="Calendario" href={leaguePath.calendar(leagueId)} />
           <DashboardQuickAction icon="members" label="Membri" href="/membri" />
         </div>
       </section>
