@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { leaguePath } from "../../lib/navigation/league-paths";
 import KitPreview from "../club/KitPreview";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
@@ -863,6 +864,11 @@ export default function HamburgerDrawer({
     return leagueId ? `/leghe/${leagueId}/impostazioni` : "/leghe";
   }
 
+  function getLeagueRankingsPath() {
+    const leagueId = getResolvedLeagueId();
+    return leagueId ? leaguePath.rankings(leagueId) : "/classifiche";
+  }
+
   async function refreshLifecycleState(targetLeagueId: string) {
     const { data, error } = await supabase.rpc(
       "get_league_lifecycle_state_rpc",
@@ -1254,7 +1260,7 @@ export default function HamburgerDrawer({
             icon="ranking"
             title="Classifiche"
             subtitle="Punti Puri, Fantacalcio, One to One"
-            onClick={() => goTo("/classifiche")}
+            onClick={() => goTo(getLeagueRankingsPath())}
           />
 
           <DrawerMenuItem
