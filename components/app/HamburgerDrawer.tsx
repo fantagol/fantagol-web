@@ -21,6 +21,7 @@ type DrawerLeagueData = {
   displayName: string;
   inviteCode: string;
   role: string;
+  visibility: "private" | "public";
 };
 
 type MyLeagueRpcRow = {
@@ -31,6 +32,11 @@ type MyLeagueRpcRow = {
   invite_code?: string | null;
   role?: string | null;
   status?: string | null;
+};
+
+type PublicLeagueRpcRow = {
+  league_id: string;
+  visibility?: string | null;
 };
 
 type LeagueLifecycleState = {
@@ -74,7 +80,6 @@ type DrawerClubData = {
   stars_count: number;
 };
 
-
 function MenuIcon({ icon }: { icon: string }) {
   const base =
     "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#071015]";
@@ -95,6 +100,21 @@ function MenuIcon({ icon }: { icon: string }) {
       <span className={base}>
         <span className="relative h-5 w-6 rounded-md border border-[#A6E824]/70">
           <span className="absolute left-1 top-1 h-3 w-4 rotate-[-35deg] border-b border-l border-[#A6E824]/70" />
+        </span>
+      </span>
+    );
+  }
+
+  if (icon === "public-leagues") {
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#73CFE6]/35 bg-[#73CFE6]/10">
+        <span className="relative h-6 w-7">
+          <span className="absolute left-0 top-1 h-2.5 w-2.5 rounded-full bg-[#73CFE6]/65" />
+          <span className="absolute right-0 top-1 h-2.5 w-2.5 rounded-full bg-[#73CFE6]/65" />
+          <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 rounded-full bg-[#73CFE6]" />
+          <span className="absolute bottom-0 left-0 h-3 w-3 rounded-t-full bg-[#73CFE6]/55" />
+          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-t-full bg-[#73CFE6]/55" />
+          <span className="absolute bottom-0 left-1/2 h-4 w-4 -translate-x-1/2 rounded-t-full bg-[#73CFE6]" />
         </span>
       </span>
     );
@@ -229,8 +249,6 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
-
-
   if (icon === "archive") {
     return (
       <span className={base}>
@@ -307,6 +325,7 @@ function DrawerMenuItem({
   subtitle,
   danger = false,
   special = false,
+  publicAccent = false,
   onClick,
 }: {
   icon: string;
@@ -314,6 +333,7 @@ function DrawerMenuItem({
   subtitle?: string;
   danger?: boolean;
   special?: boolean;
+  publicAccent?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -323,13 +343,17 @@ function DrawerMenuItem({
       className={`group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
         special
           ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80 hover:bg-[#A6E824]/15"
-          : "border border-white/10 bg-black/25 hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
+          : publicAccent
+            ? "border border-[#73CFE6]/35 bg-[#73CFE6]/10 hover:border-[#73CFE6]/70 hover:bg-[#73CFE6]/15"
+            : "border border-white/10 bg-black/25 hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
       } ${danger ? "text-red-400" : "text-white"}`}
     >
       <MenuIcon icon={icon} />
 
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-sm font-black ${danger ? "text-red-400" : "text-white"}`}>
+        <span
+          className={`block truncate text-sm font-black ${danger ? "text-red-400" : "text-white"}`}
+        >
           {title}
         </span>
         {subtitle && (
@@ -339,13 +363,20 @@ function DrawerMenuItem({
         )}
       </span>
 
-      <span className={`shrink-0 text-lg font-black ${danger ? "text-red-400" : "text-[#A6E824]"}`}>
+      <span
+        className={`shrink-0 text-lg font-black ${
+          danger
+            ? "text-red-400"
+            : publicAccent
+              ? "text-[#73CFE6]"
+              : "text-[#A6E824]"
+        }`}
+      >
         →
       </span>
     </button>
   );
 }
-
 
 function LeagueLifecycleModal({
   modal,
@@ -491,9 +522,7 @@ function LeagueLifecycleModal({
               {isOdd && (
                 <p>
                   La lega resta dispari: continuerà a essere previsto un{" "}
-                  <strong className="text-white">
-                    Turno di riposo (BYE)
-                  </strong>{" "}
+                  <strong className="text-white">Turno di riposo (BYE)</strong>{" "}
                   a rotazione.
                 </p>
               )}
@@ -541,8 +570,8 @@ function LeagueLifecycleModal({
               Per chiudere le iscrizioni è necessario nominare un Vice.
             </h2>
             <p className="mt-4 text-sm leading-6 text-gray-300">
-              Il Vice garantisce la continuità della gestione della lega in
-              caso di assenza dell’Amministratore.
+              Il Vice garantisce la continuità della gestione della lega in caso
+              di assenza dell’Amministratore.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
@@ -649,6 +678,7 @@ export default function HamburgerDrawer({
     displayName,
     inviteCode,
     role,
+    visibility: "private",
   });
   const [drawerLeagues, setDrawerLeagues] = useState<DrawerLeagueData[]>([]);
   const [drawerClub, setDrawerClub] = useState<DrawerClubData | null>(null);
@@ -667,6 +697,7 @@ export default function HamburgerDrawer({
       displayName,
       inviteCode,
       role,
+      visibility: current.visibility,
     }));
   }, [leagueName, displayName, inviteCode, role]);
 
@@ -681,16 +712,40 @@ export default function HamburgerDrawer({
     async function loadCurrentLeague() {
       const leagueId = getCurrentLeagueIdFromPath();
 
-      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
-      if (error) return;
+      const [
+        { data: myLeagueData, error: myLeagueError },
+        { data: publicLeagueData, error: publicLeagueError },
+      ] = await Promise.all([
+        supabase.rpc("get_my_leagues_rpc"),
+        supabase.rpc("get_public_leagues_rpc", {
+          page_size: 100,
+          cursor_created_at: null,
+          cursor_league_id: null,
+          roster_filter: "all",
+        }),
+      ]);
 
-      const leagues: DrawerLeagueData[] = (data || []).map((row: MyLeagueRpcRow) => ({
-        leagueId: row.league_id || "",
-        leagueName: row.league_name || "Lega FantaGol",
-        displayName: row.display_name || "Club FantaGol",
-        inviteCode: row.invite_code || row.league_id || "",
-        role: row.role || "member",
-      }));
+      if (myLeagueError) return;
+
+      const leagueRows = (myLeagueData || []) as MyLeagueRpcRow[];
+      const publicLeagueIds = new Set(
+        publicLeagueError
+          ? []
+          : ((publicLeagueData || []) as PublicLeagueRpcRow[])
+              .filter((row) => row.visibility === "public")
+              .map((row) => row.league_id),
+      );
+
+      const leagues: DrawerLeagueData[] = leagueRows.map(
+        (row: MyLeagueRpcRow) => ({
+          leagueId: row.league_id || "",
+          leagueName: row.league_name || "Lega FantaGol",
+          displayName: row.display_name || "Club FantaGol",
+          inviteCode: row.invite_code || row.league_id || "",
+          role: row.role || "member",
+          visibility: publicLeagueIds.has(row.league_id) ? "public" : "private",
+        }),
+      );
 
       setDrawerLeagues(leagues);
 
@@ -706,24 +761,23 @@ export default function HamburgerDrawer({
             if (lifecycleError) return null;
 
             const state = (lifecycleData || [])[0] as
-              | LeagueLifecycleState
-              | undefined;
+              LeagueLifecycleState | undefined;
 
             return state ? ([item.leagueId, state] as const) : null;
-          })
+          }),
       );
 
       setLifecycleStates(
         Object.fromEntries(
           stateEntries.filter(
-            (
-              entry
-            ): entry is readonly [string, LeagueLifecycleState] => entry !== null
-          )
-        )
+            (entry): entry is readonly [string, LeagueLifecycleState] =>
+              entry !== null,
+          ),
+        ),
       );
 
-      const current = leagues.find((item) => item.leagueId === leagueId) || leagues[0];
+      const current =
+        leagues.find((item) => item.leagueId === leagueId) || leagues[0];
       if (!current) return;
 
       rememberLeague(current.leagueId);
@@ -808,7 +862,7 @@ export default function HamburgerDrawer({
       "get_league_lifecycle_state_rpc",
       {
         target_league_id: targetLeagueId,
-      }
+      },
     );
 
     if (error) throw error;
@@ -824,15 +878,14 @@ export default function HamburgerDrawer({
 
   function getLeagueStatusPresentation(
     item: DrawerLeagueData,
-    state?: LeagueLifecycleState
+    state?: LeagueLifecycleState,
   ) {
     if (!state) {
       return {
         label: "Stato lega",
         clickable: false,
         pulse: false,
-        tone:
-          "border-gray-600/60 bg-black/40 text-gray-400",
+        tone: "border-gray-600/60 bg-black/40 text-gray-400",
       };
     }
 
@@ -857,8 +910,7 @@ export default function HamburgerDrawer({
             : "Campionato attivo",
         clickable: false,
         pulse: false,
-        tone:
-          "border-sky-400/30 bg-sky-400/10 text-sky-200",
+        tone: "border-sky-400/30 bg-sky-400/10 text-sky-200",
       };
     }
 
@@ -867,8 +919,7 @@ export default function HamburgerDrawer({
         label: "Iscrizioni chiuse",
         clickable: item.role === "admin",
         pulse: false,
-        tone:
-          "border-amber-400/35 bg-amber-400/10 text-amber-200",
+        tone: "border-amber-400/35 bg-amber-400/10 text-amber-200",
       };
     }
 
@@ -877,13 +928,15 @@ export default function HamburgerDrawer({
       clickable: item.role === "admin",
       pulse: item.role === "admin",
       tone:
-        "border-[#A6E824]/45 bg-[#A6E824]/10 text-[#A6E824]",
+        item.visibility === "public"
+          ? "border-[#73CFE6]/45 bg-[#73CFE6]/10 text-[#73CFE6]"
+          : "border-[#A6E824]/45 bg-[#A6E824]/10 text-[#A6E824]",
     };
   }
 
   function handleLeagueStatusClick(
     event: React.MouseEvent<HTMLButtonElement>,
-    item: DrawerLeagueData
+    item: DrawerLeagueData,
   ) {
     event.stopPropagation();
 
@@ -920,9 +973,7 @@ export default function HamburgerDrawer({
     setLeagueActionModal({ type: "reopen", league: item, state });
   }
 
-  async function closeLeagueWithScheduleChoice(
-    regenerateSchedules: boolean
-  ) {
+  async function closeLeagueWithScheduleChoice(regenerateSchedules: boolean) {
     if (
       !leagueActionModal ||
       (leagueActionModal.type !== "close" &&
@@ -1004,6 +1055,7 @@ export default function HamburgerDrawer({
   const activeLeagueName = drawerLeague.leagueName || leagueName;
   const activeDisplayName = drawerLeague.displayName || displayName;
   const activeRole = drawerLeague.role || role;
+  const activeLeagueIsPublic = drawerLeague.visibility === "public";
   const selectableLeagues = drawerLeagues.filter((item) => item.leagueId);
 
   return (
@@ -1041,7 +1093,8 @@ export default function HamburgerDrawer({
                   {drawerClub.name}
                 </span>
                 <span className="mt-1 line-clamp-2 block text-[11px] font-semibold leading-4 text-gray-400">
-                  {drawerClub.motto || "Il tuo Club FantaGol sta per iniziare la sua storia."}
+                  {drawerClub.motto ||
+                    "Il tuo Club FantaGol sta per iniziare la sua storia."}
                 </span>
               </span>
             </button>
@@ -1050,34 +1103,47 @@ export default function HamburgerDrawer({
           <button
             type="button"
             onClick={() => setLeagueOpen((current) => !current)}
-            className="w-full rounded-2xl bg-[#A6E824] px-4 py-3 text-left text-sm font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
+            className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-black text-black shadow-lg transition hover:brightness-110 ${
+              activeLeagueIsPublic
+                ? "bg-[#73CFE6] shadow-[#73CFE6]/20"
+                : "bg-[#A6E824] shadow-[#A6E824]/20"
+            }`}
           >
             <span className="flex items-center justify-between gap-3">
               <span className="min-w-0">
-                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/60">Lega</span>
+                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-black/60">
+                  {activeLeagueIsPublic ? "Lega pubblica" : "Lega privata"}
+                </span>
                 <span className="block truncate">{activeLeagueName}</span>
-                <span className="block truncate text-[11px] font-bold text-black/70">{activeDisplayName}</span>
+                <span className="block truncate text-[11px] font-bold text-black/70">
+                  {activeDisplayName}
+                </span>
               </span>
               <span className="shrink-0">{leagueOpen ? "⌃" : "⌄"}</span>
             </span>
           </button>
 
           {leagueOpen && selectableLeagues.length > 0 && (
-            <div className="mt-2 overflow-hidden rounded-2xl border border-[#A6E824]/25 bg-[#0b1419] shadow-2xl shadow-black/50">
+            <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/50">
               {selectableLeagues.map((item) => {
                 const current = item.leagueId === drawerLeague.leagueId;
+                const itemIsPublic = item.visibility === "public";
 
                 const lifecycleState = lifecycleStates[item.leagueId];
                 const statusPresentation = getLeagueStatusPresentation(
                   item,
-                  lifecycleState
+                  lifecycleState,
                 );
 
                 return (
                   <div
                     key={item.leagueId}
                     className={`border-b border-white/10 px-3 py-3 last:border-b-0 ${
-                      current ? "bg-[#A6E824]/10" : ""
+                      current
+                        ? itemIsPublic
+                          ? "bg-[#73CFE6]/10"
+                          : "bg-[#A6E824]/10"
+                        : ""
                     }`}
                   >
                     <button
@@ -1088,8 +1154,12 @@ export default function HamburgerDrawer({
                       className="flex w-full items-center justify-between gap-3 text-left text-sm font-black text-white transition hover:opacity-90"
                     >
                       <span className="min-w-0">
-                        <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#A6E824]">
-                          {current ? "Lega in corso" : "Lega"}
+                        <span
+                          className={`block text-[10px] font-black uppercase tracking-[0.18em] ${
+                            itemIsPublic ? "text-[#73CFE6]" : "text-[#A6E824]"
+                          }`}
+                        >
+                          {itemIsPublic ? "Lega pubblica" : "Lega privata"}
                         </span>
                         <span className="block truncate">
                           {item.leagueName}
@@ -1098,15 +1168,19 @@ export default function HamburgerDrawer({
                           {item.displayName}
                         </span>
                       </span>
-                      <span className="shrink-0 text-[#A6E824]">→</span>
+                      <span
+                        className={`shrink-0 ${
+                          itemIsPublic ? "text-[#73CFE6]" : "text-[#A6E824]"
+                        }`}
+                      >
+                        →
+                      </span>
                     </button>
 
                     <button
                       type="button"
                       disabled={!statusPresentation.clickable}
-                      onClick={(event) =>
-                        handleLeagueStatusClick(event, item)
-                      }
+                      onClick={(event) => handleLeagueStatusClick(event, item)}
                       className={`mt-2 inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition ${statusPresentation.tone} ${
                         statusPresentation.pulse ? "animate-pulse" : ""
                       } ${
@@ -1137,6 +1211,14 @@ export default function HamburgerDrawer({
             title="Copia link invito"
             subtitle="Invita nuovi membri"
             onClick={copyInviteLink}
+          />
+
+          <DrawerMenuItem
+            icon="public-leagues"
+            title="Leghe pubbliche"
+            subtitle="Consulta il catalogo pubblico"
+            publicAccent
+            onClick={() => goTo("/leghe/pubbliche")}
           />
 
           <div className="my-4 border-t border-gray-700" />
@@ -1281,4 +1363,3 @@ export default function HamburgerDrawer({
     </div>
   );
 }
-
