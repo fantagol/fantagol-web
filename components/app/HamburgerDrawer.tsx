@@ -879,6 +879,11 @@ export default function HamburgerDrawer({
     return leagueId ? leaguePath.members(leagueId) : "/membri";
   }
 
+  function getLeagueStatisticsPath() {
+    const leagueId = getResolvedLeagueId();
+    return leagueId ? leaguePath.statistics(leagueId) : "/statistiche";
+  }
+
   async function refreshLifecycleState(targetLeagueId: string) {
     const { data, error } = await supabase.rpc(
       "get_league_lifecycle_state_rpc",
@@ -1277,7 +1282,7 @@ export default function HamburgerDrawer({
             icon="stats"
             title="Statistiche"
             subtitle="Schede e approfondimenti membri"
-            onClick={() => goTo("/statistiche")}
+            onClick={() => goTo(getLeagueStatisticsPath())}
           />
 
           <DrawerMenuItem

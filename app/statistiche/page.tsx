@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import { supabase } from "../../lib/supabaseClient";
+import { leaguePath } from "../../lib/navigation/league-paths";
 import KitPreview from "../../components/club/KitPreview";
 
 type LeagueInfo = {
@@ -107,10 +109,16 @@ function TeamRate({
   );
 }
 
-function MemberCard({ member }: { member: MemberStats }) {
+function MemberCard({
+  member,
+  leagueId,
+}: {
+  member: MemberStats;
+  leagueId: string;
+}) {
   return (
     <a
-      href={`/statistiche/${member.id}`}
+      href={leagueId ? leaguePath.memberStatistics(leagueId, member.id) : `/statistiche/${member.id}`}
       className="block rounded-3xl border border-gray-700 bg-[#111111] p-5 shadow-2xl shadow-black/30 transition hover:border-[#A6E824]/60 hover:brightness-110"
     >
       <div className="flex items-center gap-4">
@@ -214,6 +222,7 @@ function MemberCard({ member }: { member: MemberStats }) {
 }
 
 export default function StatistichePage() {
+  const params = useParams<{ id?: string }>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     leagueId: "",
@@ -254,6 +263,7 @@ export default function StatistichePage() {
       }
 
       const availableLeagues = leagues || [];
+      const routeLeagueId = params.id;
       const rememberedLeagueId =
         typeof window !== "undefined"
           ? window.localStorage.getItem("fantagol:last-league-id")
@@ -262,8 +272,13 @@ export default function StatistichePage() {
       const selectedLeague =
         availableLeagues.find(
           (league: { league_id?: string }) =>
+            league.league_id === routeLeagueId,
+        ) ||
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
             league.league_id === rememberedLeagueId,
-        ) || availableLeagues[0];
+        ) ||
+        availableLeagues[0];
 
       if (!selectedLeague?.league_id) {
         if (!cancelled) {
@@ -337,7 +352,7 @@ export default function StatistichePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [params.id]);
 
   const sortedStats = useMemo(
     () =>
@@ -405,7 +420,11 @@ export default function StatistichePage() {
             </div>
           ) : (
             sortedStats.map((member) => (
-              <MemberCard key={member.id} member={member} />
+              <MemberCard
+              key={member.id}
+              member={member}
+              leagueId={leagueInfo.leagueId}
+            />
             ))
           )}
         </div>

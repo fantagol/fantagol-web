@@ -8,6 +8,7 @@ import RoundSubmissionButton from "../../../../components/app/RoundSubmissionBut
 import KitPreview from "../../../../components/club/KitPreview";
 import TeamCrest from "../../../../components/app/TeamCrest";
 import { supabase } from "../../../../lib/supabaseClient";
+import { leaguePath } from "../../../../lib/navigation/league-paths";
 
 type Prediction = { home: string; away: string };
 
@@ -961,7 +962,7 @@ export default function GiornataPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/statistiche")}
+            onClick={() => router.push(leaguePath.statistics(leagueId))}
             className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 p-1.5 text-center transition hover:border-[#A6E824]/60 hover:bg-white/[0.03] sm:p-3"
           >
             <div className="mx-auto flex h-9 w-11 items-end gap-0.5 rounded-xl border border-white/10 bg-[#071015] px-1.5 pb-1.5 sm:h-12 sm:w-16 sm:gap-1 sm:px-2 sm:pb-2">

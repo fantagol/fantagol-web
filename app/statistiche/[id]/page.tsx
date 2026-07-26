@@ -7,6 +7,7 @@ import FantaGolLogo from "../../../components/FantaGolLogo";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import KitPreview from "../../../components/club/KitPreview";
 import { supabase } from "../../../lib/supabaseClient";
+import { leaguePath } from "../../../lib/navigation/league-paths";
 
 type LeagueInfo = {
   leagueId: string;
@@ -228,7 +229,9 @@ function RoundTrendChart({ trend }: { trend: RoundTrend[] }) {
 }
 
 export default function StatisticheMembroPage() {
-  const params = useParams<{ id: string }>();
+  const params = useParams<{ id?: string; memberId?: string }>();
+  const routeLeagueId = params.memberId ? params.id : undefined;
+  const memberId = params.memberId || params.id;
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
@@ -278,8 +281,13 @@ export default function StatisticheMembroPage() {
       const selectedLeague =
         availableLeagues.find(
           (league: { league_id?: string }) =>
+            league.league_id === routeLeagueId,
+        ) ||
+        availableLeagues.find(
+          (league: { league_id?: string }) =>
             league.league_id === rememberedLeagueId,
-        ) || availableLeagues[0];
+        ) ||
+        availableLeagues[0];
 
       if (!selectedLeague?.league_id) {
         if (!cancelled) {
@@ -293,7 +301,7 @@ export default function StatisticheMembroPage() {
         "get_member_deep_statistics_rpc",
         {
           target_league_id: selectedLeague.league_id,
-          target_member_id: params.id,
+          target_member_id: memberId,
         },
       );
 
@@ -353,7 +361,7 @@ export default function StatisticheMembroPage() {
       };
 
       setMember({
-        id: String(rawMember.id || params.id),
+        id: String(rawMember.id || memberId || ""),
         clubName: String(rawMember.clubName || "Club FantaGol"),
         realName: String(rawMember.realName || ""),
         kitTemplate: String(rawMember.kitTemplate || "solid"),
@@ -398,7 +406,7 @@ export default function StatisticheMembroPage() {
     return () => {
       cancelled = true;
     };
-  }, [params.id]);
+  }, [memberId, routeLeagueId]);
 
   const bestTeams = useMemo(
     () =>
@@ -457,7 +465,7 @@ export default function StatisticheMembroPage() {
       ) : loadError || !member ? (
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
           <Link
-            href="/statistiche"
+            href={leagueInfo.leagueId ? leaguePath.statistics(leagueInfo.leagueId) : "/statistiche"}
             className="text-sm font-black text-[#A6E824] hover:underline"
           >
             ← Torna alle statistiche
@@ -469,7 +477,7 @@ export default function StatisticheMembroPage() {
       ) : (
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
           <Link
-            href="/statistiche"
+            href={leagueInfo.leagueId ? leaguePath.statistics(leagueInfo.leagueId) : "/statistiche"}
             className="text-sm font-black text-[#A6E824] hover:underline"
           >
             ← Torna alle statistiche
