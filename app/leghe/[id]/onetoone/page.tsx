@@ -543,16 +543,6 @@ function getTeamCode(
     .toUpperCase();
 }
 
-function getTeamBadge(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  return words
-    .map((word) => word[0])
-    .join("")
-    .slice(0, 3)
-    .toUpperCase();
-}
-
 function toPredictionSlot(match: DuelMatch): PredictionSlot {
   return {
     matchId: match.id,
