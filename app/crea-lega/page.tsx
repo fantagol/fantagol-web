@@ -101,8 +101,6 @@ export default function CreaLegaPage() {
   const [league, setLeague] = useState<DrawerLeague | null>(null);
   const [leagueName, setLeagueName] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [createdLeague, setCreatedLeague] =
-    useState<CreatePrivateLeagueResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteValue, setInviteValue] = useState("");
@@ -174,8 +172,6 @@ export default function CreaLegaPage() {
 
     setLoading(true);
     setErrorMessage("");
-    setCreatedLeague(null);
-
     const normalizedLeagueName = leagueName.trim();
     const normalizedDisplayName = displayName.trim();
 
@@ -213,13 +209,7 @@ export default function CreaLegaPage() {
     }
 
     window.localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, result.league_id);
-
-    setCreatedLeague({
-      league_id: result.league_id,
-      invite_code: result.invite_code,
-      visibility: "private",
-    });
-    setLoading(false);
+    window.location.replace(`/leghe/${result.league_id}`);
   }
 
   function handleOpenInvite(event: React.FormEvent<HTMLFormElement>) {
@@ -237,10 +227,6 @@ export default function CreaLegaPage() {
 
     window.location.assign(`/invito/${encodeURIComponent(inviteCode)}`);
   }
-
-  const inviteLink = createdLeague
-    ? `${window.location.origin}/invito/${createdLeague.invite_code}`
-    : "";
 
   const activeLeague = league || {
     id: "",
@@ -378,46 +364,6 @@ export default function CreaLegaPage() {
               {loading ? "Creazione in corso..." : "Crea Lega Privata"}
             </button>
           </form>
-
-          {createdLeague && (
-            <section className="mt-8 rounded-2xl border border-gray-700 bg-[#111111] p-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#A6E824]">
-                Lega creata
-              </p>
-
-              <h2 className="mt-2 text-xl font-bold">Lega privata pronta</h2>
-
-              <p className="mt-2 text-sm leading-6 text-gray-400">
-                Condividi il link di invito con le persone che vuoi aggiungere
-                alla lega.
-              </p>
-
-              <div className="mt-5 break-all rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300">
-                {inviteLink}
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => void navigator.clipboard.writeText(inviteLink)}
-                  className="rounded-xl border border-[#A6E824]/50 px-5 py-3 font-semibold text-[#A6E824] transition hover:border-[#A6E824]"
-                >
-                  Copia Link
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.location.assign(`/leghe/${createdLeague.league_id}`)
-                  }
-                  className="rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black transition hover:brightness-110"
-                >
-                  Entra nella Lega
-                </button>
-              </div>
-            </section>
-          )}
-
           <section className="mt-8 border-t border-gray-700 pt-8">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#A6E824]">
               Hai ricevuto un invito?

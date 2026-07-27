@@ -120,8 +120,6 @@ export default function CreaLegaPubblicaPage() {
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState("");
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
-  const [createdLeague, setCreatedLeague] =
-    useState<CreatePublicLeagueResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -251,12 +249,7 @@ export default function CreaLegaPubblicaPage() {
     }
 
     window.localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, result.league_id);
-
-    setCreatedLeague({
-      ...result,
-      visibility: "public",
-    });
-    setLoading(false);
+    window.location.replace(`/leghe/${result.league_id}`);
   }
 
   return (
@@ -281,12 +274,12 @@ export default function CreaLegaPubblicaPage() {
 
           <p className="mb-8 leading-7 text-gray-400">
             La lega sarà visibile nel catalogo pubblico. Gli utenti potranno
-            entrare finché l'amministratore manterrà aperte le iscrizioni.
+            entrare finché l&apos;amministratore manterrà aperte le iscrizioni.
           </p>
 
           <section className="mb-6 rounded-2xl border border-[#73CFE6]/30 bg-[#73CFE6]/5 p-5">
             <p className="font-semibold text-[#73CFE6]">
-              Iscrizioni controllate dall'amministratore
+              Iscrizioni controllate dall&apos;amministratore
             </p>
 
             <p className="mt-2 text-sm leading-6 text-gray-300">
@@ -452,66 +445,6 @@ export default function CreaLegaPubblicaPage() {
           </form>
         </div>
       </section>
-
-      {createdLeague && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="public-league-created-title"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-6 py-10 backdrop-blur-sm"
-        >
-          <section className="w-full max-w-lg rounded-3xl border border-[#73CFE6]/40 bg-gradient-to-b from-[#202620] to-[#0b0b0b] p-7 shadow-2xl shadow-black">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#73CFE6] text-lg font-black text-black">
-              OK
-            </div>
-
-            <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-[#73CFE6]">
-              Creazione completata
-            </p>
-
-            <h2
-              id="public-league-created-title"
-              className="mt-2 text-2xl font-black text-white"
-            >
-              La tua lega è stata aggiunta
-            </h2>
-
-            <p className="mt-4 leading-7 text-gray-300">
-              La lega pubblica{" "}
-              <span className="font-bold text-white">
-                &ldquo;{leagueName.trim()}&rdquo;
-              </span>{" "}
-              è ora disponibile nel catalogo.
-            </p>
-
-            <p className="mt-3 text-sm leading-6 text-gray-400">
-              Apri il catalogo per verificare come viene mostrata agli altri
-              utenti oppure entra direttamente nella lega.
-            </p>
-
-            <div className="mt-7 space-y-3">
-              <button
-                type="button"
-                autoFocus
-                onClick={() => window.location.assign("/leghe/pubbliche")}
-                className="w-full rounded-xl bg-[#73CFE6] px-5 py-3 font-semibold text-black transition hover:brightness-110"
-              >
-                Vai al catalogo pubblico
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  window.location.assign(`/leghe/${createdLeague.league_id}`)
-                }
-                className="w-full rounded-xl border border-gray-600 px-5 py-3 font-semibold text-white transition hover:border-gray-400"
-              >
-                Apri la lega
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
