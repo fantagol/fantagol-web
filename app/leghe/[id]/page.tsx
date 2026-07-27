@@ -64,6 +64,133 @@ type DashboardMatch = {
   awayLogoUrl: string | null;
 };
 
+type LeagueMemberRow = {
+  membership_id: string;
+  user_id?: string | null;
+  display_name?: string | null;
+  club_name?: string | null;
+  crest_url?: string | null;
+};
+
+type FixtureSide = {
+  member_id?: string | null;
+  display_name?: string | null;
+  points?: number | null;
+  goals?: number | null;
+};
+
+type FantacalcioFixture = {
+  fixture_phase?: string | null;
+  is_bye?: boolean | null;
+  home_member_id?: string | null;
+  away_member_id?: string | null;
+  home_display_name?: string | null;
+  away_display_name?: string | null;
+  home_points?: number | null;
+  away_points?: number | null;
+  home_goals?: number | null;
+  away_goals?: number | null;
+  home?: FixtureSide | null;
+  away?: FixtureSide | null;
+  result?: {
+    home_goals?: number | null;
+    away_goals?: number | null;
+  } | null;
+};
+
+type OneToOneFixture = {
+  fixture_phase?: string | null;
+  is_bye?: boolean | null;
+  home_member_id?: string | null;
+  away_member_id?: string | null;
+  home_display_name?: string | null;
+  away_display_name?: string | null;
+  home_wins?: number | null;
+  away_wins?: number | null;
+  draws?: number | null;
+  mini_wins?: number | null;
+  mini_losses?: number | null;
+  mini_draws?: number | null;
+  home?: FixtureSide | null;
+  away?: FixtureSide | null;
+  aggregate?: {
+    home_wins?: number | null;
+    draws?: number | null;
+    away_wins?: number | null;
+  } | null;
+  aggregate_result?: {
+    home_wins?: number | null;
+    draws?: number | null;
+    away_wins?: number | null;
+  } | null;
+};
+
+type PreviewRpcRow<TFixture> = TFixture & {
+  fixture?: TFixture | null;
+  preview?: TFixture | null;
+};
+
+type DashboardMatchupRow = {
+  league_round_id: string;
+  league_round_number: number;
+  league_round_status: string;
+  schedule_version_id: string;
+  schedule_version: number;
+  fixture_id: string;
+  mode: "fantacalcio" | "one_to_one";
+  cycle_number: number;
+  leg_number: number;
+  pairing_round_number: number;
+  current_member_id: string;
+  current_side: "home" | "away" | null;
+  home_member_id: string;
+  home_display_name: string | null;
+  away_member_id: string | null;
+  away_display_name: string | null;
+  opponent_member_id: string | null;
+  opponent_display_name: string | null;
+  is_bye: boolean;
+  fixture_phase: string;
+};
+
+type StandingsPreviewRow = {
+  member_view?: { league_member_id?: string | null } | null;
+  standings_preview?: {
+    member?: { league_member_id?: string | null } | null;
+    modes?: {
+      pure_points?: {
+        ranking?: Array<{
+          league_member_id?: string | null;
+          round_points?: number | null;
+        }>;
+      };
+    };
+  } | null;
+};
+
+type Duelist = {
+  memberId: string;
+  name: string;
+  avatarUrl: string | null;
+};
+
+type DuelSummary = {
+  left: Duelist;
+  right: Duelist | null;
+  leftScore: number;
+  rightScore: number;
+  secondaryLabel: string | null;
+  pending: boolean;
+  bye: boolean;
+};
+
+type LiveModeSummary = {
+  purePoints: number;
+  currentClub: Duelist | null;
+  fantacalcio: DuelSummary | null;
+  oneToOne: DuelSummary | null;
+};
+
 function cleanTeamDisplayName(name: string) {
   const knownNames: Record<string, string> = {
     "FC Internazionale Milano": "Inter",
@@ -223,20 +350,374 @@ function DayMatchRow({ match }: { match: DashboardMatch }) {
   );
 }
 
+function toFiniteNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatLivePoints(value: number) {
+  return new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function findNestedRecord(
+  value: unknown,
+  predicate: (record: Record<string, unknown>) => boolean,
+): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedRecord(item, predicate);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return null;
+  if (predicate(value)) return value;
+
+  for (const nested of Object.values(value)) {
+    const found = findNestedRecord(nested, predicate);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function getFixtureMemberIds(record: Record<string, unknown>) {
+  const home = isRecord(record.home) ? record.home : null;
+  const away = isRecord(record.away) ? record.away : null;
+
+  const homeMemberId =
+    typeof record.home_member_id === "string"
+      ? record.home_member_id
+      : typeof home?.member_id === "string"
+        ? home.member_id
+        : null;
+
+  const awayMemberId =
+    typeof record.away_member_id === "string"
+      ? record.away_member_id
+      : typeof away?.member_id === "string"
+        ? away.member_id
+        : null;
+
+  return { homeMemberId, awayMemberId };
+}
+
+function findCurrentMemberFixture<TFixture>({
+  value,
+  currentMemberId,
+  isFixture,
+}: {
+  value: unknown;
+  currentMemberId: string;
+  isFixture: (record: Record<string, unknown>) => boolean;
+}): TFixture | null {
+  let fallback: Record<string, unknown> | null = null;
+
+  function visit(node: unknown): Record<string, unknown> | null {
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    if (!isRecord(node)) return null;
+
+    if (isFixture(node)) {
+      fallback ||= node;
+
+      const { homeMemberId, awayMemberId } = getFixtureMemberIds(node);
+      if (
+        currentMemberId &&
+        (homeMemberId === currentMemberId || awayMemberId === currentMemberId)
+      ) {
+        return node;
+      }
+    }
+
+    for (const nested of Object.values(node)) {
+      const found = visit(nested);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  return (visit(value) || fallback) as TFixture | null;
+}
+
+function extractFantacalcioFixture(
+  value: unknown,
+  currentMemberId: string,
+): FantacalcioFixture | null {
+  return findCurrentMemberFixture<FantacalcioFixture>({
+    value,
+    currentMemberId,
+    isFixture: (record) =>
+      ("home_goals" in record ||
+        "away_goals" in record ||
+        "is_bye" in record) &&
+      ("home_member_id" in record ||
+        "away_member_id" in record ||
+        "home" in record ||
+        "away" in record),
+  });
+}
+
+function extractOneToOneFixture(
+  value: unknown,
+  currentMemberId: string,
+): OneToOneFixture | null {
+  return findCurrentMemberFixture<OneToOneFixture>({
+    value,
+    currentMemberId,
+    isFixture: (record) =>
+      (("home_wins" in record && "away_wins" in record) ||
+        ("mini_wins" in record && "mini_losses" in record) ||
+        "aggregate" in record ||
+        "aggregate_result" in record ||
+        "is_bye" in record) &&
+      ("home_member_id" in record ||
+        "away_member_id" in record ||
+        "home" in record ||
+        "away" in record),
+  });
+}
+
+function extractLeagueMembers(value: unknown): LeagueMemberRow[] {
+  const members: LeagueMemberRow[] = [];
+  const seen = new Set<string>();
+
+  function visit(node: unknown) {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!isRecord(node)) return;
+
+    const membershipId =
+      typeof node.membership_id === "string"
+        ? node.membership_id
+        : typeof node.league_member_id === "string"
+          ? node.league_member_id
+          : null;
+
+    if (membershipId && !seen.has(membershipId)) {
+      seen.add(membershipId);
+      members.push({
+        membership_id: membershipId,
+        user_id: typeof node.user_id === "string" ? node.user_id : null,
+        display_name:
+          typeof node.display_name === "string" ? node.display_name : null,
+        club_name: typeof node.club_name === "string" ? node.club_name : null,
+        crest_url: typeof node.crest_url === "string" ? node.crest_url : null,
+      });
+    }
+
+    Object.values(node).forEach(visit);
+  }
+
+  visit(value);
+  return members;
+}
+
+function buildDuelSummary({
+  currentMemberId,
+  fixture,
+  membersById,
+  mode,
+}: {
+  currentMemberId: string;
+  fixture: FantacalcioFixture | OneToOneFixture | null;
+  membersById: Map<string, LeagueMemberRow>;
+  mode: "fantacalcio" | "one_to_one";
+}): DuelSummary | null {
+  if (!fixture) return null;
+
+  const homeId = fixture.home_member_id || fixture.home?.member_id || "";
+  const awayId = fixture.away_member_id || fixture.away?.member_id || "";
+  const currentIsHome = Boolean(currentMemberId && currentMemberId === homeId);
+  const currentIsAway = Boolean(currentMemberId && currentMemberId === awayId);
+  const orientFromHome = currentIsHome || !currentIsAway;
+
+  const homeSide: FixtureSide = {
+    ...fixture.home,
+    member_id: homeId,
+    display_name:
+      fixture.home?.display_name || fixture.home_display_name || null,
+  };
+  const awaySide: FixtureSide | null = awayId
+    ? {
+        ...fixture.away,
+        member_id: awayId,
+        display_name:
+          fixture.away?.display_name || fixture.away_display_name || null,
+      }
+    : null;
+  const leftSide = orientFromHome ? homeSide : awaySide;
+  const rightSide = orientFromHome ? awaySide : homeSide;
+  const leftId = leftSide?.member_id || currentMemberId || "home";
+  const rightId = rightSide?.member_id || "";
+  const leftMember = membersById.get(leftId);
+  const rightMember = rightId ? membersById.get(rightId) : undefined;
+  const bye = fixture.is_bye === true || !rightId;
+
+  let homeScore = 0;
+  let awayScore = 0;
+  let secondaryLabel: string | null = null;
+
+  if (mode === "fantacalcio") {
+    const fantacalcioFixture = fixture as FantacalcioFixture;
+    homeScore = toFiniteNumber(
+      fantacalcioFixture.home_goals ??
+        fantacalcioFixture.result?.home_goals ??
+        fantacalcioFixture.home?.goals,
+    );
+    awayScore = toFiniteNumber(
+      fantacalcioFixture.away_goals ??
+        fantacalcioFixture.result?.away_goals ??
+        fantacalcioFixture.away?.goals,
+    );
+
+    const homePoints = toFiniteNumber(
+      fantacalcioFixture.home_points ?? fantacalcioFixture.home?.points,
+    );
+    const awayPoints = toFiniteNumber(
+      fantacalcioFixture.away_points ?? fantacalcioFixture.away?.points,
+    );
+    secondaryLabel = bye
+      ? null
+      : `${formatLivePoints(currentIsHome ? homePoints : awayPoints)} - ${formatLivePoints(
+          currentIsHome ? awayPoints : homePoints,
+        )} pt`;
+  } else {
+    const oneToOneFixture = fixture as OneToOneFixture;
+    homeScore = toFiniteNumber(
+      oneToOneFixture.home_wins ??
+        oneToOneFixture.aggregate_result?.home_wins ??
+        oneToOneFixture.aggregate?.home_wins ??
+        oneToOneFixture.mini_wins,
+    );
+    awayScore = toFiniteNumber(
+      oneToOneFixture.away_wins ??
+        oneToOneFixture.aggregate_result?.away_wins ??
+        oneToOneFixture.aggregate?.away_wins ??
+        oneToOneFixture.mini_losses,
+    );
+    const draws = toFiniteNumber(
+      oneToOneFixture.draws ??
+        oneToOneFixture.aggregate_result?.draws ??
+        oneToOneFixture.aggregate?.draws ??
+        oneToOneFixture.mini_draws,
+    );
+    secondaryLabel = bye
+      ? null
+      : draws === 1
+        ? "1 pareggio"
+        : `${draws} pareggi`;
+  }
+
+  return {
+    left: {
+      memberId: leftId,
+      name:
+        leftMember?.club_name ||
+        leftMember?.display_name ||
+        leftSide?.display_name ||
+        "Club FantaGol",
+      avatarUrl: leftMember?.crest_url || null,
+    },
+    right: bye
+      ? null
+      : {
+          memberId: rightId,
+          name:
+            rightMember?.club_name ||
+            rightMember?.display_name ||
+            rightSide?.display_name ||
+            "Avversario",
+          avatarUrl: rightMember?.crest_url || null,
+        },
+    leftScore: orientFromHome ? homeScore : awayScore,
+    rightScore: orientFromHome ? awayScore : homeScore,
+    secondaryLabel,
+    pending: fixture.fixture_phase !== "ready" && !bye,
+    bye,
+  };
+}
+function DuelAvatar({
+  duelist,
+  muted = false,
+}: {
+  duelist: Duelist | null;
+  muted?: boolean;
+}) {
+  const name = duelist?.name || "Riposo";
+  const avatarUrl = duelist?.avatarUrl || null;
+
+  return (
+    <div className="flex min-w-0 flex-col items-center">
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gradient-to-br from-white to-gray-300 text-sm font-black text-black shadow-lg shadow-black/30 ${
+          muted ? "border-white/10 opacity-45" : "border-[#A6E824]/45"
+        }`}
+      >
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={`${name} avatar`}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          name.slice(0, 1).toUpperCase()
+        )}
+      </div>
+
+      <span
+        className={`mt-1 max-w-[72px] truncate text-[10px] font-black uppercase ${
+          muted ? "text-gray-600" : "text-gray-300"
+        }`}
+      >
+        {name}
+      </span>
+    </div>
+  );
+}
+
 function DashboardModeCard({
   icon,
   title,
   value,
+  currentClub,
+  duel,
 }: {
   icon: ReactNode;
   title: string;
-  value: string;
+  value?: string;
+  currentClub?: Duelist | null;
+  duel?: DuelSummary | null;
 }) {
+  const isBye = duel?.bye === true;
+
   return (
-    <div className="h-full rounded-2xl border border-white/10 bg-[#111417] p-5 shadow-lg shadow-black/20 transition hover:border-[#A6E824]/60">
+    <div
+      className={`h-full rounded-2xl border p-5 shadow-lg shadow-black/20 transition ${
+        isBye
+          ? "border-white/5 bg-[#0b0e10] opacity-55 grayscale"
+          : "border-white/10 bg-[#111417] hover:border-[#A6E824]/60"
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="shrink-0">{icon}</div>
+          <div className={`shrink-0 ${isBye ? "opacity-40" : ""}`}>{icon}</div>
 
           <h2 className="truncate text-xl font-black text-white sm:text-2xl">
             {title}
@@ -259,9 +740,61 @@ function DashboardModeCard({
         </svg>
       </div>
 
-      <div className="mt-6 text-4xl font-black leading-none text-[#A6E824]">
-        {value}
-      </div>
+      {duel || title !== "Punti Puri" ? (
+        <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <DuelAvatar
+            duelist={duel?.left || currentClub || null}
+            muted={isBye}
+          />
+
+          <div className="min-w-[92px] text-center">
+            <div className="flex items-center justify-center gap-2 text-4xl font-black leading-none">
+              <span className={isBye ? "text-gray-600" : "text-[#A6E824]"}>
+                {isBye ? 0 : (duel?.leftScore ?? 0)}
+              </span>
+              <span
+                className={`text-2xl ${isBye ? "text-gray-700" : "text-white"}`}
+              >
+                -
+              </span>
+              <span className={isBye ? "text-gray-600" : "text-white"}>
+                {isBye ? 0 : (duel?.rightScore ?? 0)}
+              </span>
+            </div>
+
+            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">
+              {duel?.bye
+                ? "Riposo"
+                : duel?.pending || !duel
+                  ? "In attesa"
+                  : "Live"}
+            </div>
+
+            {!isBye && duel?.secondaryLabel && (
+              <div className="mt-1 text-[10px] font-semibold text-gray-600">
+                {duel.secondaryLabel}
+              </div>
+            )}
+          </div>
+
+          <DuelAvatar
+            duelist={isBye ? null : duel?.right || null}
+            muted={isBye || !duel}
+          />
+        </div>
+      ) : (
+        <div className="mt-5 flex items-center gap-4">
+          <DuelAvatar duelist={currentClub || null} />
+          <div>
+            <div className="text-4xl font-black leading-none text-[#A6E824]">
+              {value ?? "0"}
+            </div>
+            <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">
+              Punti live di giornata
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -397,6 +930,12 @@ export default function LeagueDashboardPage() {
   const [roundNumber, setRoundNumber] = useState<number | null>(null);
   const [roundLabel, setRoundLabel] = useState("Giornata non disponibile");
   const [roundError, setRoundError] = useState<string | null>(null);
+  const [liveModeSummary, setLiveModeSummary] = useState<LiveModeSummary>({
+    purePoints: 0,
+    currentClub: null,
+    fantacalcio: null,
+    oneToOne: null,
+  });
 
   useEffect(() => {
     async function loadDashboard() {
@@ -502,6 +1041,125 @@ export default function LeagueDashboardPage() {
           };
         }),
       );
+
+      const [
+        standingsResult,
+        matchupResult,
+        fantacalcioResult,
+        oneToOneResult,
+        membersResult,
+      ] = await Promise.all([
+        supabase.rpc("get_my_standings_preview_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_my_dashboard_matchups_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_my_fantacalcio_preview_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_my_one_to_one_preview_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_current_league_members_rpc", {
+          target_league_id: leagueId,
+        }),
+      ]);
+
+      if (matchupResult.error) {
+        setRoundError(matchupResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      const members = extractLeagueMembers(membersResult.data || []);
+      const membersById = new Map(
+        members.map((member) => [member.membership_id, member]),
+      );
+      const currentMember = members.find(
+        (member) => member.user_id === session.user.id,
+      );
+      const standingsRow = (
+        (standingsResult.data || []) as StandingsPreviewRow[]
+      )[0];
+      const currentMemberId =
+        currentMember?.membership_id ||
+        standingsRow?.standings_preview?.member?.league_member_id ||
+        standingsRow?.member_view?.league_member_id ||
+        current.membership_id ||
+        "";
+      const purePointsRow =
+        standingsRow?.standings_preview?.modes?.pure_points?.ranking?.find(
+          (row) => row.league_member_id === currentMemberId,
+        );
+      const matchupRows = (matchupResult.data || []) as DashboardMatchupRow[];
+
+      const scheduledFantacalcioFixture =
+        matchupRows.find((row) => row.mode === "fantacalcio") || null;
+      const scheduledOneToOneFixture =
+        matchupRows.find((row) => row.mode === "one_to_one") || null;
+
+      const fantacalcioPreviewFixture = extractFantacalcioFixture(
+        fantacalcioResult.data || [],
+        currentMemberId,
+      );
+      const oneToOnePreviewFixture = extractOneToOneFixture(
+        oneToOneResult.data || [],
+        currentMemberId,
+      );
+
+      const fantacalcioFixture: FantacalcioFixture | null =
+        fantacalcioPreviewFixture ||
+        (scheduledFantacalcioFixture
+          ? {
+              fixture_phase: scheduledFantacalcioFixture.fixture_phase,
+              is_bye: scheduledFantacalcioFixture.is_bye,
+              home_member_id: scheduledFantacalcioFixture.home_member_id,
+              home_display_name: scheduledFantacalcioFixture.home_display_name,
+              away_member_id: scheduledFantacalcioFixture.away_member_id,
+              away_display_name: scheduledFantacalcioFixture.away_display_name,
+            }
+          : null);
+
+      const oneToOneFixture: OneToOneFixture | null =
+        oneToOnePreviewFixture ||
+        (scheduledOneToOneFixture
+          ? {
+              fixture_phase: scheduledOneToOneFixture.fixture_phase,
+              is_bye: scheduledOneToOneFixture.is_bye,
+              home_member_id: scheduledOneToOneFixture.home_member_id,
+              home_display_name: scheduledOneToOneFixture.home_display_name,
+              away_member_id: scheduledOneToOneFixture.away_member_id,
+              away_display_name: scheduledOneToOneFixture.away_display_name,
+            }
+          : null);
+
+      setLiveModeSummary({
+        purePoints: toFiniteNumber(purePointsRow?.round_points),
+        currentClub: currentMemberId
+          ? {
+              memberId: currentMemberId,
+              name:
+                currentMember?.club_name ||
+                currentMember?.display_name ||
+                current.display_name ||
+                "Club FantaGol",
+              avatarUrl: currentMember?.crest_url || null,
+            }
+          : null,
+        fantacalcio: buildDuelSummary({
+          currentMemberId,
+          fixture: fantacalcioFixture,
+          membersById,
+          mode: "fantacalcio",
+        }),
+        oneToOne: buildDuelSummary({
+          currentMemberId,
+          fixture: oneToOneFixture,
+          membersById,
+          mode: "one_to_one",
+        }),
+      });
 
       setLoading(false);
     }
@@ -613,7 +1271,7 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="fantacalcio" />}
               title="Fantacalcio"
-              value="0"
+              duel={liveModeSummary.fantacalcio}
             />
           </button>
 
@@ -626,7 +1284,7 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="one-to-one" />}
               title="One To One"
-              value="0-0"
+              duel={liveModeSummary.oneToOne}
             />
           </button>
 
@@ -639,7 +1297,8 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="punti-puri" />}
               title="Punti Puri"
-              value="0"
+              value={formatLivePoints(liveModeSummary.purePoints)}
+              currentClub={liveModeSummary.currentClub}
             />
           </button>
         </div>
