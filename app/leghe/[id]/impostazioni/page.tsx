@@ -7,7 +7,6 @@ import AdministrationHeader from "./components/AdministrationHeader";
 import DangerZoneCard from "./components/DangerZoneCard";
 import InvitationCard from "./components/InvitationCard";
 import LeagueOverviewCard from "./components/LeagueOverviewCard";
-import MembersCard from "./components/MembersCard";
 import RosterManagementCard from "./components/RosterManagementCard";
 import ScoringProfileCard from "./components/ScoringProfileCard";
 import { useLeagueAdministration } from "./hooks/useLeagueAdministration";
@@ -37,9 +36,9 @@ export default function LeagueAdministrationPage() {
     lifecycle,
     scoringProfile,
     events,
-    members,
+
     action,
-    actionMemberId,
+
     errorMessage,
     successMessage,
     confirmationName,
@@ -90,22 +89,26 @@ export default function LeagueAdministrationPage() {
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <MembersCard
-            lifecycle={lifecycle}
-            members={members}
-            isAdmin={Boolean(isAdmin)}
-            action={action}
-            actionMemberId={actionMemberId}
-            onAssignVice={(memberId) =>
-              void administration.assignVice(memberId)
-            }
-            onRemoveMember={(memberId, reason) =>
-              void administration.removeMember(memberId, reason)
-            }
-            onReinstateMember={(memberId) =>
-              void administration.reinstateMember(memberId)
-            }
-          />
+          <section className="rounded-3xl border border-white/10 bg-[#111417] p-5 shadow-xl shadow-black/30 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#A6E824]">
+              Governance
+            </p>
+
+            <h2 className="mt-2 text-2xl font-black">Membri e ruoli</h2>
+
+            <p className="mt-3 text-sm font-semibold leading-6 text-gray-400">
+              Nomina il Vice o un nuovo Admin, espelli un membro oppure
+              riammetti un partecipante dalla pagina Membri della lega.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => router.push(`/leghe/${league.id}/membri`)}
+              className="mt-5 w-full rounded-2xl border border-[#A6E824]/50 px-5 py-3 font-black text-[#A6E824] transition hover:bg-[#A6E824]/10"
+            >
+              Vai alla pagina Membri
+            </button>
+          </section>
 
           <ScoringProfileCard
             scoringProfile={scoringProfile}

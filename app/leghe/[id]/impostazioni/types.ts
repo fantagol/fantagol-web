@@ -65,33 +65,5 @@ export type AdminEvent = {
   created_at: string;
 };
 
-export type LeagueMember = {
-  id: string;
-  userId: string | null;
-  displayName: string;
-  clubName: string;
-  realName: string | null;
-  role: string;
-  status: string;
-};
-
-export type LeagueMembershipRpcRow = {
-  membership_id: string;
-  user_id: string | null;
-  display_name: string | null;
-  role: string | null;
-  status: string | null;
-  club_name: string | null;
-  real_name: string | null;
-};
-
 export type LeagueAction =
-  | "lock"
-  | "lock-preserve"
-  | "reopen"
-  | "delete"
-  | "save-scoring"
-  | "assign-vice"
-  | "remove-member"
-  | "reinstate-member"
-  | null;
+  "lock" | "lock-preserve" | "reopen" | "delete" | "save-scoring" | null;

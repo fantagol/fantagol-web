@@ -175,16 +175,14 @@ export default function MembriPage() {
     void loadMembers();
   }, [loadMembers]);
 
-  async function handleAssignVice(memberId: string) {
-    if (!leagueInfo.leagueId) return;
-
+  async function runMemberAction(
+    memberId: string,
+    operation: () => PromiseLike<{ error: { message: string } | null }>,
+  ) {
     setActionMemberId(memberId);
     setErrorMessage("");
 
-    const { error } = await supabase.rpc("assign_league_vice_rpc", {
-      target_league_id: leagueInfo.leagueId,
-      target_member_id: memberId,
-    });
+    const { error } = await operation();
 
     if (error) {
       setErrorMessage(error.message);
@@ -196,24 +194,75 @@ export default function MembriPage() {
     setActionMemberId("");
   }
 
-  async function handleRevokeVice(memberId: string) {
+  async function handleAssignVice(memberId: string) {
     if (!leagueInfo.leagueId) return;
 
-    setActionMemberId(memberId);
-    setErrorMessage("");
+    await runMemberAction(memberId, () =>
+      supabase.rpc("assign_league_vice_rpc", {
+        target_league_id: leagueInfo.leagueId,
+        target_member_id: memberId,
+      }),
+    );
+  }
 
-    const { error } = await supabase.rpc("revoke_league_vice_rpc", {
-      target_league_id: leagueInfo.leagueId,
-    });
+  async function handleAssignAdmin(member: Member) {
+    if (!leagueInfo.leagueId) return;
 
-    if (error) {
-      setErrorMessage(error.message);
-      setActionMemberId("");
-      return;
-    }
+    const confirmed = window.confirm(
+      `Vuoi trasferire l'amministrazione della lega a ${member.clubName}? ` +
+        "Rimarrai nella lega come membro.",
+    );
 
-    await loadMembers();
-    setActionMemberId("");
+    if (!confirmed) return;
+
+    await runMemberAction(member.id, () =>
+      supabase.rpc("transfer_league_admin_rpc", {
+        target_league_id: leagueInfo.leagueId,
+        successor_member_id: member.id,
+      }),
+    );
+  }
+
+  async function handleRemoveMember(member: Member) {
+    if (!leagueInfo.leagueId) return;
+
+    const reason = window.prompt(
+      `Motivazione dell'espulsione di ${member.clubName} (facoltativa):`,
+      "",
+    );
+
+    if (reason === null) return;
+
+    const confirmed = window.confirm(
+      `Confermi l'espulsione di ${member.clubName} dalla lega?`,
+    );
+
+    if (!confirmed) return;
+
+    await runMemberAction(member.id, () =>
+      supabase.rpc("remove_league_member_rpc", {
+        target_league_id: leagueInfo.leagueId,
+        target_member_id: member.id,
+        removal_reason: reason.trim() || null,
+      }),
+    );
+  }
+
+  async function handleReinstateMember(member: Member) {
+    if (!leagueInfo.leagueId) return;
+
+    const confirmed = window.confirm(
+      `Vuoi riammettere ${member.clubName} nella lega?`,
+    );
+
+    if (!confirmed) return;
+
+    await runMemberAction(member.id, () =>
+      supabase.rpc("reinstate_league_member_rpc", {
+        target_league_id: leagueInfo.leagueId,
+        target_member_id: member.id,
+      }),
+    );
   }
 
   const isAdmin =
@@ -272,8 +321,8 @@ export default function MembriPage() {
         {isAdmin && !loading && !errorMessage && (
           <div className="mt-6 rounded-2xl border border-[#A6E824]/25 bg-[#A6E824]/5 px-4 py-3 text-sm text-gray-300">
             {activeVice
-              ? `Vice attuale: ${activeVice.clubName}`
-              : "Nessun vice nominato. Prima del lock del roster sarà necessario nominarne uno."}
+              ? `Vice attuale: ${activeVice.clubName}. Per sostituirlo, nomina un altro membro come Vice.`
+              : "Nessun Vice nominato. Prima del lock del roster sarà necessario nominarne uno."}
           </div>
         )}
 
@@ -299,13 +348,26 @@ export default function MembriPage() {
           <div className="mt-8 grid min-w-0 gap-4 md:grid-cols-2">
             {members.map((member) => {
               const actionLoading = actionMemberId === member.id;
+              const isCurrentUser = member.userId === currentUserId;
+              const isActiveEligibleMember =
+                member.status === "active" &&
+                (member.role === "member" || member.role === "vice");
+
               const canAssignVice =
                 isAdmin &&
                 member.status === "active" &&
-                member.role === "member" &&
-                !activeVice;
-              const canRevokeVice =
-                isAdmin && member.status === "active" && member.role === "vice";
+                member.role === "member";
+
+              const canAssignAdmin =
+                isAdmin && !isCurrentUser && isActiveEligibleMember;
+
+              const canRemoveMember =
+                isAdmin &&
+                !isCurrentUser &&
+                member.status === "active" &&
+                member.role !== "admin";
+
+              const canReinstateMember = isAdmin && member.status === "removed";
 
               return (
                 <article
@@ -370,23 +432,61 @@ export default function MembriPage() {
                         )}
                       </div>
 
-                      {(canAssignVice || canRevokeVice) && (
-                        <button
-                          type="button"
-                          disabled={actionLoading}
-                          onClick={() =>
-                            canRevokeVice
-                              ? handleRevokeVice(member.id)
-                              : handleAssignVice(member.id)
-                          }
-                          className="mt-4 w-full rounded-xl border border-[#A6E824]/50 px-4 py-2 text-sm font-black text-[#A6E824] transition hover:bg-[#A6E824]/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {actionLoading
-                            ? "Aggiornamento..."
-                            : canRevokeVice
-                              ? "Revoca Vice"
-                              : "Nomina Vice"}
-                        </button>
+                      {(canAssignVice ||
+                        canAssignAdmin ||
+                        canRemoveMember ||
+                        canReinstateMember) && (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          {canAssignVice && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => handleAssignVice(member.id)}
+                              className="rounded-xl border border-[#A6E824]/50 px-4 py-2 text-sm font-black text-[#A6E824] transition hover:bg-[#A6E824]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {actionLoading
+                                ? "Aggiornamento..."
+                                : activeVice
+                                  ? "Nomina nuovo Vice"
+                                  : "Nomina Vice"}
+                            </button>
+                          )}
+
+                          {canAssignAdmin && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => handleAssignAdmin(member)}
+                              className="rounded-xl border border-sky-400/50 px-4 py-2 text-sm font-black text-sky-300 transition hover:bg-sky-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {actionLoading
+                                ? "Trasferimento..."
+                                : "Nomina Admin"}
+                            </button>
+                          )}
+
+                          {canRemoveMember && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => handleRemoveMember(member)}
+                              className="rounded-xl border border-red-500/45 px-4 py-2 text-sm font-black text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {actionLoading ? "Espulsione..." : "Espelli"}
+                            </button>
+                          )}
+
+                          {canReinstateMember && (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => handleReinstateMember(member)}
+                              className="rounded-xl border border-[#A6E824]/50 px-4 py-2 text-sm font-black text-[#A6E824] transition hover:bg-[#A6E824]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {actionLoading ? "Riammissione..." : "Riammetti"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
