@@ -145,10 +145,11 @@ export default function ControlRoomPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-7 text-gray-300 sm:text-lg sm:leading-8">
-                La Control Room è l&apos;area avanzata dedicata alle statistiche globali FantaGol:
-                dati aggregati e anonimi sulle giocate degli utenti, trend dei pronostici,
-                squadre più lette, risultati più cercati, bonus, malus e andamento generale
-                delle scelte della community.
+                La Control Room è l&apos;area avanzata dedicata alle statistiche
+                globali FantaGol: dati aggregati e anonimi sulle giocate degli
+                utenti, trend dei pronostici, squadre più lette, risultati più
+                cercati, bonus, malus e andamento generale delle scelte della
+                community a confronto con quelle dei principali bookmakers.
               </p>
             </div>
           </div>
@@ -158,20 +159,19 @@ export default function ControlRoomPage() {
             <FeaturePill label="Utenti anonimi" />
             <FeaturePill label="Trend pronostici" />
             <FeaturePill label="Squadre" />
-            <FeaturePill label="Bonus e malus" />
           </div>
         </section>
 
         <section className="mt-6 rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30 sm:p-6">
-          <h2 className="text-2xl font-black text-[#A6E824]">
-            Cosa contiene
-          </h2>
+          <h2 className="text-2xl font-black text-[#A6E824]">Cosa contiene</h2>
 
           <p className="mt-3 max-w-4xl text-sm leading-7 text-gray-300 sm:text-base">
-            Le informazioni vengono elaborate in forma aggregata e anonima. Non vengono mostrati
-            dati personali dei singoli utenti: la Control Room serve a leggere il comportamento
-            generale del gioco FantaGol, confrontando volume delle giocate, distribuzione dei
-            pronostici, precisione sulle squadre, frequenza degli exact e incidenza dei bonus/malus.
+            Le informazioni vengono elaborate in forma aggregata e anonima. Non
+            vengono mostrati dati personali dei singoli utenti: la Control Room
+            serve a leggere il comportamento generale del gioco FantaGol
+            rapportato alle scelte dei principali bookmakers, confrontando
+            volume delle giocate, distribuzione dei pronostici, precisione sulle
+            squadre, frequenza degli exact e incidenza dei bonus/malus.
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,9 +179,7 @@ export default function ControlRoomPage() {
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gray-500">
                 Pronostici
               </p>
-              <p className="mt-2 text-xl font-black text-white">
-                Trend 1-X-2
-              </p>
+              <p className="mt-2 text-xl font-black text-white">Trend 1-X-2</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -238,7 +236,9 @@ export default function ControlRoomPage() {
               Pass disponibili
             </p>
 
-            <div className={`mt-3 text-6xl font-black leading-none ${availablePasses > 0 ? "text-[#A6E824]" : "text-gray-500"}`}>
+            <div
+              className={`mt-3 text-6xl font-black leading-none ${availablePasses > 0 ? "text-[#A6E824]" : "text-gray-500"}`}
+            >
               {availablePasses}
             </div>
           </div>
@@ -251,9 +251,7 @@ export default function ControlRoomPage() {
           >
             <VideoIcon />
 
-            <h3 className="mt-5 text-2xl font-black">
-              Guarda un video
-            </h3>
+            <h3 className="mt-5 text-2xl font-black">Guarda un video</h3>
           </button>
 
           <button
@@ -281,12 +279,11 @@ export default function ControlRoomPage() {
               Control Room
             </p>
 
-            <h2 className="mt-3 text-3xl font-black">
-              Pass non disponibili
-            </h2>
+            <h2 className="mt-3 text-3xl font-black">Pass non disponibili</h2>
 
             <p className="mt-4 text-sm leading-6 text-gray-300">
-              Per accedere puoi guardare un video oppure acquistare un Pass Control Room.
+              Per accedere puoi guardare un video oppure acquistare un Pass
+              Control Room.
             </p>
 
             <div className="mt-6 grid gap-3">
@@ -317,8 +314,6 @@ export default function ControlRoomPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
-
