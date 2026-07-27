@@ -1,11 +1,133 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Header from "../../components/Header";
+import FantaGolLogo from "../../components/FantaGolLogo";
+import HamburgerDrawer from "../../components/app/HamburgerDrawer";
+import { supabase } from "../../lib/supabaseClient";
+
+const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
+
+type DrawerLeague = {
+  id: string;
+  name: string;
+  invite_code: string;
+  display_name: string;
+  role: string;
+};
+
+type MyLeagueRpcRow = {
+  league_id: string;
+  league_name?: string | null;
+  invite_code?: string | null;
+  display_name?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
 
 export default function RegolamentoPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [league, setLeague] = useState<DrawerLeague | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAuthenticatedNavigation() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!active) return;
+
+      if (!session?.user) {
+        setIsAuthenticated(false);
+        setAuthResolved(true);
+        return;
+      }
+
+      setIsAuthenticated(true);
+
+      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+      if (!active) return;
+
+      if (!error) {
+        const rows = ((data || []) as MyLeagueRpcRow[]).filter(
+          (row) => row.status === "active" || !row.status,
+        );
+
+        const storedLeagueId = window.localStorage.getItem(
+          LAST_LEAGUE_STORAGE_KEY,
+        );
+
+        const current =
+          rows.find((row) => row.league_id === storedLeagueId) || rows[0];
+
+        if (current) {
+          window.localStorage.setItem(
+            LAST_LEAGUE_STORAGE_KEY,
+            current.league_id,
+          );
+
+          setLeague({
+            id: current.league_id,
+            name: current.league_name || "Lega FantaGol",
+            invite_code: current.invite_code || "",
+            display_name: current.display_name || "Giocatore",
+            role: current.role || "member",
+          });
+        }
+      }
+
+      setAuthResolved(true);
+    }
+
+    loadAuthenticatedNavigation();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <main className="min-h-screen bg-black text-white">
-      <Header />
+      {authResolved && !isAuthenticated && <Header />}
 
-      <div className="mx-auto max-w-4xl px-6 py-20">
+      {isAuthenticated && league && (
+        <>
+          <HamburgerDrawer
+            open={menuOpen}
+            leagueName={league.name}
+            displayName={league.display_name}
+            inviteCode={league.invite_code}
+            role={league.role}
+            onClose={() => setMenuOpen(false)}
+          />
+
+          <header className="fixed inset-x-0 top-0 z-[90] border-b border-[#A6E824]/25 bg-[#1f2427] shadow-2xl shadow-black/80">
+            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
+              <a href={`/leghe/${league.id}`} className="relative z-10 block">
+                <FantaGolLogo />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label="Apri menu FantaGol"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-[#111417] text-xl font-black text-white transition hover:border-[#A6E824]/70 hover:text-[#A6E824]"
+              >
+                ☰
+              </button>
+            </div>
+          </header>
+        </>
+      )}
+
+      <div
+        className={`mx-auto max-w-4xl px-6 ${authResolved ? "py-20" : "py-8"}`}
+      >
         <h1 className="mb-6 text-5xl font-black">
           Regolamento Ufficiale FantaGol
         </h1>
@@ -15,15 +137,17 @@ export default function RegolamentoPage() {
         </p>
 
         <p className="mb-16 text-gray-400">
-          Per garantire il miglior equilibrio competitivo è consigliata la partecipazione con un numero pari di giocatori.
-          Le leghe con un numero dispari di partecipanti sono comunque pienamente supportate.
+          Per garantire una migliore godibilità del gioco è consigliata la
+          partecipazione con un numero pari di giocatori. Le leghe con un numero
+          dispari di partecipanti sono comunque pienamente supportate.
         </p>
 
         <section className="mb-16">
           <h2 className="mb-6 text-3xl font-bold">Come si gioca</h2>
 
           <p className="leading-8 text-gray-300">
-            Per ogni partita devi inserire un solo pronostico: il risultato esatto.
+            Per ogni partita devi inserire un solo pronostico: il risultato
+            esatto.
           </p>
 
           <div className="mt-4 rounded-xl border border-gray-800 p-4">
@@ -66,9 +190,9 @@ export default function RegolamentoPage() {
 
           <p className="mt-6 text-gray-400">
             Un pronostico esatto assegna complessivamente 11 punti: 6 per
-            l&apos;Exact, 3 per il Segno, 1 per Over / Under e 1 per Goal / No Goal.
-            Senza Exact, il massimo ottenibile attraverso i quattro parametri base è
-            di 5 punti.
+            l&apos;Exact, 3 per il Segno, 1 per Over / Under e 1 per Goal / No
+            Goal. Senza Exact, il massimo ottenibile attraverso i quattro
+            parametri base è di 5 punti.
           </p>
         </section>
 
@@ -108,7 +232,8 @@ export default function RegolamentoPage() {
           </div>
 
           <p className="mt-6 text-gray-400">
-            Il punteggio massimo ottenibile su una singola partita è di 15 punti.
+            Il punteggio massimo ottenibile su una singola partita è di 15
+            punti.
           </p>
         </section>
 
@@ -120,8 +245,8 @@ export default function RegolamentoPage() {
               <strong>Segno Opposto (-1)</strong>
 
               <p className="mt-2 text-gray-400">
-                Si applica quando viene pronosticata la vittoria della squadra di
-                casa e vince la squadra ospite, oppure viceversa.
+                Si applica quando viene pronosticata la vittoria della squadra
+                di casa e vince la squadra ospite, oppure viceversa.
               </p>
             </div>
 
@@ -162,8 +287,8 @@ export default function RegolamentoPage() {
                   <p className="mt-2 text-gray-400">
                     Nelle partite schierate in Attacco l&apos;Exact e il Bonus
                     Sorpresa valgono il doppio. Anche i malus Segno Opposto e
-                    Cantonata vengono raddoppiati. L&apos;Attacco offre quindi un
-                    potenziale maggiore, ma espone a un rischio più elevato.
+                    Cantonata vengono raddoppiati. L&apos;Attacco offre quindi
+                    un potenziale maggiore, ma espone a un rischio più elevato.
                   </p>
                 </div>
 
@@ -199,7 +324,8 @@ export default function RegolamentoPage() {
                 </div>
 
                 <p className="mt-4 text-sm text-gray-400">
-                  La progressione continua con fasce di 10 punti per ogni gol successivo.
+                  La progressione continua con fasce di 10 punti per ogni gol
+                  successivo.
                 </p>
               </div>
             </div>
@@ -220,9 +346,9 @@ export default function RegolamentoPage() {
               </p>
 
               <p className="mt-4 text-gray-400">
-                Si generano così due matrici indipendenti da 10 mini-sfide:
-                una costruita dal primo giocatore e una costruita dal secondo.
-                In ogni mini-sfida prevale il pronostico che ottiene più punti
+                Si generano così due matrici indipendenti da 10 mini-sfide: una
+                costruita dal primo giocatore e una costruita dal secondo. In
+                ogni mini-sfida prevale il pronostico che ottiene più punti
                 FantaGol; in caso di parità la mini-sfida termina in pareggio.
                 La somma dei risultati delle due matrici determina l&apos;esito
                 finale dell&apos;incontro One To One.
@@ -230,8 +356,8 @@ export default function RegolamentoPage() {
 
               <p className="mt-4 text-gray-400">
                 Le matrici possono essere modificate fino al blocco dei
-                pronostici e restano nascoste all&apos;avversario fino all&apos;inizio
-                della giornata.
+                pronostici e restano nascoste all&apos;avversario fino
+                all&apos;inizio della giornata.
               </p>
             </div>
 
@@ -239,8 +365,9 @@ export default function RegolamentoPage() {
               <h3 className="mb-3 text-2xl font-semibold">Punti Puri</h3>
 
               <p className="text-gray-300">
-                Conta esclusivamente la somma dei punti FantaGol ottenuti durante
-                la stagione. Le giornate negative riducono il totale accumulato.
+                Conta esclusivamente la somma dei punti FantaGol ottenuti
+                durante la stagione. Le giornate negative riducono il totale
+                accumulato.
               </p>
             </div>
           </div>
@@ -259,7 +386,8 @@ export default function RegolamentoPage() {
             <li>• scegliere quali partite schierare in Attacco;</li>
             <li>• scegliere quali partite proteggere in Difesa;</li>
             <li>
-              • decidere gli accoppiamenti delle mini-sfide nella modalità One To One.
+              • decidere gli accoppiamenti delle mini-sfide nella modalità One
+              To One.
             </li>
           </ul>
 

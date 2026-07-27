@@ -1,13 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import Header from "../../components/Header";
+import { useEffect, useState } from "react";
+import FantaGolLogo from "../../components/FantaGolLogo";
+import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import { supabase } from "../../lib/supabaseClient";
 
 type CreatePrivateLeagueResult = {
   league_id: string;
   invite_code: string;
   visibility: "private";
+};
+
+type DrawerLeague = {
+  id: string;
+  name: string;
+  invite_code: string;
+  display_name: string;
+  role: string;
+};
+
+type MyLeagueRpcRow = {
+  league_id: string;
+  league_name?: string | null;
+  invite_code?: string | null;
+  display_name?: string | null;
+  role?: string | null;
+  status?: string | null;
 };
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
@@ -48,13 +66,104 @@ function getCreationErrorMessage(message: string) {
   }
 }
 
+function extractInviteCode(value: string) {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  try {
+    const inviteUrl = new URL(normalizedValue);
+    const pathParts = inviteUrl.pathname.split("/").filter(Boolean);
+    const inviteIndex = pathParts.findIndex((part) => part === "invito");
+
+    if (inviteIndex >= 0 && pathParts[inviteIndex + 1]) {
+      return decodeURIComponent(pathParts[inviteIndex + 1]).trim();
+    }
+  } catch {
+    // Il valore non è un URL completo: viene interpretato come codice.
+  }
+
+  const withoutQueryOrHash = normalizedValue.split(/[?#]/, 1)[0];
+  const pathParts = withoutQueryOrHash.split("/").filter(Boolean);
+
+  if (pathParts.length >= 2 && pathParts.at(-2) === "invito") {
+    return decodeURIComponent(pathParts.at(-1) || "").trim();
+  }
+
+  return decodeURIComponent(pathParts.at(-1) || withoutQueryOrHash).trim();
+}
+
 export default function CreaLegaPage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [navigationResolved, setNavigationResolved] = useState(false);
+  const [league, setLeague] = useState<DrawerLeague | null>(null);
   const [leagueName, setLeagueName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [createdLeague, setCreatedLeague] =
     useState<CreatePrivateLeagueResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [inviteValue, setInviteValue] = useState("");
+  const [inviteErrorMessage, setInviteErrorMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAuthenticatedNavigation() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!active) return;
+
+      if (!session?.user) {
+        window.location.replace("/login");
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+      if (!active) return;
+
+      if (!error) {
+        const rows = ((data || []) as MyLeagueRpcRow[]).filter(
+          (row) => row.status === "active" || !row.status,
+        );
+
+        const storedLeagueId = window.localStorage.getItem(
+          LAST_LEAGUE_STORAGE_KEY,
+        );
+
+        const current =
+          rows.find((row) => row.league_id === storedLeagueId) || rows[0];
+
+        if (current) {
+          window.localStorage.setItem(
+            LAST_LEAGUE_STORAGE_KEY,
+            current.league_id,
+          );
+
+          setLeague({
+            id: current.league_id,
+            name: current.league_name || "Lega FantaGol",
+            invite_code: current.invite_code || "",
+            display_name: current.display_name || "Giocatore",
+            role: current.role || "member",
+          });
+        }
+      }
+
+      setNavigationResolved(true);
+    }
+
+    void loadAuthenticatedNavigation();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleCreateLeague(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,15 +222,70 @@ export default function CreaLegaPage() {
     setLoading(false);
   }
 
+  function handleOpenInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInviteErrorMessage("");
+
+    const inviteCode = extractInviteCode(inviteValue);
+
+    if (!inviteCode) {
+      setInviteErrorMessage(
+        "Incolla un link di invito oppure inserisci il codice.",
+      );
+      return;
+    }
+
+    window.location.assign(`/invito/${encodeURIComponent(inviteCode)}`);
+  }
+
   const inviteLink = createdLeague
     ? `${window.location.origin}/invito/${createdLeague.invite_code}`
     : "";
 
+  const activeLeague = league || {
+    id: "",
+    name: "FantaGol",
+    invite_code: "",
+    display_name: "Giocatore",
+    role: "member",
+  };
+
   return (
     <main className="min-h-screen bg-black text-white">
-      <Header />
+      {navigationResolved && (
+        <>
+          <HamburgerDrawer
+            open={menuOpen}
+            leagueName={activeLeague.name}
+            displayName={activeLeague.display_name}
+            inviteCode={activeLeague.invite_code}
+            role={activeLeague.role}
+            onClose={() => setMenuOpen(false)}
+          />
 
-      <section className="mx-auto flex min-h-[calc(100vh-56px)] max-w-6xl items-center justify-center px-6 py-16">
+          <header className="fixed inset-x-0 top-0 z-[90] border-b border-[#A6E824]/25 bg-[#1f2427] shadow-2xl shadow-black/80">
+            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
+              <a
+                href={activeLeague.id ? `/leghe/${activeLeague.id}` : "/leghe"}
+                className="relative z-10 block"
+              >
+                <FantaGolLogo />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label="Apri menu FantaGol"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-[#111417] text-xl font-black text-white transition hover:border-[#A6E824]/70 hover:text-[#A6E824]"
+              >
+                ☰
+              </button>
+            </div>
+          </header>
+        </>
+      )}
+
+      <section className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 pb-16 pt-24">
         <div className="w-full max-w-2xl rounded-3xl border border-gray-700 bg-gradient-to-b from-[#1f2427] to-[#0d0d0d] p-8 shadow-2xl shadow-black/70">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-[#A6E824]">
             Nuova Lega
@@ -253,6 +417,56 @@ export default function CreaLegaPage() {
               </div>
             </section>
           )}
+
+          <section className="mt-8 border-t border-gray-700 pt-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#A6E824]">
+              Hai ricevuto un invito?
+            </p>
+
+            <h2 className="mt-2 text-xl font-bold">Entra in un’altra lega</h2>
+
+            <p className="mt-2 text-sm leading-6 text-gray-400">
+              Incolla il link di invito completo oppure inserisci direttamente
+              il codice ricevuto.
+            </p>
+
+            <form onSubmit={handleOpenInvite} className="mt-5 space-y-3">
+              <label htmlFor="invite-value" className="sr-only">
+                Link o codice di invito
+              </label>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  id="invite-value"
+                  type="text"
+                  value={inviteValue}
+                  onChange={(event) => {
+                    setInviteValue(event.target.value);
+                    if (inviteErrorMessage) setInviteErrorMessage("");
+                  }}
+                  placeholder="Incolla il link o il codice di invito"
+                  autoComplete="off"
+                  className="min-w-0 flex-1 rounded-xl border border-gray-700 bg-[#111111] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-[#A6E824]"
+                />
+
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-xl border border-[#A6E824]/60 bg-[#A6E824]/10 px-5 py-3 font-semibold text-[#A6E824] transition hover:border-[#A6E824] hover:bg-[#A6E824]/15"
+                >
+                  Continua
+                </button>
+              </div>
+
+              {inviteErrorMessage && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+                >
+                  {inviteErrorMessage}
+                </div>
+              )}
+            </form>
+          </section>
         </div>
       </section>
     </main>
