@@ -1,13 +1,21 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type TouchEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import TeamCrest from "../../../../components/app/TeamCrest";
+import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
@@ -96,6 +104,8 @@ type DuelMatch = {
   slotNumber: number;
   home: string;
   away: string;
+  homeCrestLabel: string;
+  awayCrestLabel: string;
   homeBadge: string;
   awayBadge: string;
   homeCrestReference: string | null;
@@ -124,40 +134,98 @@ type PredictionSlot = {
 };
 
 const ruleItems: RuleItem[] = [
-  { key: "exact", label: "Exact", short: "EX", points: "+6", icon: "◎", tone: "muted" },
-  { key: "sign", label: "Segno", short: "1X2", points: "+3", icon: "✓", tone: "green" },
-  { key: "uo", label: "Over/Under", short: "U/O", points: "+1", icon: "%", tone: "muted" },
-  { key: "gg", label: "Gol/NoGol", short: "G/NG", points: "+1", icon: "▣", tone: "green" },
-  { key: "surprise", label: "Sorpresa", short: "SOR", points: "+2", icon: "☆", tone: "orange" },
-  { key: "show", label: "Gol Show", short: "SHOW", points: "+1", icon: "✴", tone: "orange" },
-  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "violet" },
-  { key: "bad", label: "Cantonata", short: "CAN", points: "-2", icon: "×", tone: "red" },
-  { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
+  {
+    key: "exact",
+    label: "Exact",
+    short: "EX",
+    points: "+6",
+    icon: "◎",
+    tone: "muted",
+  },
+  {
+    key: "sign",
+    label: "Segno",
+    short: "1X2",
+    points: "+3",
+    icon: "✓",
+    tone: "green",
+  },
+  {
+    key: "uo",
+    label: "Over/Under",
+    short: "U/O",
+    points: "+1",
+    icon: "%",
+    tone: "muted",
+  },
+  {
+    key: "gg",
+    label: "Gol/NoGol",
+    short: "G/NG",
+    points: "+1",
+    icon: "▣",
+    tone: "green",
+  },
+  {
+    key: "surprise",
+    label: "Sorpresa",
+    short: "SOR",
+    points: "+2",
+    icon: "☆",
+    tone: "orange",
+  },
+  {
+    key: "show",
+    label: "Gol Show",
+    short: "SHOW",
+    points: "+1",
+    icon: "✴",
+    tone: "orange",
+  },
+  {
+    key: "slam",
+    label: "Grande Slam",
+    short: "SLAM",
+    points: "+1",
+    icon: "◇",
+    tone: "violet",
+  },
+  {
+    key: "bad",
+    label: "Cantonata",
+    short: "CAN",
+    points: "-2",
+    icon: "×",
+    tone: "red",
+  },
+  {
+    key: "opposite",
+    label: "Segno opposto",
+    short: "OPP",
+    points: "-1",
+    icon: "↔",
+    tone: "red",
+  },
 ];
-
 
 function TeamBadge({
   label,
   crestReference,
   logoUrl,
-  large = false,
 }: {
   label: string;
   crestReference?: string | null;
   logoUrl?: string | null;
-  large?: boolean;
 }) {
   return (
-    <span
-      className={`${large ? "h-10 w-10 sm:h-16 sm:w-16" : "h-7 w-7 sm:h-10 sm:w-10"} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-[#11181d] shadow-inner shadow-white/10`}
-    >
-      <TeamCrest
-        crestReference={crestReference}
-        logoUrl={logoUrl}
-        alt={`${label} stemma`}
-        fallbackLabel={label}
-      />
-    </span>
+    <TeamCrest
+      crestReference={crestReference}
+      logoUrl={logoUrl}
+      alt={`${label} stemma`}
+      fallbackLabel={label}
+      size="xs"
+      className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
+    />
   );
 }
 
@@ -198,11 +266,15 @@ function ClubKitMini({
   club: ClubInfo | null;
   align?: "left" | "right";
 }) {
-  const name = club?.name || (align === "right" ? "Avversario" : "Club FantaGol");
-  const motto = club?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.";
+  const name =
+    club?.name || (align === "right" ? "Avversario" : "Club FantaGol");
+  const motto =
+    club?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.";
 
   return (
-    <div className={`flex min-w-0 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : "text-left"}`}>
+    <div
+      className={`flex min-w-0 items-center gap-3 ${align === "right" ? "flex-row-reverse text-right" : "text-left"}`}
+    >
       <div className="flex h-20 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#111417] sm:h-24 sm:w-16">
         <div className="scale-[0.38]">
           <KitPreview
@@ -229,7 +301,15 @@ function ClubKitMini({
   );
 }
 
-function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; active?: boolean; compact?: boolean }) {
+function RuleIcon({
+  item,
+  active = false,
+  compact = false,
+}: {
+  item: RuleItem;
+  active?: boolean;
+  compact?: boolean;
+}) {
   const toneClass = active
     ? item.tone === "red"
       ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
@@ -254,20 +334,39 @@ function RuleStrip() {
   return (
     <section className="mt-3 rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-xl shadow-black/30 sm:mt-4 sm:p-3">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white sm:text-sm">Bonus/Malus</p>
-        <p className="hidden text-[9px] font-bold uppercase text-gray-500 sm:block sm:text-xs">Legenda punteggi</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white sm:text-sm">
+          Bonus/Malus
+        </p>
+        <p className="hidden text-[9px] font-bold uppercase text-gray-500 sm:block sm:text-xs">
+          Legenda punteggi
+        </p>
       </div>
       <div className="grid grid-cols-9 gap-1 sm:gap-2">
         {ruleItems.map((item) => (
-          <div key={item.key} className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-1 py-1.5 sm:px-2 sm:py-2">
-            <RuleIcon item={item} active={item.tone !== "muted" && item.key !== "bad" && item.key !== "opposite"} compact />
-            <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">{item.short}</p>
-            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}>{item.points}</p>
+          <div
+            key={item.key}
+            className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-1 py-1.5 sm:px-2 sm:py-2"
+          >
+            <RuleIcon item={item} active compact />
+            <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">
+              {item.short}
+            </p>
+            <p
+              className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}
+            >
+              {item.points}
+            </p>
           </div>
         ))}
       </div>
     </section>
   );
+}
+
+function formatPredictionScore(score: string) {
+  const compact = score.replace(/\s+/g, "");
+  const match = compact.match(/^(\d+)-(\d+)$/);
+  return match ? `${match[1]} - ${match[2]}` : score;
 }
 
 function PredictionSide({
@@ -292,19 +391,35 @@ function PredictionSide({
       }`}
     >
       <div className="flex max-w-full items-center justify-center gap-0.5 sm:gap-1.5">
-        <span className="text-[7px] font-black uppercase text-gray-500 sm:text-xs">{homeBadge}</span>
-        <span className="text-[13px] font-black leading-none text-white sm:text-2xl">{score}</span>
-        <span className="text-[7px] font-black uppercase text-gray-500 sm:text-xs">{awayBadge}</span>
+        <span className="text-[7px] font-black uppercase text-gray-500 sm:text-xs">
+          {homeBadge}
+        </span>
+        <span className="whitespace-nowrap text-[13px] font-black leading-none text-white sm:text-2xl">
+          {formatPredictionScore(score)}
+        </span>
+        <span className="text-[7px] font-black uppercase text-gray-500 sm:text-xs">
+          {awayBadge}
+        </span>
       </div>
 
       <div className="mt-1 grid grid-cols-5 gap-0.5 sm:mt-3 sm:flex sm:gap-1.5">
         {ruleItems.slice(0, 5).map((item) => (
-          <RuleIcon key={item.key} item={item} active={activeKeys.has(item.key)} compact />
+          <RuleIcon
+            key={item.key}
+            item={item}
+            active={activeKeys.has(item.key)}
+            compact
+          />
         ))}
       </div>
       <div className="mt-0.5 grid grid-cols-4 gap-0.5 sm:mt-1 sm:flex sm:gap-1.5">
         {ruleItems.slice(5).map((item) => (
-          <RuleIcon key={item.key} item={item} active={activeKeys.has(item.key)} compact />
+          <RuleIcon
+            key={item.key}
+            item={item}
+            active={activeKeys.has(item.key)}
+            compact
+          />
         ))}
       </div>
     </div>
@@ -313,53 +428,129 @@ function PredictionSide({
 
 function LiveMatchCenter({ match }: { match: DuelMatch }) {
   return (
-    <div className="grid min-w-0 grid-cols-[1fr_56px_1fr] items-center gap-1.5 sm:grid-cols-[1fr_110px_1fr] sm:gap-4">
-      <div className="flex min-w-0 flex-col items-center gap-1">
+    <div className="grid min-w-0 grid-cols-[auto_56px_auto] items-center justify-center gap-0.5 sm:grid-cols-[auto_110px_auto] sm:gap-1.5">
+      <div className="flex min-w-0 items-center justify-end gap-1">
+        <span className="text-[8px] font-black uppercase text-gray-400 sm:text-xs">
+          {match.home}
+        </span>
         <TeamBadge
-          label={match.homeBadge}
+          label={match.homeCrestLabel}
           crestReference={match.homeCrestReference}
           logoUrl={match.homeLogoUrl}
-          large
         />
       </div>
       <div className="flex min-w-0 flex-col items-center">
-        <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">{match.minute}</span>
+        <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">
+          {match.minute}
+        </span>
         <div className="mt-1 flex items-center justify-center gap-1 sm:gap-2">
-          <span className="text-2xl font-black leading-none text-[#A6E824] sm:text-5xl">{match.liveHome}</span>
-          <span className="text-xl font-black leading-none text-[#A6E824] sm:text-4xl">-</span>
-          <span className="text-2xl font-black leading-none text-white sm:text-5xl">{match.liveAway}</span>
+          <span className="text-2xl font-black leading-none text-[#A6E824] sm:text-5xl">
+            {match.liveHome}
+          </span>
+          <span className="text-xl font-black leading-none text-[#A6E824] sm:text-4xl">
+            -
+          </span>
+          <span className="text-2xl font-black leading-none text-white sm:text-5xl">
+            {match.liveAway}
+          </span>
         </div>
 
         <div className="mt-2 grid w-full grid-cols-[1fr_auto_1fr] items-center text-center">
-          <span className="text-lg font-black leading-none text-[#A6E824] sm:text-2xl">0</span>
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 sm:text-xs">PT</span>
-          <span className="text-lg font-black leading-none text-white sm:text-2xl">0</span>
+          <span className="text-lg font-black leading-none text-[#A6E824] sm:text-2xl">
+            0
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
+            PT
+          </span>
+          <span className="text-lg font-black leading-none text-white sm:text-2xl">
+            0
+          </span>
         </div>
       </div>
-      <div className="flex min-w-0 flex-col items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         <TeamBadge
-          label={match.awayBadge}
+          label={match.awayCrestLabel}
           crestReference={match.awayCrestReference}
           logoUrl={match.awayLogoUrl}
-          large
         />
+        <span className="text-[8px] font-black uppercase text-gray-400 sm:text-xs">
+          {match.away}
+        </span>
       </div>
     </div>
   );
 }
 
-function cleanTeamDisplayName(name: string): string {
-  return name
-    .replace(/\b(FC|AC|AS|SS|US|SSC|BC|CFC)\b/gi, "")
-    .replace(/\bCalcio\b/gi, "")
-    .replace(/\s+/g, " ")
+function cleanTeamDisplayName(name: string) {
+  const knownNames: Record<string, string> = {
+    "FC Internazionale Milano": "Inter",
+    "Internazionale Milano": "Inter",
+    "AC Milan": "Milan",
+    "Juventus FC": "Juventus",
+    "SSC Napoli": "Napoli",
+    "AS Roma": "Roma",
+    "SS Lazio": "Lazio",
+    "ACF Fiorentina": "Fiorentina",
+    "Atalanta BC": "Atalanta",
+    "Bologna FC 1909": "Bologna",
+    "Genoa CFC": "Genoa",
+    "Hellas Verona FC": "Hellas Verona",
+    "Parma Calcio 1913": "Parma",
+    "Torino FC": "Torino",
+    "Udinese Calcio": "Udinese",
+    "US Lecce": "Lecce",
+    "US Sassuolo Calcio": "Sassuolo",
+    "US Cremonese": "Cremonese",
+    "Pisa SC": "Pisa",
+    "Como 1907": "Como",
+    "Cagliari Calcio": "Cagliari",
+    "AC Monza": "Monza",
+    "Empoli FC": "Empoli",
+    "Frosinone Calcio": "Frosinone",
+    "Venezia FC": "Venezia",
+    "Spezia Calcio": "Spezia",
+    "UC Sampdoria": "Sampdoria",
+  };
+
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (knownNames[normalized]) return knownNames[normalized];
+
+  return normalized
+    .replace(
+      /^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i,
+      "",
+    )
+    .replace(
+      /\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i,
+      "",
+    )
+    .replace(/\s+(?:19|20)\d{2}$/i, "")
     .trim();
+}
+
+function getTeamCode(
+  providerShortName: string | null,
+  providerFullName: string,
+): string {
+  const source =
+    providerShortName?.trim() || cleanTeamDisplayName(providerFullName);
+
+  return source
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z]/g, "")
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 function getTeamBadge(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
   if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  return words.map((word) => word[0]).join("").slice(0, 3).toUpperCase();
+  return words
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 function toPredictionSlot(match: DuelMatch): PredictionSlot {
@@ -390,7 +581,9 @@ export default function OneToOneLivePage() {
   const swipeLockRef = useRef<"x" | "y" | null>(null);
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
-  const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(null);
+  const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(
+    null,
+  );
   const [leagueRoundId, setLeagueRoundId] = useState<string | null>(null);
   const [roundNumber, setRoundNumber] = useState<number | null>(null);
   const [leagueFixtureId, setLeagueFixtureId] = useState<string | null>(null);
@@ -413,7 +606,6 @@ export default function OneToOneLivePage() {
   const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
   const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
 
-
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setMounted(true);
@@ -427,7 +619,9 @@ export default function OneToOneLivePage() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = ((data || []) as MyLeagueRpcRow[]).find((row) => row.league_id === leagueId);
+      const current = ((data || []) as MyLeagueRpcRow[]).find(
+        (row) => row.league_id === leagueId,
+      );
       if (!current) return;
 
       setLeagueInfo({
@@ -470,7 +664,7 @@ export default function OneToOneLivePage() {
 
       const { data: roundData, error: roundError } = await supabase.rpc(
         "get_my_current_league_round_rpc",
-        { p_league_id: leagueId }
+        { p_league_id: leagueId },
       );
 
       if (cancelled) return;
@@ -519,7 +713,9 @@ export default function OneToOneLivePage() {
 
       const rows = (predictionData || []) as RoundPredictionRow[];
       if (rows.length !== 10) {
-        setStrategyError("La giornata One-to-One deve contenere esattamente 10 partite.");
+        setStrategyError(
+          "La giornata One-to-One deve contenere esattamente 10 partite.",
+        );
         setStrategyLoading(false);
         return;
       }
@@ -531,20 +727,26 @@ export default function OneToOneLivePage() {
           const isLive =
             row.match_status.startsWith("live_") ||
             ["halftime", "extra_time", "penalties"].includes(row.match_status);
-          const homeName = cleanTeamDisplayName(
-            row.home_team_short_name || row.home_team_name
+          const homeName = getTeamCode(
+            row.home_team_short_name,
+            row.home_team_name,
           );
-          const awayName = cleanTeamDisplayName(
-            row.away_team_short_name || row.away_team_name
+          const awayName = getTeamCode(
+            row.away_team_short_name,
+            row.away_team_name,
           );
+          const homeCrestLabel = cleanTeamDisplayName(row.home_team_name);
+          const awayCrestLabel = cleanTeamDisplayName(row.away_team_name);
 
           return {
             id: row.match_id,
             slotNumber: row.slot_number,
             home: homeName,
             away: awayName,
-            homeBadge: getTeamBadge(homeName),
-            awayBadge: getTeamBadge(awayName),
+            homeCrestLabel,
+            awayCrestLabel,
+            homeBadge: homeName,
+            awayBadge: awayName,
             homeCrestReference: row.home_team_crest_reference,
             homeLogoUrl: row.home_team_logo_url,
             awayCrestReference: row.away_team_crest_reference,
@@ -563,31 +765,37 @@ export default function OneToOneLivePage() {
         });
 
       const baseSlots = baseRows.map(toPredictionSlot);
-      const status = ((strategyData || [])[0] || null) as StrategyStatusRow | null;
+      const status = ((strategyData || [])[0] ||
+        null) as StrategyStatusRow | null;
       let restoredSlots: (PredictionSlot | null)[] = baseSlots;
 
       if (status?.strategy_exists && status.workspace_payload) {
         try {
           const matrix = fromOneToOneStrategyPayload(
             status.workspace_payload,
-            status.league_fixture_id
+            status.league_fixture_id,
           );
           const slotsByMatchId = new Map(
-            baseSlots.map((slot) => [slot.matchId, slot])
+            baseSlots.map((slot) => [slot.matchId, slot]),
           );
           const sourceByTarget = new Map(
-            matrix.pairs.map((pair) => [pair.targetMatchId, pair.sourceMatchId])
+            matrix.pairs.map((pair) => [
+              pair.targetMatchId,
+              pair.sourceMatchId,
+            ]),
           );
 
           restoredSlots = baseRows.map((targetMatch) => {
             const sourceMatchId = sourceByTarget.get(targetMatch.id);
-            return sourceMatchId ? slotsByMatchId.get(sourceMatchId) || null : null;
+            return sourceMatchId
+              ? slotsByMatchId.get(sourceMatchId) || null
+              : null;
           });
         } catch (error) {
           setStrategyError(
             error instanceof Error
               ? error.message
-              : "La strategia One-to-One salvata non è leggibile."
+              : "La strategia One-to-One salvata non è leggibile.",
           );
         }
       }
@@ -600,8 +808,11 @@ export default function OneToOneLivePage() {
       setLeftSlots(restoredSlots);
       setStoredSlots(
         baseSlots.filter(
-          (slot) => !restoredSlots.some((assigned) => assigned?.matchId === slot.matchId)
-        )
+          (slot) =>
+            !restoredSlots.some(
+              (assigned) => assigned?.matchId === slot.matchId,
+            ),
+        ),
       );
       setStrategyExists(Boolean(status?.strategy_exists));
       setHasOfficialSubmission(Boolean(status?.has_official_snapshot));
@@ -617,7 +828,6 @@ export default function OneToOneLivePage() {
     };
   }, [leagueId]);
 
-
   const leftPoints = 72;
   const rightPoints = 65;
   const leftGoals = 5;
@@ -629,50 +839,56 @@ export default function OneToOneLivePage() {
   const interactionLocked = strategyLocked || isByeRound;
 
   const isLiveForSwipe = !isByeRound && (round.isLive || round.isFinished);
-  const swipeProfiles = useMemo(() => [
-    {
-      id: "me",
-      clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
-      motto: clubInfo?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.",
-      avatarUrl: clubInfo?.crest_url || null,
-      kitTemplate: clubInfo?.kit_template || "solid",
-      kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
-      kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
-      kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
-      kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
-      kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
-      starsCount: clubInfo?.stars_count || 0,
-      isCurrentUser: true,
-    },
-    {
-      id: "demo-1",
-      clubName: "Real Exact",
-      motto: "Precisione, coraggio e pronostici al millimetro.",
-      avatarUrl: null,
-      kitTemplate: "vertical_3",
-      kitPrimaryColor: "#A6E824",
-      kitSecondaryColor: "#111417",
-      kitThirdColor: "#FFFFFF",
-      kitLogoMode: "center_horizontal",
-      kitCrestPosition: "left_chest",
-      starsCount: 2,
-    },
-    {
-      id: "demo-2",
-      clubName: "Bonus Show",
-      motto: "Ogni bonus è una dichiarazione di intenti.",
-      avatarUrl: null,
-      kitTemplate: "diagonal",
-      kitPrimaryColor: "#1f2427",
-      kitSecondaryColor: "#A6E824",
-      kitThirdColor: "#FFFFFF",
-      kitLogoMode: "wordmark_only",
-      kitCrestPosition: "left_chest",
-      starsCount: 1,
-    },
-  ], [clubInfo, leagueInfo.displayName]);
+  const swipeProfiles = useMemo(
+    () => [
+      {
+        id: "me",
+        clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
+        motto:
+          clubInfo?.motto ||
+          "Il tuo Club FantaGol sta per iniziare la sua storia.",
+        avatarUrl: clubInfo?.crest_url || null,
+        kitTemplate: clubInfo?.kit_template || "solid",
+        kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
+        kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
+        kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
+        kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
+        kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
+        starsCount: clubInfo?.stars_count || 0,
+        isCurrentUser: true,
+      },
+      {
+        id: "demo-1",
+        clubName: "Real Exact",
+        motto: "Precisione, coraggio e pronostici al millimetro.",
+        avatarUrl: null,
+        kitTemplate: "vertical_3",
+        kitPrimaryColor: "#A6E824",
+        kitSecondaryColor: "#111417",
+        kitThirdColor: "#FFFFFF",
+        kitLogoMode: "center_horizontal",
+        kitCrestPosition: "left_chest",
+        starsCount: 2,
+      },
+      {
+        id: "demo-2",
+        clubName: "Bonus Show",
+        motto: "Ogni bonus è una dichiarazione di intenti.",
+        avatarUrl: null,
+        kitTemplate: "diagonal",
+        kitPrimaryColor: "#1f2427",
+        kitSecondaryColor: "#A6E824",
+        kitThirdColor: "#FFFFFF",
+        kitLogoMode: "wordmark_only",
+        kitCrestPosition: "left_chest",
+        starsCount: 1,
+      },
+    ],
+    [clubInfo, leagueInfo.displayName],
+  );
 
-  const activeProfile = swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
+  const activeProfile =
+    swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
   const isFirstProfile = activeSwipeIndex === 0;
   const isLastProfile = activeSwipeIndex === swipeProfiles.length - 1;
   const isViewingSelf = activeProfile?.isCurrentUser === true;
@@ -698,9 +914,11 @@ export default function OneToOneLivePage() {
     closeMemoryPopup();
 
     const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
-    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 420;
+    const viewportWidth =
+      typeof window !== "undefined" ? window.innerWidth : 420;
     const exitX = direction === "next" ? -viewportWidth : viewportWidth;
-    const enterX = direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
+    const enterX =
+      direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
 
     setSwipeTransition(true);
     setSwipeDragX(exitX);
@@ -767,7 +985,8 @@ export default function OneToOneLivePage() {
   }
 
   function handlePageSwipeMove(event: TouchEvent<HTMLElement>) {
-    if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+    if (swipeStartXRef.current === null || swipeStartYRef.current === null)
+      return;
 
     const currentX = event.touches[0]?.clientX ?? swipeStartXRef.current;
     const currentY = event.touches[0]?.clientY ?? swipeStartYRef.current;
@@ -776,7 +995,8 @@ export default function OneToOneLivePage() {
 
     if (!swipeLockRef.current) {
       if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
-      swipeLockRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.25 ? "x" : "y";
+      swipeLockRef.current =
+        Math.abs(deltaX) > Math.abs(deltaY) * 1.25 ? "x" : "y";
     }
 
     if (swipeLockRef.current !== "x") return;
@@ -828,12 +1048,20 @@ export default function OneToOneLivePage() {
         ? swipeProfiles[activeSwipeIndex - 1]
         : null;
 
-  const displayedLeftSlots = canViewProfileContent ? leftSlots : leftSlots.map(() => null);
+  const displayedLeftSlots = canViewProfileContent
+    ? leftSlots
+    : leftSlots.map(() => null);
   const [openMemoryIndex, setOpenMemoryIndex] = useState<number | null>(null);
   const [, setMemoryPopupFloating] = useState(false);
-  const [memoryPopupPosition, setMemoryPopupPosition] = useState({ x: 12, y: 250 });
+  const [memoryPopupPosition, setMemoryPopupPosition] = useState({
+    x: 12,
+    y: 250,
+  });
   const [memoryPopupWidth, setMemoryPopupWidth] = useState<number | null>(null);
-  const [memoryDragOffset, setMemoryDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [memoryDragOffset, setMemoryDragOffset] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const allSlotsComplete =
     leftSlots.length === 10 && leftSlots.every((slot) => slot !== null);
@@ -850,11 +1078,11 @@ export default function OneToOneLivePage() {
     const popupWidth = Math.max(106, rect.width);
     const x = Math.min(
       Math.max(8, rect.left),
-      Math.max(8, window.innerWidth - popupWidth - 8)
+      Math.max(8, window.innerWidth - popupWidth - 8),
     );
     const y = Math.min(
       Math.max(8, rect.bottom + 8),
-      Math.max(8, window.innerHeight - 140)
+      Math.max(8, window.innerHeight - 140),
     );
 
     setOpenMemoryIndex(index);
@@ -897,7 +1125,9 @@ export default function OneToOneLivePage() {
     setSavingStrategy(false);
 
     if (error) {
-      setStrategyError(error.message || "Salvataggio degli abbinamenti non riuscito.");
+      setStrategyError(
+        error.message || "Salvataggio degli abbinamenti non riuscito.",
+      );
       return;
     }
 
@@ -922,7 +1152,9 @@ export default function OneToOneLivePage() {
     }
 
     setStoredSlots((current) => [...current, slot]);
-    setLeftSlots((current) => current.map((item, itemIndex) => (itemIndex === index ? null : item)));
+    setLeftSlots((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? null : item)),
+    );
     closeMemoryPopup();
   }
 
@@ -933,11 +1165,11 @@ export default function OneToOneLivePage() {
     if (!slot) return;
 
     const nextSlots = leftSlots.map((item, itemIndex) =>
-      itemIndex === targetIndex ? slot : item
+      itemIndex === targetIndex ? slot : item,
     );
     setLeftSlots(nextSlots);
     setStoredSlots((current) =>
-      current.filter((_, itemIndex) => itemIndex !== storedIndex)
+      current.filter((_, itemIndex) => itemIndex !== storedIndex),
     );
     closeMemoryPopup();
     void persistPairings(nextSlots);
@@ -951,7 +1183,9 @@ export default function OneToOneLivePage() {
     swipeStartYRef.current = null;
     swipeLockRef.current = null;
 
-    const popup = event.currentTarget.closest("[data-memory-popup='true']") as HTMLDivElement | null;
+    const popup = event.currentTarget.closest(
+      "[data-memory-popup='true']",
+    ) as HTMLDivElement | null;
     if (!popup) return;
 
     const rect = popup.getBoundingClientRect();
@@ -972,7 +1206,9 @@ export default function OneToOneLivePage() {
     event.stopPropagation();
 
     const popupWidth = memoryPopupWidth ?? 106;
-    const popup = event.currentTarget.closest("[data-memory-popup='true']") as HTMLDivElement | null;
+    const popup = event.currentTarget.closest(
+      "[data-memory-popup='true']",
+    ) as HTMLDivElement | null;
     const popupHeight = popup?.offsetHeight ?? 80;
 
     const maxX = Math.max(8, window.innerWidth - popupWidth - 8);
@@ -1005,10 +1241,7 @@ export default function OneToOneLivePage() {
     event?.preventDefault();
     event?.stopPropagation();
 
-    if (
-      event &&
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
+    if (event && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
@@ -1053,12 +1286,14 @@ export default function OneToOneLivePage() {
           p_league_round_id: leagueRoundId,
           p_mode: "one_to_one",
           p_payload: payload,
-        }
+        },
       );
 
       if (saveError) {
         setSubmitting(false);
-        alert(saveError.message || "Salvataggio degli abbinamenti non riuscito.");
+        alert(
+          saveError.message || "Salvataggio degli abbinamenti non riuscito.",
+        );
         return;
       }
 
@@ -1095,7 +1330,6 @@ export default function OneToOneLivePage() {
       onTouchMove={handlePageSwipeMove}
       onTouchEnd={handlePageSwipeEnd}
     >
-
       <HamburgerDrawer
         open={menuOpen}
         leagueName={leagueInfo.name}
@@ -1164,7 +1398,10 @@ export default function OneToOneLivePage() {
           <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-2xl shadow-black/40 sm:p-3">
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 sm:grid-cols-[84px_minmax(104px,1fr)_84px] sm:gap-3">
               <div className="flex shrink-0 flex-col items-center">
-                <Avatar name={viewedClubInfo.name} avatarUrl={viewedClubInfo.crest_url} />
+                <Avatar
+                  name={viewedClubInfo.name}
+                  avatarUrl={viewedClubInfo.crest_url}
+                />
                 <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
                   {viewedClubInfo.name}
                 </p>
@@ -1204,14 +1441,22 @@ export default function OneToOneLivePage() {
 
               <div className="flex min-w-0 flex-col items-center justify-self-center">
                 <Avatar
-                  name={isByeRound ? "Riposo" : opponentClubInfo?.name || "Avversario"}
+                  name={
+                    isByeRound
+                      ? "Riposo"
+                      : opponentClubInfo?.name || "Avversario"
+                  }
                   avatarUrl={isByeRound ? null : opponentClubInfo?.crest_url}
                   disabled={isByeRound}
                 />
-                <p className={`mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none sm:max-w-[72px] sm:text-[10px] ${
-                  isByeRound ? "text-gray-600" : "text-white"
-                }`}>
-                  {isByeRound ? "Riposo" : opponentClubInfo?.name || "Avversario"}
+                <p
+                  className={`mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none sm:max-w-[72px] sm:text-[10px] ${
+                    isByeRound ? "text-gray-600" : "text-white"
+                  }`}
+                >
+                  {isByeRound
+                    ? "Riposo"
+                    : opponentClubInfo?.name || "Avversario"}
                 </p>
               </div>
             </div>
@@ -1219,8 +1464,12 @@ export default function OneToOneLivePage() {
 
           <div className="rounded-2xl border border-white/10 bg-black/25 p-2 text-center sm:p-3">
             <div className="flex h-full flex-col items-center justify-center">
-              <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">Giornata</p>
-              <p className="text-2xl font-black text-white sm:text-3xl">{roundNumber ?? "—"}</p>
+              <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">
+                Giornata
+              </p>
+              <p className="text-2xl font-black text-white sm:text-3xl">
+                {roundNumber ?? "—"}
+              </p>
             </div>
           </div>
 
@@ -1283,9 +1532,15 @@ export default function OneToOneLivePage() {
               className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-left transition hover:border-[#A6E824]/50"
             >
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">Modalità</p>
-                <p className="text-base font-black uppercase sm:text-lg">One To One</p>
-                <p className="text-[11px] font-semibold text-gray-500">Sfida diretta</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
+                  Modalità
+                </p>
+                <p className="text-base font-black uppercase sm:text-lg">
+                  One To One
+                </p>
+                <p className="text-[11px] font-semibold text-gray-500">
+                  Sfida diretta
+                </p>
               </div>
               <span className="text-2xl text-white sm:text-3xl">⌄</span>
             </button>
@@ -1298,10 +1553,16 @@ export default function OneToOneLivePage() {
                   className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-white/5"
                 >
                   <span>
-                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità Punti Puri</span>
-                    <span className="block text-[11px] font-semibold text-gray-500">Vai alla giornata punti</span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">
+                      Modalità Punti Puri
+                    </span>
+                    <span className="block text-[11px] font-semibold text-gray-500">
+                      Vai alla giornata punti
+                    </span>
                   </span>
-                  <span className="text-xl">⭐</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+                    <FantaGolModeIcon mode="punti-puri" />
+                  </span>
                 </button>
 
                 <button
@@ -1310,17 +1571,27 @@ export default function OneToOneLivePage() {
                   className="flex w-full items-center justify-between border-t border-white/10 px-4 py-3 text-left transition hover:bg-white/5"
                 >
                   <span>
-                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità Fantacalcio</span>
-                    <span className="block text-[11px] font-semibold text-gray-500">Vai al duello live</span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">
+                      Modalità Fantacalcio
+                    </span>
+                    <span className="block text-[11px] font-semibold text-gray-500">
+                      Vai al duello live
+                    </span>
                   </span>
-                  <span className="text-xl">🏆</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+                    <FantaGolModeIcon mode="fantacalcio" />
+                  </span>
                 </button>
               </div>
             )}
           </div>
         </section>
 
-        <div className={isByeRound ? "pointer-events-none opacity-30 grayscale" : ""}>
+        <div
+          className={
+            isByeRound ? "pointer-events-none opacity-30 grayscale" : ""
+          }
+        >
           <RuleStrip />
         </div>
 
@@ -1338,7 +1609,8 @@ export default function OneToOneLivePage() {
                 In questo turno riposi in One-to-One
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-gray-500 sm:text-sm">
-                Le funzioni di questa modalità sono disattivate. Puoi pianificare la strategia della modalità Fantacalcio.
+                Le funzioni di questa modalità sono disattivate. Puoi
+                pianificare la strategia della modalità Fantacalcio.
               </p>
               <button
                 type="button"
@@ -1374,73 +1646,85 @@ export default function OneToOneLivePage() {
         )}
 
         {!strategyLoading && liveRows.length === 10 && (
-        <section className={`mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4 ${
-          isByeRound ? "pointer-events-none select-none opacity-25 grayscale" : ""
-        }`}>
-          {liveRows.map((match, index) => {
-            const leftSlot = displayedLeftSlots[index];
+          <section
+            className={`mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4 ${
+              isByeRound
+                ? "pointer-events-none select-none opacity-25 grayscale"
+                : ""
+            }`}
+          >
+            {liveRows.map((match, index) => {
+              const leftSlot = displayedLeftSlots[index];
 
-            return (
-              <article key={match.id} className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4">
-                <div className="grid grid-cols-[23%_54%_23%] items-center gap-0.5 sm:grid-cols-[1fr_1.35fr_1fr] sm:gap-5">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={(event) =>
-                        removePredictionSlot(index, event.currentTarget)
-                      }
-                      disabled={interactionLocked || !isViewingSelf}
-                      className={`w-full text-left transition ${interactionLocked ? "cursor-default" : "hover:scale-[1.01]"}`}
-                      title={
-                        interactionLocked
-                          ? "Pronostico bloccato"
-                          : leftSlot
-                            ? "Clicca per svuotare la casella e mettere il pronostico in memoria"
-                            : "Clicca per scegliere un pronostico dalla memoria"
-                      }
-                    >
-                      {leftSlot ? (
-                        <PredictionSide
-                          score={leftSlot.score}
-                          active={leftSlot.active}
-                          side="left"
-                          homeBadge={leftSlot.homeBadge}
-                          awayBadge={leftSlot.awayBadge}
-                        />
-                      ) : (
-                        <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5 sm:min-h-[104px]">
-                          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">Vuota</p>
-                          <p className="mt-1 text-lg font-black leading-none text-gray-700 sm:text-3xl">—</p>
-                        </div>
-                      )}
-                    </button>
-
-                  </div>
-
-                  <LiveMatchCenter match={match} />
-
-                  {interactionLocked && canViewProfileContent ? (
-                    <PredictionSide
-                      score={match.rightPrediction}
-                      active={match.rightActive}
-                      side="right"
-                      homeBadge={match.homeBadge}
-                      awayBadge={match.awayBadge}
-                    />
-                  ) : (
-                    <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
-                        Avversario
-                      </p>
-                      <p className="mt-2 text-lg font-black leading-none text-gray-700 sm:text-3xl">—</p>
-                      <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
+              return (
+                <article
+                  key={match.id}
+                  className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4"
+                >
+                  <div className="grid grid-cols-[23%_54%_23%] items-center gap-0.5 sm:grid-cols-[1fr_1.35fr_1fr] sm:gap-5">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={(event) =>
+                          removePredictionSlot(index, event.currentTarget)
+                        }
+                        disabled={interactionLocked || !isViewingSelf}
+                        className={`w-full text-left transition ${interactionLocked ? "cursor-default" : "hover:scale-[1.01]"}`}
+                        title={
+                          interactionLocked
+                            ? "Pronostico bloccato"
+                            : leftSlot
+                              ? "Clicca per svuotare la casella e mettere il pronostico in memoria"
+                              : "Clicca per scegliere un pronostico dalla memoria"
+                        }
+                      >
+                        {leftSlot ? (
+                          <PredictionSide
+                            score={leftSlot.score}
+                            active={leftSlot.active}
+                            side="left"
+                            homeBadge={leftSlot.homeBadge}
+                            awayBadge={leftSlot.awayBadge}
+                          />
+                        ) : (
+                          <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5 sm:min-h-[104px]">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                              Vuota
+                            </p>
+                            <p className="mt-1 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                              —
+                            </p>
+                          </div>
+                        )}
+                      </button>
                     </div>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </section>
+
+                    <LiveMatchCenter match={match} />
+
+                    {interactionLocked && canViewProfileContent ? (
+                      <PredictionSide
+                        score={match.rightPrediction}
+                        active={match.rightActive}
+                        side="right"
+                        homeBadge={match.homeBadge}
+                        awayBadge={match.awayBadge}
+                      />
+                    ) : (
+                      <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                          Avversario
+                        </p>
+                        <p className="mt-2 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                          —
+                        </p>
+                        <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
+                      </div>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
         )}
 
         {!isByeRound && (
@@ -1457,7 +1741,6 @@ export default function OneToOneLivePage() {
           </section>
         )}
       </section>
-
 
       {mounted &&
         openMemoryIndex !== null &&
@@ -1507,7 +1790,7 @@ export default function OneToOneLivePage() {
                       {stored.homeBadge}
                     </span>
                     <span className="rounded-lg bg-black/35 px-0.5 py-1 text-center text-[14px] leading-none text-white shadow-inner shadow-white/5 sm:px-2 sm:text-base">
-                      {stored.score}
+                      {formatPredictionScore(stored.score)}
                     </span>
                     <span className="text-right text-[10px] uppercase tracking-[-0.02em] text-gray-500 transition group-hover:text-[#A6E824] sm:tracking-[0.02em] sm:text-xs">
                       {stored.awayBadge}
@@ -1517,13 +1800,15 @@ export default function OneToOneLivePage() {
               </div>
             )}
           </div>,
-          document.body
+          document.body,
         )}
 
       <SubmissionModal
         open={submissionModalOpen}
         title="Sfida pianificata"
-        description={"Pronostici e abbinamenti salvati.\nPotrai modificarli fino al lock ufficiale."}
+        description={
+          "Pronostici e abbinamenti salvati.\nPotrai modificarli fino al lock ufficiale."
+        }
         primaryLabel="Vai ai Punti Puri"
         secondaryLabel="Vai a Fantacalcio"
         onPrimary={() => router.push(`/leghe/${leagueId}/giornata`)}

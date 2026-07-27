@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import { leaguePath } from "../../../lib/navigation/league-paths";
@@ -10,7 +10,6 @@ import DashboardCard from "../../../components/ui/DashboardCard";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import FantaGolModeIcon from "../../../components/app/FantaGolModeIcon";
 import TeamCrest from "../../../components/app/TeamCrest";
-import ModeSummaryCard from "../../../components/app/ModeSummaryCard";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
 
@@ -102,11 +101,11 @@ function cleanTeamDisplayName(name: string) {
   return normalized
     .replace(
       /^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i,
-      ""
+      "",
     )
     .replace(
       /\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i,
-      ""
+      "",
     )
     .replace(/\s+(?:19|20)\d{2}$/i, "")
     .trim();
@@ -142,59 +141,48 @@ function getLocalDateKey(value: Date | string) {
   }).format(date);
 }
 
-
 function getProviderScoreLabel(match: DashboardMatch) {
   return `${match.homeScore ?? 0} - ${match.awayScore ?? 0}`;
 }
 
-function MatchMiniRow({
-  match,
-  index,
-}: {
-  match: DashboardMatch;
-  index: number;
-}) {
+function MatchMiniRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className="grid grid-cols-[22px_1fr_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-2">
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#A6E824]/10 text-[11px] font-black text-[#A6E824]">
-        {index}
-      </div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(88px,auto)_auto_minmax(0,1fr)] items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-3 sm:gap-3">
+      <span className="min-w-0 truncate text-right text-sm font-black text-white sm:text-base">
+        {match.home}
+      </span>
 
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <TeamCrest
-            crestReference={match.homeCrestReference}
-            logoUrl={match.homeLogoUrl}
-            alt={`${match.home} stemma`}
-            fallbackLabel={match.home}
-            size="xs"
-            className="h-5 w-5"
-          />
-          <span className="min-w-0 truncate text-sm font-black text-white">
-            {match.home}
-          </span>
-          <span className="shrink-0 text-xs font-black text-gray-600">-</span>
-          <TeamCrest
-            crestReference={match.awayCrestReference}
-            logoUrl={match.awayLogoUrl}
-            alt={`${match.away} stemma`}
-            fallbackLabel={match.away}
-            size="xs"
-            className="h-5 w-5"
-          />
-          <span className="min-w-0 truncate text-sm font-black text-white">
-            {match.away}
-          </span>
+      <TeamCrest
+        crestReference={match.homeCrestReference}
+        logoUrl={match.homeLogoUrl}
+        alt={`${match.home} stemma`}
+        fallbackLabel={match.home}
+        size="sm"
+        className="h-8 w-8 sm:h-9 sm:w-9"
+      />
+
+      <div className="text-center">
+        <div className="text-xl font-black leading-none text-[#A6E824] sm:text-2xl">
+          {getProviderScoreLabel(match)}
         </div>
 
-        <div className="mt-0.5 text-[11px] font-semibold text-gray-500">
+        <div className="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 sm:text-[11px]">
           {match.kickoffDay} · {match.kickoffHour}
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-[#0b0d0e] px-2 py-1 text-[10px] font-black text-gray-400">
-        {getProviderScoreLabel(match)}
-      </div>
+      <TeamCrest
+        crestReference={match.awayCrestReference}
+        logoUrl={match.awayLogoUrl}
+        alt={`${match.away} stemma`}
+        fallbackLabel={match.away}
+        size="sm"
+        className="h-8 w-8 sm:h-9 sm:w-9"
+      />
+
+      <span className="min-w-0 truncate text-left text-sm font-black text-white sm:text-base">
+        {match.away}
+      </span>
     </div>
   );
 }
@@ -235,6 +223,48 @@ function DayMatchRow({ match }: { match: DashboardMatch }) {
   );
 }
 
+function DashboardModeCard({
+  icon,
+  title,
+  value,
+}: {
+  icon: ReactNode;
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="h-full rounded-2xl border border-white/10 bg-[#111417] p-5 shadow-lg shadow-black/20 transition hover:border-[#A6E824]/60">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0">{icon}</div>
+
+          <h2 className="truncate text-xl font-black text-white sm:text-2xl">
+            {title}
+          </h2>
+        </div>
+
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          className="mt-1 h-6 w-6 shrink-0 text-[#A6E824]"
+        >
+          <path
+            d="M5 12h14M13 6l6 6-6 6"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+
+      <div className="mt-6 text-4xl font-black leading-none text-[#A6E824]">
+        {value}
+      </div>
+    </div>
+  );
+}
 
 function DashboardQuickIcon({ icon }: { icon: string }) {
   const base =
@@ -346,7 +376,9 @@ function DashboardQuickAction({
       }`}
     >
       <DashboardQuickIcon icon={icon} />
-      <div className={`mt-2 text-sm font-black ${special ? "text-[#A6E824]" : "text-white"}`}>
+      <div
+        className={`mt-2 text-sm font-black ${special ? "text-[#A6E824]" : "text-white"}`}
+      >
         {label}
       </div>
     </a>
@@ -385,7 +417,9 @@ export default function LeagueDashboardPage() {
         return;
       }
 
-      const current = (data || []).find((row: MyLeagueRpcRow) => row.league_id === leagueId);
+      const current = (data || []).find(
+        (row: MyLeagueRpcRow) => row.league_id === leagueId,
+      );
 
       if (!current) {
         window.location.href = "/leghe";
@@ -434,13 +468,17 @@ export default function LeagueDashboardPage() {
 
       const rows = (predictionData || []) as RoundPredictionRow[];
 
-      setRoundNumber(currentRound.league_round_number ?? rows[0]?.league_round_number ?? null);
+      setRoundNumber(
+        currentRound.league_round_number ??
+          rows[0]?.league_round_number ??
+          null,
+      );
       setRoundLabel(
         rows[0]?.prediction_window_state === "open"
           ? "Pronostici aperti"
           : rows[0]?.prediction_window_state === "not_open"
             ? "Pronostici non ancora aperti"
-            : "Pronostici chiusi"
+            : "Pronostici chiusi",
       );
 
       setMatches(
@@ -462,7 +500,7 @@ export default function LeagueDashboardPage() {
             awayCrestReference: row.away_team_crest_reference,
             awayLogoUrl: row.away_team_logo_url,
           };
-        })
+        }),
       );
 
       setLoading(false);
@@ -471,13 +509,11 @@ export default function LeagueDashboardPage() {
     loadDashboard();
   }, [leagueId]);
 
-
-
   const todayMatches = useMemo(() => {
     const todayKey = getLocalDateKey(new Date());
 
     return matches.filter(
-      (match) => match.kickoff && getLocalDateKey(match.kickoff) === todayKey
+      (match) => match.kickoff && getLocalDateKey(match.kickoff) === todayKey,
     );
   }, [matches]);
 
@@ -520,14 +556,14 @@ export default function LeagueDashboardPage() {
 
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {matches.slice(0, 5).map((match, index) => (
-                <MatchMiniRow key={match.id} match={match} index={index + 1} />
+              {matches.slice(0, 5).map((match) => (
+                <MatchMiniRow key={match.id} match={match} />
               ))}
             </div>
 
             <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {matches.slice(5, 10).map((match, index) => (
-                <MatchMiniRow key={match.id} match={match} index={index + 6} />
+              {matches.slice(5, 10).map((match) => (
+                <MatchMiniRow key={match.id} match={match} />
               ))}
             </div>
           </div>
@@ -574,11 +610,10 @@ export default function LeagueDashboardPage() {
             className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
             aria-label="Apri modalità Fantacalcio"
           >
-            <ModeSummaryCard
+            <DashboardModeCard
               icon={<FantaGolModeIcon mode="fantacalcio" />}
               title="Fantacalcio"
-              value="0 punti"
-              description="Classifica da avviare"
+              value="0"
             />
           </button>
 
@@ -588,11 +623,10 @@ export default function LeagueDashboardPage() {
             className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
             aria-label="Apri modalità One To One"
           >
-            <ModeSummaryCard
+            <DashboardModeCard
               icon={<FantaGolModeIcon mode="one-to-one" />}
               title="One To One"
               value="0-0"
-              description="Sfida da generare"
             />
           </button>
 
@@ -602,25 +636,48 @@ export default function LeagueDashboardPage() {
             className="block w-full text-left transition hover:-translate-y-0.5 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#A6E824]/70 focus:ring-offset-2 focus:ring-offset-black"
             aria-label="Apri modalità Punti Puri"
           >
-            <ModeSummaryCard
+            <DashboardModeCard
               icon={<FantaGolModeIcon mode="punti-puri" />}
               title="Punti Puri"
               value="0"
-              description="Totale stagione"
             />
           </button>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-6">
-          <DashboardQuickAction icon="control" label="Control Room" href="/control-room" special />
-          <DashboardQuickAction icon="target" label="Pronostici" href={`/leghe/${leagueId}/giornata`} />
-          <DashboardQuickAction icon="live" label="Live" href={`/leghe/${leagueId}/giornata`} />
-          <DashboardQuickAction icon="ranking" label="Classifiche" href={leaguePath.rankings(leagueId)} />
-          <DashboardQuickAction icon="calendar" label="Calendario" href={leaguePath.calendar(leagueId)} />
-          <DashboardQuickAction icon="members" label="Membri" href={leaguePath.members(leagueId)} />
+          <DashboardQuickAction
+            icon="control"
+            label="Control Room"
+            href="/control-room"
+            special
+          />
+          <DashboardQuickAction
+            icon="target"
+            label="Pronostici"
+            href={`/leghe/${leagueId}/giornata`}
+          />
+          <DashboardQuickAction
+            icon="live"
+            label="Live"
+            href={`/leghe/${leagueId}/giornata`}
+          />
+          <DashboardQuickAction
+            icon="ranking"
+            label="Classifiche"
+            href={leaguePath.rankings(leagueId)}
+          />
+          <DashboardQuickAction
+            icon="calendar"
+            label="Calendario"
+            href={leaguePath.calendar(leagueId)}
+          />
+          <DashboardQuickAction
+            icon="members"
+            label="Membri"
+            href={leaguePath.members(leagueId)}
+          />
         </div>
       </section>
-
     </main>
   );
 }

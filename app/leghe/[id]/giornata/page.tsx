@@ -7,6 +7,7 @@ import SubmissionModal from "../../../../components/app/SubmissionModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import KitPreview from "../../../../components/club/KitPreview";
 import TeamCrest from "../../../../components/app/TeamCrest";
+import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import { supabase } from "../../../../lib/supabaseClient";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
 
@@ -136,15 +137,78 @@ type RuleItem = {
 };
 
 const ruleItems: RuleItem[] = [
-  { key: "exact", label: "Exact", short: "EX", points: "+6", icon: "◎", tone: "muted" },
-  { key: "sign", label: "Segno", short: "1X2", points: "+3", icon: "✓", tone: "green" },
-  { key: "uo", label: "Over/Under", short: "U/O", points: "+1", icon: "%", tone: "muted" },
-  { key: "gg", label: "Gol/NoGol", short: "G/NG", points: "+1", icon: "▣", tone: "green" },
-  { key: "surprise", label: "Sorpresa", short: "SOR", points: "+2", icon: "☆", tone: "orange" },
-  { key: "show", label: "Gol Show", short: "SHOW", points: "+1", icon: "✴", tone: "orange" },
-  { key: "slam", label: "Grande Slam", short: "SLAM", points: "+1", icon: "◇", tone: "violet" },
-  { key: "bad", label: "Cantonata", short: "CAN", points: "-2", icon: "×", tone: "red" },
-  { key: "opposite", label: "Segno opposto", short: "OPP", points: "-1", icon: "↔", tone: "red" },
+  {
+    key: "exact",
+    label: "Exact",
+    short: "EX",
+    points: "+6",
+    icon: "◎",
+    tone: "muted",
+  },
+  {
+    key: "sign",
+    label: "Segno",
+    short: "1X2",
+    points: "+3",
+    icon: "✓",
+    tone: "green",
+  },
+  {
+    key: "uo",
+    label: "Over/Under",
+    short: "U/O",
+    points: "+1",
+    icon: "%",
+    tone: "muted",
+  },
+  {
+    key: "gg",
+    label: "Gol/NoGol",
+    short: "G/NG",
+    points: "+1",
+    icon: "▣",
+    tone: "green",
+  },
+  {
+    key: "surprise",
+    label: "Sorpresa",
+    short: "SOR",
+    points: "+2",
+    icon: "☆",
+    tone: "orange",
+  },
+  {
+    key: "show",
+    label: "Gol Show",
+    short: "SHOW",
+    points: "+1",
+    icon: "✴",
+    tone: "orange",
+  },
+  {
+    key: "slam",
+    label: "Grande Slam",
+    short: "SLAM",
+    points: "+1",
+    icon: "◇",
+    tone: "violet",
+  },
+  {
+    key: "bad",
+    label: "Cantonata",
+    short: "CAN",
+    points: "-2",
+    icon: "×",
+    tone: "red",
+  },
+  {
+    key: "opposite",
+    label: "Segno opposto",
+    short: "OPP",
+    points: "-1",
+    icon: "↔",
+    tone: "red",
+  },
 ];
 
 function cleanGoal(value: string) {
@@ -187,12 +251,17 @@ function cleanTeamDisplayName(name: string) {
   if (knownNames[normalized]) return knownNames[normalized];
 
   return normalized
-    .replace(/^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i, "")
-    .replace(/\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i, "")
+    .replace(
+      /^(?:A\.?\s*C\.?\s*F?\.?|F\.?\s*C\.?|S\.?\s*S\.?\s*C\.?|S\.?\s*S\.?|U\.?\s*S\.?|U\.?\s*C\.?|A\.?\s*S\.?|C\.?\s*F\.?\s*C\.?)\s+/i,
+      "",
+    )
+    .replace(
+      /\s+(?:Football Club|Calcio|F\.?\s*C\.?|C\.?\s*F\.?\s*C\.?|B\.?\s*C\.?|S\.?\s*C\.?)$/i,
+      "",
+    )
     .replace(/\s+(?:19|20)\d{2}$/i, "")
     .trim();
 }
-
 
 function formatKickoff(kickoff: string | null) {
   if (!kickoff) {
@@ -214,11 +283,18 @@ function formatKickoff(kickoff: string | null) {
 }
 
 function buildRoundView(row: RoundPredictionRow): RoundView {
-  const isLocked = ["closed", "disabled", "cancelled"].includes(row.prediction_window_state);
-  const isLive = ["live", "waiting_postponed", "final_calculable", "scoring"].includes(
-    row.league_round_status
+  const isLocked = ["closed", "disabled", "cancelled"].includes(
+    row.prediction_window_state,
   );
-  const isFinished = ["official", "recalculated", "archived"].includes(row.league_round_status);
+  const isLive = [
+    "live",
+    "waiting_postponed",
+    "final_calculable",
+    "scoring",
+  ].includes(row.league_round_status);
+  const isFinished = ["official", "recalculated", "archived"].includes(
+    row.league_round_status,
+  );
 
   const label =
     row.prediction_window_state === "open"
@@ -257,8 +333,15 @@ function buildRoundView(row: RoundPredictionRow): RoundView {
   };
 }
 
-
-function RuleIcon({ item, active = false, compact = false }: { item: RuleItem; active?: boolean; compact?: boolean }) {
+function RuleIcon({
+  item,
+  active = false,
+  compact = false,
+}: {
+  item: RuleItem;
+  active?: boolean;
+  compact?: boolean;
+}) {
   const toneClass = active
     ? item.tone === "red"
       ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
@@ -283,15 +366,28 @@ function RuleStrip() {
   return (
     <section className="mt-3 rounded-2xl border border-white/10 bg-[#0b1419] p-2 shadow-xl shadow-black/30 sm:mt-4 sm:p-3">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white sm:text-sm">Bonus & Malus</p>
-        <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">Legenda punteggi</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white sm:text-sm">
+          Bonus & Malus
+        </p>
+        <p className="text-[9px] font-bold uppercase text-gray-500 sm:text-xs">
+          Legenda punteggi
+        </p>
       </div>
       <div className="grid grid-cols-9 gap-1 sm:gap-2">
         {ruleItems.map((item) => (
-          <div key={item.key} className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-0.5 py-1.5 sm:px-2 sm:py-2">
-            <RuleIcon item={item} active={item.tone !== "muted" && item.key !== "bad" && item.key !== "opposite"} compact />
-            <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">{item.short}</p>
-            <p className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}>{item.points}</p>
+          <div
+            key={item.key}
+            className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/5 bg-black/20 px-0.5 py-1.5 sm:px-2 sm:py-2"
+          >
+            <RuleIcon item={item} active compact />
+            <p className="mt-1 max-w-full truncate text-[7px] font-black uppercase text-gray-300 sm:text-[9px]">
+              {item.short}
+            </p>
+            <p
+              className={`text-[9px] font-black sm:text-xs ${item.points.startsWith("-") ? "text-red-400" : item.tone === "orange" ? "text-orange-300" : item.tone === "violet" ? "text-violet-300" : "text-[#A6E824]"}`}
+            >
+              {item.points}
+            </p>
           </div>
         ))}
       </div>
@@ -302,7 +398,8 @@ function RuleStrip() {
 function getMatchPoints(activeKeys: Set<string>) {
   if (activeKeys.has("bad")) return "-2";
   if (activeKeys.has("exact")) return "11";
-  if (activeKeys.has("sign")) return activeKeys.has("uo") || activeKeys.has("gg") ? "5" : "3";
+  if (activeKeys.has("sign"))
+    return activeKeys.has("uo") || activeKeys.has("gg") ? "5" : "3";
   if (activeKeys.has("uo") || activeKeys.has("gg")) return "1";
   if (activeKeys.has("opposite")) return "-1";
   return "-";
@@ -338,8 +435,12 @@ export default function GiornataPage() {
   const [round, setRound] = useState<RoundView | null>(null);
   const [roundLoading, setRoundLoading] = useState(true);
   const [roundError, setRoundError] = useState<string | null>(null);
-  const [predictionSaveStates, setPredictionSaveStates] = useState<PredictionSaveState[]>([]);
-  const [predictionSaveErrors, setPredictionSaveErrors] = useState<Array<string | null>>([]);
+  const [predictionSaveStates, setPredictionSaveStates] = useState<
+    PredictionSaveState[]
+  >([]);
+  const [predictionSaveErrors, setPredictionSaveErrors] = useState<
+    Array<string | null>
+  >([]);
   const predictionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const predictionSaveTimersRef = useRef<Array<number | null>>([]);
 
@@ -348,7 +449,9 @@ export default function GiornataPage() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
       if (error) return;
 
-      const current = (data || []).find((row: MyLeagueRpcRow) => row.league_id === leagueId);
+      const current = (data || []).find(
+        (row: MyLeagueRpcRow) => row.league_id === leagueId,
+      );
       if (!current) return;
 
       setLeagueInfo({
@@ -387,10 +490,10 @@ export default function GiornataPage() {
       setRoundLoading(true);
       setRoundError(null);
 
-      const { data: currentRoundData, error: currentRoundError } = await supabase.rpc(
-        "get_my_current_league_round_rpc",
-        { p_league_id: leagueId }
-      );
+      const { data: currentRoundData, error: currentRoundError } =
+        await supabase.rpc("get_my_current_league_round_rpc", {
+          p_league_id: leagueId,
+        });
 
       if (cancelled) return;
 
@@ -407,10 +510,10 @@ export default function GiornataPage() {
         return;
       }
 
-      const { data: predictionData, error: predictionError } = await supabase.rpc(
-        "get_my_round_predictions_rpc",
-        { p_league_round_id: currentRound.league_round_id }
-      );
+      const { data: predictionData, error: predictionError } =
+        await supabase.rpc("get_my_round_predictions_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        });
 
       if (cancelled) return;
 
@@ -432,11 +535,9 @@ export default function GiornataPage() {
         rows.map((row) => {
           const kickoff = formatKickoff(row.kickoff);
           const isFinished = ["finished", "awarded"].includes(row.match_status);
-          const isLive = row.match_status.startsWith("live_") || [
-            "halftime",
-            "extra_time",
-            "penalties",
-          ].includes(row.match_status);
+          const isLive =
+            row.match_status.startsWith("live_") ||
+            ["halftime", "extra_time", "penalties"].includes(row.match_status);
 
           return {
             id: row.match_id,
@@ -455,13 +556,13 @@ export default function GiornataPage() {
             bonusActive: [],
             malusActive: [],
           };
-        })
+        }),
       );
       setPredictions(
         rows.map((row) => ({
           home: row.home_prediction === null ? "" : String(row.home_prediction),
           away: row.away_prediction === null ? "" : String(row.away_prediction),
-        }))
+        })),
       );
       setPredictionSaveStates(rows.map(() => "idle"));
       setPredictionSaveErrors(rows.map(() => null));
@@ -482,8 +583,11 @@ export default function GiornataPage() {
   }, [leagueId]);
 
   const submittedCount = useMemo(
-    () => predictions.filter((prediction) => prediction.home !== "" && prediction.away !== "").length,
-    [predictions]
+    () =>
+      predictions.filter(
+        (prediction) => prediction.home !== "" && prediction.away !== "",
+      ).length,
+    [predictions],
   );
 
   const allComplete = matches.length > 0 && submittedCount === matches.length;
@@ -491,50 +595,56 @@ export default function GiornataPage() {
   const currentPoints = 0;
 
   const isLiveForSwipe = round?.isLive === true || round?.isFinished === true;
-  const swipeProfiles = useMemo(() => [
-    {
-      id: "me",
-      clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
-      motto: clubInfo?.motto || "Il tuo Club FantaGol sta per iniziare la sua storia.",
-      avatarUrl: clubInfo?.crest_url || null,
-      kitTemplate: clubInfo?.kit_template || "solid",
-      kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
-      kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
-      kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
-      kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
-      kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
-      starsCount: clubInfo?.stars_count || 0,
-      isCurrentUser: true,
-    },
-    {
-      id: "demo-1",
-      clubName: "Real Exact",
-      motto: "Precisione, coraggio e pronostici al millimetro.",
-      avatarUrl: null,
-      kitTemplate: "vertical_3",
-      kitPrimaryColor: "#A6E824",
-      kitSecondaryColor: "#111417",
-      kitThirdColor: "#FFFFFF",
-      kitLogoMode: "center_horizontal",
-      kitCrestPosition: "left_chest",
-      starsCount: 2,
-    },
-    {
-      id: "demo-2",
-      clubName: "Bonus Show",
-      motto: "Ogni bonus è una dichiarazione di intenti.",
-      avatarUrl: null,
-      kitTemplate: "diagonal",
-      kitPrimaryColor: "#1f2427",
-      kitSecondaryColor: "#A6E824",
-      kitThirdColor: "#FFFFFF",
-      kitLogoMode: "wordmark_only",
-      kitCrestPosition: "left_chest",
-      starsCount: 1,
-    },
-  ], [clubInfo, leagueInfo.displayName]);
+  const swipeProfiles = useMemo(
+    () => [
+      {
+        id: "me",
+        clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
+        motto:
+          clubInfo?.motto ||
+          "Il tuo Club FantaGol sta per iniziare la sua storia.",
+        avatarUrl: clubInfo?.crest_url || null,
+        kitTemplate: clubInfo?.kit_template || "solid",
+        kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
+        kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
+        kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
+        kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
+        kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
+        starsCount: clubInfo?.stars_count || 0,
+        isCurrentUser: true,
+      },
+      {
+        id: "demo-1",
+        clubName: "Real Exact",
+        motto: "Precisione, coraggio e pronostici al millimetro.",
+        avatarUrl: null,
+        kitTemplate: "vertical_3",
+        kitPrimaryColor: "#A6E824",
+        kitSecondaryColor: "#111417",
+        kitThirdColor: "#FFFFFF",
+        kitLogoMode: "center_horizontal",
+        kitCrestPosition: "left_chest",
+        starsCount: 2,
+      },
+      {
+        id: "demo-2",
+        clubName: "Bonus Show",
+        motto: "Ogni bonus è una dichiarazione di intenti.",
+        avatarUrl: null,
+        kitTemplate: "diagonal",
+        kitPrimaryColor: "#1f2427",
+        kitSecondaryColor: "#A6E824",
+        kitThirdColor: "#FFFFFF",
+        kitLogoMode: "wordmark_only",
+        kitCrestPosition: "left_chest",
+        starsCount: 1,
+      },
+    ],
+    [clubInfo, leagueInfo.displayName],
+  );
 
-  const activeProfile = swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
+  const activeProfile =
+    swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
   const isFirstProfile = activeSwipeIndex === 0;
   const isLastProfile = activeSwipeIndex === swipeProfiles.length - 1;
   const isViewingSelf = activeProfile?.isCurrentUser === true;
@@ -559,9 +669,11 @@ export default function GiornataPage() {
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
     const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
-    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 420;
+    const viewportWidth =
+      typeof window !== "undefined" ? window.innerWidth : 420;
     const exitX = direction === "next" ? -viewportWidth : viewportWidth;
-    const enterX = direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
+    const enterX =
+      direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
 
     setSwipeTransition(true);
     setSwipeDragX(exitX);
@@ -623,7 +735,8 @@ export default function GiornataPage() {
   }
 
   function handlePageSwipeMove(event: TouchEvent<HTMLElement>) {
-    if (swipeStartXRef.current === null || swipeStartYRef.current === null) return;
+    if (swipeStartXRef.current === null || swipeStartYRef.current === null)
+      return;
 
     const currentX = event.touches[0]?.clientX ?? swipeStartXRef.current;
     const currentY = event.touches[0]?.clientY ?? swipeStartYRef.current;
@@ -632,7 +745,8 @@ export default function GiornataPage() {
 
     if (!swipeLockRef.current) {
       if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
-      swipeLockRef.current = Math.abs(deltaX) > Math.abs(deltaY) * 1.25 ? "x" : "y";
+      swipeLockRef.current =
+        Math.abs(deltaX) > Math.abs(deltaY) * 1.25 ? "x" : "y";
     }
 
     if (swipeLockRef.current !== "x") return;
@@ -696,15 +810,17 @@ export default function GiornataPage() {
   function setPredictionSaveState(
     index: number,
     state: PredictionSaveState,
-    errorMessage: string | null = null
+    errorMessage: string | null = null,
   ) {
     setPredictionSaveStates((current) =>
-      current.map((value, currentIndex) => (currentIndex === index ? state : value))
+      current.map((value, currentIndex) =>
+        currentIndex === index ? state : value,
+      ),
     );
     setPredictionSaveErrors((current) =>
       current.map((value, currentIndex) =>
-        currentIndex === index ? errorMessage : value
-      )
+        currentIndex === index ? errorMessage : value,
+      ),
     );
   }
 
@@ -736,14 +852,18 @@ export default function GiornataPage() {
       window.setTimeout(() => {
         setPredictionSaveStates((current) =>
           current.map((value, currentIndex) =>
-            currentIndex === index && value === "saved" ? "idle" : value
-          )
+            currentIndex === index && value === "saved" ? "idle" : value,
+          ),
         );
       }, 1400);
     }, 450);
   }
 
-  function updatePrediction(index: number, field: keyof Prediction, value: string) {
+  function updatePrediction(
+    index: number,
+    field: keyof Prediction,
+    value: string,
+  ) {
     if (!canEdit) return;
 
     const previousValue = predictions[index]?.[field] ?? "";
@@ -757,8 +877,8 @@ export default function GiornataPage() {
 
     setPredictions((current) =>
       current.map((prediction, currentIndex) =>
-        currentIndex === index ? nextPrediction : prediction
-      )
+        currentIndex === index ? nextPrediction : prediction,
+      ),
     );
 
     setPredictionSaveState(index, "idle");
@@ -776,7 +896,7 @@ export default function GiornataPage() {
   function handlePredictionKeyDown(
     event: React.KeyboardEvent<HTMLInputElement>,
     index: number,
-    field: keyof Prediction
+    field: keyof Prediction,
   ) {
     if (event.key !== "Backspace" || event.currentTarget.value !== "") return;
 
@@ -819,9 +939,14 @@ export default function GiornataPage() {
 
     const result = (data || [])[0];
 
-    if (!result || result.submitted_prediction_count !== result.required_prediction_count) {
+    if (
+      !result ||
+      result.submitted_prediction_count !== result.required_prediction_count
+    ) {
       setSubmitting(false);
-      alert("La conferma dell'invio non è coerente con il numero di pronostici richiesti.");
+      alert(
+        "La conferma dell'invio non è coerente con il numero di pronostici richiesti.",
+      );
       return;
     }
 
@@ -838,7 +963,6 @@ export default function GiornataPage() {
       onTouchMove={handlePageSwipeMove}
       onTouchEnd={handlePageSwipeEnd}
     >
-
       <HamburgerDrawer
         open={menuOpen}
         leagueName={leagueInfo.name}
@@ -896,7 +1020,10 @@ export default function GiornataPage() {
           transition: swipeTransition
             ? "transform 260ms cubic-bezier(.22,.61,.36,1), opacity 260ms cubic-bezier(.22,.61,.36,1), filter 260ms cubic-bezier(.22,.61,.36,1)"
             : "none",
-          filter: swipeDragX !== 0 ? "drop-shadow(0 28px 70px rgba(0,0,0,0.55))" : "none",
+          filter:
+            swipeDragX !== 0
+              ? "drop-shadow(0 28px 70px rgba(0,0,0,0.55))"
+              : "none",
           willChange: "transform, opacity, filter",
         }}
       >
@@ -907,12 +1034,16 @@ export default function GiornataPage() {
                 🏆
               </div>
               <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase text-gray-500 sm:text-xs">Punti</p>
+                <p className="text-[9px] font-black uppercase text-gray-500 sm:text-xs">
+                  Punti
+                </p>
                 <div className="flex items-end gap-1">
                   <span className="text-[1.7rem] font-black leading-none text-[#A6E824] sm:text-4xl">
                     {displayedCurrentPoints}
                   </span>
-                  <span className="pb-0.5 text-xs font-black text-white sm:text-sm">pt</span>
+                  <span className="pb-0.5 text-xs font-black text-white sm:text-sm">
+                    pt
+                  </span>
                 </div>
               </div>
             </div>
@@ -939,7 +1070,8 @@ export default function GiornataPage() {
               {viewedClubInfo.name}
             </p>
             <p className="mx-auto mt-0.5 line-clamp-2 max-w-[88px] text-center text-[7px] font-semibold leading-3 text-gray-500 sm:max-w-[120px] sm:text-[9px]">
-              {viewedClubInfo.motto || "Il tuo Club FantaGol sta per iniziare la sua storia."}
+              {viewedClubInfo.motto ||
+                "Il tuo Club FantaGol sta per iniziare la sua storia."}
             </p>
           </div>
 
@@ -950,8 +1082,12 @@ export default function GiornataPage() {
               </button>
 
               <div>
-                <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">Giornata</p>
-                <p className="text-2xl font-black text-white sm:text-3xl">{round?.number ?? "-"}</p>
+                <p className="text-[8px] font-bold uppercase tracking-[-0.02em] text-gray-500 sm:text-xs">
+                  Giornata
+                </p>
+                <p className="text-2xl font-black text-white sm:text-3xl">
+                  {round?.number ?? "-"}
+                </p>
               </div>
 
               <button className="hidden h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-xl text-gray-400 sm:flex">
@@ -996,10 +1132,18 @@ export default function GiornataPage() {
             </div>
             <div>
               <p className="text-sm font-black uppercase sm:text-lg">
-                {locked ? round?.label : submitted ? "Pronostici inviati" : round?.label}
+                {locked
+                  ? round?.label
+                  : submitted
+                    ? "Pronostici inviati"
+                    : round?.label}
               </p>
               <p className="text-xs text-gray-300 sm:text-sm">
-                {locked ? round?.helper : submitted ? "Puoi modificare e reinviare fino al lock ufficiale" : round?.helper}
+                {locked
+                  ? round?.helper
+                  : submitted
+                    ? "Puoi modificare e reinviare fino al lock ufficiale"
+                    : round?.helper}
               </p>
             </div>
           </div>
@@ -1010,8 +1154,12 @@ export default function GiornataPage() {
               className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-left transition hover:border-[#A6E824]/50"
             >
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">Modalità</p>
-                <p className="text-base font-black uppercase sm:text-lg">Punti Puri</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
+                  Modalità
+                </p>
+                <p className="text-base font-black uppercase sm:text-lg">
+                  Punti Puri
+                </p>
               </div>
               <span className="text-2xl text-white sm:text-3xl">⌄</span>
             </button>
@@ -1024,10 +1172,16 @@ export default function GiornataPage() {
                   className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-white/5"
                 >
                   <span>
-                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità Fantacalcio</span>
-                    <span className="block text-[11px] font-semibold text-gray-500">Vai al duello live</span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">
+                      Modalità Fantacalcio
+                    </span>
+                    <span className="block text-[11px] font-semibold text-gray-500">
+                      Vai al duello live
+                    </span>
                   </span>
-                  <span className="text-xl">🏆</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+                    <FantaGolModeIcon mode="fantacalcio" />
+                  </span>
                 </button>
 
                 <button
@@ -1036,10 +1190,16 @@ export default function GiornataPage() {
                   className="flex w-full items-center justify-between border-t border-white/10 px-4 py-3 text-left transition hover:bg-white/5"
                 >
                   <span>
-                    <span className="block text-sm font-black uppercase text-white sm:text-base">Modalità One To One</span>
-                    <span className="block text-[11px] font-semibold text-gray-500">Vai alla sfida diretta</span>
+                    <span className="block text-sm font-black uppercase text-white sm:text-base">
+                      Modalità One To One
+                    </span>
+                    <span className="block text-[11px] font-semibold text-gray-500">
+                      Vai alla sfida diretta
+                    </span>
                   </span>
-                  <span className="text-xl">⚔️</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+                    <FantaGolModeIcon mode="one-to-one" />
+                  </span>
                 </button>
               </div>
             )}
@@ -1065,113 +1225,158 @@ export default function GiornataPage() {
 
           {!roundLoading && roundError && (
             <div className="px-4 py-10 text-center">
-              <p className="text-sm font-black text-red-300">Impossibile caricare la giornata</p>
+              <p className="text-sm font-black text-red-300">
+                Impossibile caricare la giornata
+              </p>
               <p className="mt-2 text-xs text-gray-500">{roundError}</p>
             </div>
           )}
 
-          {!roundLoading && !roundError && matches.map((match, index) => {
-            const prediction = displayedPredictions[index];
-            const activeKeys = new Set([...(match.bonusActive ?? []), ...(match.malusActive ?? [])]);
-            const showLiveScore = round?.isLive === true || round?.isFinished === true;
+          {!roundLoading &&
+            !roundError &&
+            matches.map((match, index) => {
+              const prediction = displayedPredictions[index];
+              const activeKeys = new Set([
+                ...(match.bonusActive ?? []),
+                ...(match.malusActive ?? []),
+              ]);
+              const showLiveScore =
+                round?.isLive === true || round?.isFinished === true;
 
-            return (
-              <article key={match.id} className="border-b border-white/10 px-1 py-2 last:border-b-0 sm:px-4 sm:py-3">
-                <div className="grid grid-cols-[35%_17%_14%_9%_25%] items-center gap-0 sm:grid-cols-[1.65fr_150px_150px_100px_190px] sm:gap-3">
-                  <div className="min-w-0 pr-1 sm:pr-0">
-                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <TeamCrest
-                        crestReference={match.homeCrestReference}
-                        logoUrl={match.homeLogoUrl}
-                        alt={`${match.home} stemma`}
-                        fallbackLabel={match.home}
-                        size="xs"
-                        className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
-                      />
-                      <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.home}</p>
+              return (
+                <article
+                  key={match.id}
+                  className="border-b border-white/10 px-1 py-2 last:border-b-0 sm:px-4 sm:py-3"
+                >
+                  <div className="grid grid-cols-[35%_17%_14%_9%_25%] items-center gap-0 sm:grid-cols-[1.65fr_150px_150px_100px_190px] sm:gap-3">
+                    <div className="min-w-0 pr-1 sm:pr-0">
+                      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                        <TeamCrest
+                          crestReference={match.homeCrestReference}
+                          logoUrl={match.homeLogoUrl}
+                          alt={`${match.home} stemma`}
+                          fallbackLabel={match.home}
+                          size="xs"
+                          className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
+                        />
+                        <p className="min-w-0 truncate text-[11px] font-black leading-tight sm:text-lg lg:text-xl">
+                          {match.home}
+                        </p>
+                      </div>
+                      <div className="my-0.5 pl-6 text-[7px] font-bold uppercase leading-none text-gray-500 sm:my-1 sm:pl-10 sm:text-[10px]">
+                        {match.kickoffDay} · {match.kickoffHour}
+                        {predictionSaveStates[index] === "error" && (
+                          <span
+                            className="ml-1 text-red-400"
+                            title={
+                              predictionSaveErrors[index] ??
+                              "Errore di salvataggio"
+                            }
+                          >
+                            • errore
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                        <TeamCrest
+                          crestReference={match.awayCrestReference}
+                          logoUrl={match.awayLogoUrl}
+                          alt={`${match.away} stemma`}
+                          fallbackLabel={match.away}
+                          size="xs"
+                          className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
+                        />
+                        <p className="min-w-0 truncate text-[11px] font-black leading-tight sm:text-lg lg:text-xl">
+                          {match.away}
+                        </p>
+                      </div>
                     </div>
-                    <div className="my-0.5 pl-6 text-[7px] font-bold uppercase leading-none text-gray-500 sm:my-1 sm:pl-10 sm:text-[10px]">
-                      {match.kickoffDay} · {match.kickoffHour}
-                      {predictionSaveStates[index] === "error" && (
-                        <span
-                          className="ml-1 text-red-400"
-                          title={predictionSaveErrors[index] ?? "Errore di salvataggio"}
-                        >
-                          • errore
+
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-2">
+                      <input
+                        ref={(element) => {
+                          predictionInputRefs.current[
+                            getPredictionInputPosition(index, "home")
+                          ] = element;
+                        }}
+                        value={prediction.home}
+                        disabled={!canEdit}
+                        inputMode="numeric"
+                        maxLength={1}
+                        onChange={(event) =>
+                          updatePrediction(index, "home", event.target.value)
+                        }
+                        onFocus={(event) => event.currentTarget.select()}
+                        onClick={(event) => event.currentTarget.select()}
+                        onKeyDown={(event) =>
+                          handlePredictionKeyDown(event, index, "home")
+                        }
+                        className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
+                        placeholder="-"
+                      />
+                      <span className="text-[10px] font-black text-gray-500 sm:text-base">
+                        -
+                      </span>
+                      <input
+                        ref={(element) => {
+                          predictionInputRefs.current[
+                            getPredictionInputPosition(index, "away")
+                          ] = element;
+                        }}
+                        value={prediction.away}
+                        disabled={!canEdit}
+                        inputMode="numeric"
+                        maxLength={1}
+                        onChange={(event) =>
+                          updatePrediction(index, "away", event.target.value)
+                        }
+                        onFocus={(event) => event.currentTarget.select()}
+                        onClick={(event) => event.currentTarget.select()}
+                        onKeyDown={(event) =>
+                          handlePredictionKeyDown(event, index, "away")
+                        }
+                        className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
+                        placeholder="-"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-center">
+                      {showLiveScore ? (
+                        <div className="flex w-full max-w-[42px] flex-col items-center rounded-lg border border-white/10 bg-black/30 px-0.5 py-1 sm:max-w-[120px] sm:rounded-xl sm:px-3 sm:py-2">
+                          <span className="text-[7px] font-bold uppercase leading-none text-[#A6E824] sm:text-[10px]">
+                            {match.minute ?? "FT"}
+                          </span>
+                          <span className="mt-0.5 text-[12px] font-black leading-none sm:text-xl">
+                            {match.liveHome ?? 0}-{match.liveAway ?? 0}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-lg font-black text-gray-500 sm:text-2xl">
+                          -
                         </span>
                       )}
                     </div>
-                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <TeamCrest
-                        crestReference={match.awayCrestReference}
-                        logoUrl={match.awayLogoUrl}
-                        alt={`${match.away} stemma`}
-                        fallbackLabel={match.away}
-                        size="xs"
-                        className="sm:h-8 sm:w-8 lg:h-11 lg:w-11"
-                      />
-                      <p className="min-w-0 truncate text-[10px] font-black leading-tight sm:text-base lg:text-lg">{match.away}</p>
+
+                    <div className="text-center text-[13px] font-black leading-none text-white sm:text-2xl">
+                      {showLiveScore && activeKeys.size
+                        ? getMatchPoints(activeKeys)
+                        : "-"}
+                    </div>
+
+                    <div className="grid grid-cols-3 justify-items-center gap-0.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
+                      {ruleItems.map((item) => (
+                        <RuleIcon
+                          key={item.key}
+                          item={item}
+                          active={activeKeys.has(item.key)}
+                          compact
+                        />
+                      ))}
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-center gap-0.5 sm:gap-2">
-                    <input
-                      ref={(element) => {
-                        predictionInputRefs.current[getPredictionInputPosition(index, "home")] = element;
-                      }}
-                      value={prediction.home}
-                      disabled={!canEdit}
-                      inputMode="numeric"
-                      maxLength={1}
-                      onChange={(event) => updatePrediction(index, "home", event.target.value)}
-                      onFocus={(event) => event.currentTarget.select()}
-                      onClick={(event) => event.currentTarget.select()}
-                      onKeyDown={(event) => handlePredictionKeyDown(event, index, "home")}
-                      className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
-                      placeholder="-"
-                    />
-                    <span className="text-[10px] font-black text-gray-500 sm:text-base">-</span>
-                    <input
-                      ref={(element) => {
-                        predictionInputRefs.current[getPredictionInputPosition(index, "away")] = element;
-                      }}
-                      value={prediction.away}
-                      disabled={!canEdit}
-                      inputMode="numeric"
-                      maxLength={1}
-                      onChange={(event) => updatePrediction(index, "away", event.target.value)}
-                      onFocus={(event) => event.currentTarget.select()}
-                      onClick={(event) => event.currentTarget.select()}
-                      onKeyDown={(event) => handlePredictionKeyDown(event, index, "away")}
-                      className="h-8 w-5 rounded-md border border-white/15 bg-black/35 text-center text-[12px] font-black outline-none focus:border-[#A6E824] disabled:opacity-80 sm:h-11 sm:w-14 sm:rounded-lg sm:text-lg"
-                      placeholder="-"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-center">
-                    {showLiveScore ? (
-                      <div className="flex w-full max-w-[42px] flex-col items-center rounded-lg border border-white/10 bg-black/30 px-0.5 py-1 sm:max-w-[120px] sm:rounded-xl sm:px-3 sm:py-2">
-                        <span className="text-[7px] font-bold uppercase leading-none text-[#A6E824] sm:text-[10px]">{match.minute ?? "FT"}</span>
-                        <span className="mt-0.5 text-[12px] font-black leading-none sm:text-xl">{match.liveHome ?? 0}-{match.liveAway ?? 0}</span>
-                      </div>
-                    ) : (
-                      <span className="text-lg font-black text-gray-500 sm:text-2xl">-</span>
-                    )}
-                  </div>
-
-                  <div className="text-center text-[13px] font-black leading-none text-white sm:text-2xl">
-                    {showLiveScore && activeKeys.size ? getMatchPoints(activeKeys) : "-"}
-                  </div>
-
-                  <div className="grid grid-cols-3 justify-items-center gap-0.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
-                    {ruleItems.map((item) => (
-                      <RuleIcon key={item.key} item={item} active={activeKeys.has(item.key)} compact />
-                    ))}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+                </article>
+              );
+            })}
         </section>
 
         <section className="mt-5 flex justify-center">
@@ -1187,17 +1392,18 @@ export default function GiornataPage() {
         </section>
       </section>
 
-    
       <SubmissionModal
         open={submissionModalOpen}
         title="Pronostici inviati"
-        description={"Puoi passare alle modalità Fantacalcio e One To One\nper pianificare le tue sfide."}
+        description={
+          "Puoi passare alle modalità Fantacalcio e One To One\nper pianificare le tue sfide."
+        }
         primaryLabel="Vai a Fantacalcio"
         secondaryLabel="Vai a One To One"
         onPrimary={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
         onSecondary={() => router.push(`/leghe/${leagueId}/onetoone`)}
         onClose={() => setSubmissionModalOpen(false)}
       />
-</main>
+    </main>
   );
 }
