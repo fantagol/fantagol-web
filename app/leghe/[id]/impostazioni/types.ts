@@ -66,4 +66,11 @@ export type AdminEvent = {
 };
 
 export type LeagueAction =
-  "lock" | "lock-preserve" | "reopen" | "delete" | "save-scoring" | null;
+  | "lock"
+  | "lock-preserve"
+  | "reopen"
+  | "delete"
+  | "save-scoring"
+  | "leave-league"
+  | "close-league"
+  | null;

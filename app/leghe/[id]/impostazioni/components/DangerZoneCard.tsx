@@ -9,34 +9,44 @@ import type { LeagueAction, LeagueInfo } from "../types";
 type Props = {
   league: LeagueInfo;
   isAdmin: boolean;
+  isSoleAdmin: boolean;
   action: LeagueAction;
   confirmationName: string;
   confirmationMatches: boolean;
   onConfirmationChange: (value: string) => void;
-  onDelete: () => void;
+  onCloseLeague: () => void;
 };
 
 export default function DangerZoneCard({
   league,
   isAdmin,
+  isSoleAdmin,
   action,
   confirmationName,
   confirmationMatches,
   onConfirmationChange,
-  onDelete,
+  onCloseLeague,
 }: Props) {
-  const [secondConfirmationOpen, setSecondConfirmationOpen] =
-    useState(false);
+  const [secondConfirmationOpen, setSecondConfirmationOpen] = useState(false);
+  const busy = action !== null;
 
-  function requestDeletion() {
-    if (!confirmationMatches || action) return;
+  function requestClosure() {
+    if (!confirmationMatches || busy) return;
     setSecondConfirmationOpen(true);
   }
 
-  function confirmDeletion() {
+  function confirmClosure() {
     setSecondConfirmationOpen(false);
-    onDelete();
+    onCloseLeague();
   }
+
+  const eyebrow = isSoleAdmin ? "Uscita e chiusura" : "Chiusura lega";
+  const title = isSoleAdmin
+    ? "Abbandona e chiudi la lega"
+    : "Chiudi questa lega";
+  const buttonLabel = isSoleAdmin
+    ? "Continua con abbandono e chiusura"
+    : "Continua con la chiusura";
 
   return (
     <>
@@ -48,14 +58,15 @@ export default function DangerZoneCard({
 
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Eliminazione lega
+              {eyebrow}
             </p>
-            <h2 className="mt-2 text-2xl font-black">
-              Elimina definitivamente la lega
-            </h2>
+            <h2 className="mt-2 text-2xl font-black">{title}</h2>
             <p className="mt-3 text-sm font-semibold leading-6 text-gray-400">
-              La cancellazione rimuove la lega e tutti i dati collegati.
-              L&apos;operazione è irreversibile e richiede due conferme.
+              {isSoleAdmin
+                ? "Sei l’unico membro attivo. Uscendo, la lega verrà chiusa e non sarà più visibile agli utenti."
+                : "La chiusura rimuove la lega dall’esperienza di tutti i membri e impedisce nuove attività."}{" "}
+              I dati resteranno conservati internamente per integrità, audit e
+              gestione amministrativa.
             </p>
           </div>
         </div>
@@ -79,19 +90,17 @@ export default function DangerZoneCard({
               </div>
 
               <label
-                htmlFor="league-delete-confirmation"
+                htmlFor="league-close-confirmation"
                 className="mt-5 block text-xs font-black uppercase tracking-[0.15em] text-gray-400"
               >
                 Conferma nome lega
               </label>
 
               <input
-                id="league-delete-confirmation"
+                id="league-close-confirmation"
                 value={confirmationName}
-                onChange={(event) =>
-                  onConfirmationChange(event.target.value)
-                }
-                disabled={action === "delete"}
+                onChange={(event) => onConfirmationChange(event.target.value)}
+                disabled={action === "close-league"}
                 autoComplete="off"
                 spellCheck={false}
                 placeholder={league.name}
@@ -106,13 +115,13 @@ export default function DangerZoneCard({
 
               <button
                 type="button"
-                onClick={requestDeletion}
-                disabled={!confirmationMatches || Boolean(action)}
+                onClick={requestClosure}
+                disabled={!confirmationMatches || busy}
                 className="mt-6 w-full rounded-2xl border border-red-400/40 bg-red-600 px-6 py-4 font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-[#202426] disabled:text-gray-600"
               >
-                {action === "delete"
-                  ? "Eliminazione in corso..."
-                  : "Continua con la conferma finale"}
+                {action === "close-league"
+                  ? "Chiusura in corso..."
+                  : buttonLabel}
               </button>
             </>
           )}
@@ -127,7 +136,7 @@ export default function DangerZoneCard({
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="delete-league-final-title"
+            aria-labelledby="close-league-final-title"
             className="w-full max-w-lg rounded-3xl border border-red-500/40 bg-[#111417] p-6 shadow-2xl shadow-black/80"
             onClick={(event) => event.stopPropagation()}
           >
@@ -136,15 +145,18 @@ export default function DangerZoneCard({
             </p>
 
             <h2
-              id="delete-league-final-title"
+              id="close-league-final-title"
               className="mt-3 text-2xl font-black text-white"
             >
-              Eliminare davvero “{league.name}”?
+              {isSoleAdmin
+                ? `Abbandonare e chiudere “${league.name}”?`
+                : `Chiudere davvero “${league.name}”?`}
             </h2>
 
             <p className="mt-4 text-sm font-semibold leading-6 text-gray-300">
-              Tutti i dati della lega saranno rimossi definitivamente. Non
-              sarà possibile annullare o recuperare questa operazione.
+              La lega non sarà più visibile né utilizzabile dai membri. I dati
+              non verranno eliminati fisicamente e resteranno conservati
+              internamente.
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -158,10 +170,10 @@ export default function DangerZoneCard({
 
               <button
                 type="button"
-                onClick={confirmDeletion}
+                onClick={confirmClosure}
                 className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-500"
               >
-                Elimina definitivamente
+                {isSoleAdmin ? "Abbandona e chiudi lega" : "Chiudi lega"}
               </button>
             </div>
           </div>

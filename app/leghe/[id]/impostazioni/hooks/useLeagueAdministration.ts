@@ -233,14 +233,21 @@ export function useLeagueAdministration(leagueId: string) {
     await finishAndReload("Iscrizioni riaperte correttamente.");
   }
 
-  async function permanentlyDeleteLeague() {
-    if (!league || !isAdmin || !confirmationMatches || action) return;
+  function clearLastLeagueContext() {
+    if (!league) return;
 
-    beginAction("delete");
+    if (window.localStorage.getItem("fantagol:last-league-id") === league.id) {
+      window.localStorage.removeItem("fantagol:last-league-id");
+    }
+  }
 
-    const { error } = await supabase.rpc("delete_league_permanently_rpc", {
-      p_league_id: league.id,
-      p_confirmation_name: confirmationName,
+  async function leaveLeague() {
+    if (!league || isAdmin || action) return;
+
+    beginAction("leave-league");
+
+    const { error } = await supabase.rpc("leave_league_rpc", {
+      target_league_id: league.id,
     });
 
     if (error) {
@@ -248,6 +255,26 @@ export function useLeagueAdministration(leagueId: string) {
       return;
     }
 
+    clearLastLeagueContext();
+    router.replace("/leghe");
+    router.refresh();
+  }
+
+  async function closeLeague() {
+    if (!league || !isAdmin || !confirmationMatches || action) return;
+
+    beginAction("close-league");
+
+    const { error } = await supabase.rpc("delete_league_rpc", {
+      target_league_id: league.id,
+    });
+
+    if (error) {
+      failAction(error.message);
+      return;
+    }
+
+    clearLastLeagueContext();
     router.replace("/leghe");
     router.refresh();
   }
@@ -278,7 +305,8 @@ export function useLeagueAdministration(leagueId: string) {
     setErrorMessage,
     runRosterAction,
     reopenRoster,
-    permanentlyDeleteLeague,
+    leaveLeague,
+    closeLeague,
     copyInviteLink,
     saveScoringProfile,
   };

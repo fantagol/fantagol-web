@@ -7,6 +7,7 @@ import AdministrationHeader from "./components/AdministrationHeader";
 import DangerZoneCard from "./components/DangerZoneCard";
 import InvitationCard from "./components/InvitationCard";
 import LeagueOverviewCard from "./components/LeagueOverviewCard";
+import LeaveLeagueCard from "./components/LeaveLeagueCard";
 import RosterManagementCard from "./components/RosterManagementCard";
 import ScoringProfileCard from "./components/ScoringProfileCard";
 import { useLeagueAdministration } from "./hooks/useLeagueAdministration";
@@ -134,9 +135,19 @@ export default function LeagueAdministrationPage() {
 
         <AdminActivityCard events={events} />
 
+        <LeaveLeagueCard
+          league={league}
+          activeMemberCount={lifecycle?.active_member_count ?? null}
+          isAdmin={Boolean(isAdmin)}
+          action={action}
+          onLeaveLeague={() => void administration.leaveLeague()}
+          onOpenMembers={() => router.push(`/leghe/${league.id}/membri`)}
+        />
+
         <DangerZoneCard
           league={league}
           isAdmin={Boolean(isAdmin)}
+          isSoleAdmin={Boolean(isAdmin) && lifecycle?.active_member_count === 1}
           action={action}
           confirmationName={confirmationName}
           confirmationMatches={confirmationMatches}
@@ -144,7 +155,7 @@ export default function LeagueAdministrationPage() {
             administration.setConfirmationName(value);
             administration.setErrorMessage(null);
           }}
-          onDelete={() => void administration.permanentlyDeleteLeague()}
+          onCloseLeague={() => void administration.closeLeague()}
         />
       </section>
     </main>
