@@ -322,7 +322,7 @@ export default function MembriPage() {
           <div className="mt-6 rounded-2xl border border-[#A6E824]/25 bg-[#A6E824]/5 px-4 py-3 text-sm text-gray-300">
             {activeVice
               ? `Vice attuale: ${activeVice.clubName}. Per sostituirlo, nomina un altro membro come Vice.`
-              : "Nessun Vice nominato. Prima del lock del roster sarà necessario nominarne uno."}
+              : "Nessun Vice nominato. Prima della chisura della lega sarà necessario nominarne uno."}
           </div>
         )}
 

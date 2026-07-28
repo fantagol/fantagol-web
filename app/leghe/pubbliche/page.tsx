@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Header from "../../../components/Header";
+import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import { supabase } from "../../../lib/supabaseClient";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
@@ -34,6 +34,13 @@ type PublicLeagueRow = {
   viewer_can_join: boolean;
 };
 
+type DrawerLeagueContext = {
+  leagueName: string;
+  displayName: string;
+  inviteCode: string;
+  role: string;
+};
+
 type JoinPublicLeagueResult = {
   joined_league_id: string;
   membership_id: string;
@@ -57,6 +64,33 @@ function formatDateTime(value: string | null) {
   }
 
   return dateTimeFormatter.format(date);
+}
+
+async function resolveDrawerLeagueContext(): Promise<DrawerLeagueContext> {
+  const { data, error } = await supabase.rpc("get_my_leagues_rpc");
+
+  if (error || !data?.length) {
+    return {
+      leagueName: "Le tue leghe",
+      displayName: "Club FantaGol",
+      inviteCode: "",
+      role: "member",
+    };
+  }
+
+  const storedLeagueId = window.localStorage.getItem(LAST_LEAGUE_STORAGE_KEY);
+  const selected =
+    data.find(
+      (row: { league_id?: string | null }) =>
+        row.league_id === storedLeagueId,
+    ) ?? data[0];
+
+  return {
+    leagueName: selected.league_name || "Lega FantaGol",
+    displayName: selected.display_name || "Club FantaGol",
+    inviteCode: selected.invite_code || "",
+    role: selected.role || "member",
+  };
 }
 
 function extractBackendError(message: string) {
@@ -133,6 +167,13 @@ function getJoinErrorMessage(message: string) {
 
 export default function PublicLeaguesPage() {
   const [leagues, setLeagues] = useState<PublicLeagueRow[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerLeague, setDrawerLeague] = useState<DrawerLeagueContext>({
+    leagueName: "Le tue leghe",
+    displayName: "Club FantaGol",
+    inviteCode: "",
+    role: "member",
+  });
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -140,6 +181,20 @@ export default function PublicLeaguesPage() {
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [joinError, setJoinError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    void resolveDrawerLeagueContext().then((context) => {
+      if (active) {
+        setDrawerLeague(context);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -277,7 +332,42 @@ export default function PublicLeaguesPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <Header />
+      <HamburgerDrawer
+        open={menuOpen}
+        leagueName={drawerLeague.leagueName}
+        displayName={drawerLeague.displayName}
+        inviteCode={drawerLeague.inviteCode}
+        role={drawerLeague.role}
+        onClose={() => setMenuOpen(false)}
+      />
+
+
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/90 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Apri menu FantaGol"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[#111417] transition hover:border-[#A6E824]/60"
+          >
+            <span className="space-y-1.5">
+              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
+              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
+              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => window.location.assign("/leghe")}
+            className="text-lg font-black tracking-tight text-white transition hover:text-[#A6E824]"
+          >
+            FantaGol
+          </button>
+
+          <div className="h-11 w-11" aria-hidden="true" />
+        </div>
+      </header>
 
       <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
         <div className="mx-auto max-w-3xl text-center">

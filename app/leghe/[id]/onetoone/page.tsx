@@ -19,7 +19,6 @@ import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
-import { getRoundState } from "../../../../lib/roundState";
 import {
   fromOneToOneStrategyPayload,
   toOneToOneStrategyPayload,
@@ -543,6 +542,43 @@ function getTeamCode(
     .toUpperCase();
 }
 
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function findNestedRecord(
+  value: unknown,
+  predicate: (record: Record<string, unknown>) => boolean,
+): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedRecord(item, predicate);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return null;
+  if (predicate(value)) return value;
+
+  for (const nested of Object.values(value)) {
+    const found = findNestedRecord(nested, predicate);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function toFiniteNumber(value: unknown): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function isMissingActiveFixtureError(message?: string | null) {
+  return Boolean(message?.includes("STRATEGY_ACTIVE_FIXTURE_NOT_FOUND"));
+}
+
 function toPredictionSlot(match: DuelMatch): PredictionSlot {
   return {
     matchId: match.id,
@@ -595,6 +631,10 @@ export default function OneToOneLivePage() {
   const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
   const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
   const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
+  const [leftPoints, setLeftPoints] = useState(0);
+  const [rightPoints, setRightPoints] = useState(0);
+  const [leftGoals, setLeftGoals] = useState(0);
+  const [rightGoals, setRightGoals] = useState(0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -677,6 +717,7 @@ export default function OneToOneLivePage() {
       const [
         { data: predictionData, error: predictionError },
         { data: strategyData, error: strategyStatusError },
+        { data: previewData },
       ] = await Promise.all([
         supabase.rpc("get_my_round_predictions_rpc", {
           p_league_round_id: currentLeagueRoundId,
@@ -684,6 +725,9 @@ export default function OneToOneLivePage() {
         supabase.rpc("get_my_strategy_status_rpc", {
           p_league_round_id: currentLeagueRoundId,
           p_mode: "one_to_one",
+        }),
+        supabase.rpc("get_my_one_to_one_preview_rpc", {
+          p_league_round_id: currentLeagueRoundId,
         }),
       ]);
 
@@ -695,7 +739,10 @@ export default function OneToOneLivePage() {
         return;
       }
 
-      if (strategyStatusError) {
+      if (
+        strategyStatusError &&
+        !isMissingActiveFixtureError(strategyStatusError.message)
+      ) {
         setStrategyError(strategyStatusError.message);
         setStrategyLoading(false);
         return;
@@ -790,6 +837,21 @@ export default function OneToOneLivePage() {
         }
       }
 
+      const preview = findNestedRecord(
+        previewData,
+        (record) =>
+          ("home_wins" in record && "away_wins" in record) ||
+          ("mini_wins" in record && "mini_losses" in record),
+      );
+      setLeftGoals(
+        toFiniteNumber(preview?.home_wins ?? preview?.mini_wins),
+      );
+      setRightGoals(
+        toFiniteNumber(preview?.away_wins ?? preview?.mini_losses),
+      );
+      setLeftPoints(toFiniteNumber(preview?.home_points));
+      setRightPoints(toFiniteNumber(preview?.away_points));
+
       setLeagueRoundId(currentLeagueRoundId);
       setRoundNumber(rows[0]?.round_number ?? null);
       setIsByeRound(Boolean(status?.is_bye));
@@ -818,17 +880,10 @@ export default function OneToOneLivePage() {
     };
   }, [leagueId]);
 
-  const leftPoints = 72;
-  const rightPoints = 65;
-  const leftGoals = 5;
-  const rightGoals = 4;
-
-  // Simulazione temporanea: quando collegheremo il backend useremo currentRound.first_kick_at.
-  const round = getRoundState("2026-08-23T13:44:55");
   const locked = strategyLocked;
   const interactionLocked = strategyLocked || isByeRound;
 
-  const isLiveForSwipe = !isByeRound && (round.isLive || round.isFinished);
+  const isLiveForSwipe = !isByeRound && strategyLocked;
   const swipeProfiles = useMemo(
     () => [
       {

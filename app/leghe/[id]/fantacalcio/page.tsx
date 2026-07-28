@@ -532,6 +532,43 @@ function getTeamCode(
     .toUpperCase();
 }
 
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function findNestedRecord(
+  value: unknown,
+  predicate: (record: Record<string, unknown>) => boolean,
+): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findNestedRecord(item, predicate);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return null;
+  if (predicate(value)) return value;
+
+  for (const nested of Object.values(value)) {
+    const found = findNestedRecord(nested, predicate);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function toFiniteNumber(value: unknown): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function isMissingActiveFixtureError(message?: string | null) {
+  return Boolean(message?.includes("STRATEGY_ACTIVE_FIXTURE_NOT_FOUND"));
+}
+
 function getTeamBadge(name: string): string {
   return name
     .split(/\s+/)
@@ -575,6 +612,10 @@ export default function FantacalcioLivePage() {
     role: "member",
   });
   const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
+  const [leftPoints, setLeftPoints] = useState(0);
+  const [rightPoints, setRightPoints] = useState(0);
+  const [leftGoals, setLeftGoals] = useState(0);
+  const [rightGoals, setRightGoals] = useState(0);
 
   useEffect(() => {
     async function loadLeagueInfo() {
@@ -651,6 +692,7 @@ export default function FantacalcioLivePage() {
       const [
         { data: predictionData, error: predictionError },
         { data: strategyData, error: strategyStatusError },
+        { data: previewData },
       ] = await Promise.all([
         supabase.rpc("get_my_round_predictions_rpc", {
           p_league_round_id: currentLeagueRoundId,
@@ -658,6 +700,9 @@ export default function FantacalcioLivePage() {
         supabase.rpc("get_my_strategy_status_rpc", {
           p_league_round_id: currentLeagueRoundId,
           p_mode: "fantacalcio",
+        }),
+        supabase.rpc("get_my_fantacalcio_preview_rpc", {
+          p_league_round_id: currentLeagueRoundId,
         }),
       ]);
 
@@ -669,7 +714,10 @@ export default function FantacalcioLivePage() {
         return;
       }
 
-      if (strategyStatusError) {
+      if (
+        strategyStatusError &&
+        !isMissingActiveFixtureError(strategyStatusError.message)
+      ) {
         setStrategyError(strategyStatusError.message);
         setStrategyLoading(false);
         return;
@@ -757,6 +805,15 @@ export default function FantacalcioLivePage() {
         }
       }
 
+      const preview = findNestedRecord(
+        previewData,
+        (record) => "home_goals" in record && "away_goals" in record,
+      );
+      setLeftGoals(toFiniteNumber(preview?.home_goals));
+      setRightGoals(toFiniteNumber(preview?.away_goals));
+      setLeftPoints(toFiniteNumber(preview?.home_points));
+      setRightPoints(toFiniteNumber(preview?.away_points));
+
       setLeagueRoundId(currentLeagueRoundId);
       setRoundNumber(rows[0]?.round_number ?? null);
       setIsByeRound(Boolean(strategyStatus?.is_bye));
@@ -776,11 +833,6 @@ export default function FantacalcioLivePage() {
       cancelled = true;
     };
   }, [leagueId]);
-
-  const leftPoints = 72;
-  const rightPoints = 65;
-  const leftGoals = 5;
-  const rightGoals = 4;
 
   const locked = strategyLocked;
   const interactionLocked =

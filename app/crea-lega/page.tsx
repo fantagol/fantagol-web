@@ -249,11 +249,11 @@ export default function CreaLegaPage() {
             onClose={() => setMenuOpen(false)}
           />
 
-          <header className="fixed inset-x-0 top-0 z-[90] border-b border-[#A6E824]/25 bg-[#1f2427] shadow-2xl shadow-black/80">
+          <header className="fixed inset-x-0 top-0 z-[80] border-b border-[#A6E824]/25 bg-[#1f2427] shadow-2xl shadow-black/80">
             <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-6">
               <a
                 href={activeLeague.id ? `/leghe/${activeLeague.id}` : "/leghe"}
-                className="relative z-10 block"
+                className="relative z-10 block -translate-x-8 translate-y-5 md:-translate-x-20 md:translate-y-6"
               >
                 <FantaGolLogo />
               </a>
@@ -261,8 +261,8 @@ export default function CreaLegaPage() {
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
-                aria-label="Apri menu FantaGol"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-[#111417] text-xl font-black text-white transition hover:border-[#A6E824]/70 hover:text-[#A6E824]"
+                aria-label="Apri menu lega"
+                className="rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white transition hover:border-[#A6E824]"
               >
                 ☰
               </button>

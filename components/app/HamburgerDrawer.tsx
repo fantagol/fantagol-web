@@ -1151,7 +1151,7 @@ export default function HamburgerDrawer({
           </button>
 
           {leagueOpen && selectableLeagues.length > 0 && (
-            <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/50">
+            <div className="mt-2 max-h-[min(46vh,420px)] overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/50 [scrollbar-gutter:stable]">
               {selectableLeagues.map((item) => {
                 const current = item.leagueId === drawerLeague.leagueId;
                 const itemIsPublic = item.visibility === "public";
