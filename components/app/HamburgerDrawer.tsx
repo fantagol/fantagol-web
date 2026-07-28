@@ -1340,6 +1340,13 @@ export default function HamburgerDrawer({
           />
 
           <DrawerMenuItem
+            icon="plus"
+            title="Scarica l'app"
+            subtitle="Versione ufficiale per il tuo dispositivo"
+            onClick={() => goTo("/download")}
+          />
+
+          <DrawerMenuItem
             icon="settings"
             title="Impostazioni Lega"
             subtitle={

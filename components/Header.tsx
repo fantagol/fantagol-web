@@ -3,15 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import FantaGolLogo from "./FantaGolLogo";
-import PlatformIcon from "./app/PlatformIcon";
 import { supabase } from "../lib/supabaseClient";
 
 const fantagolGreen = "#A6E824";
 
 export default function Header() {
   const [open, setOpen] = useState(false);
-  const [appOpen, setAppOpen] = useState(false);
-  const [mobileAppOpen, setMobileAppOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -40,7 +37,6 @@ export default function Header() {
 
   function closeMenu() {
     setOpen(false);
-    setMobileAppOpen(false);
   }
 
   return (
@@ -53,33 +49,12 @@ export default function Header() {
         </a>
 
         <nav className="hidden items-center gap-3 md:flex md:translate-y-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setAppOpen(!appOpen)}
-              className="rounded-full bg-[#A6E824] px-5 py-2 text-sm font-semibold text-black shadow-lg shadow-[#A6E824]/25 transition hover:brightness-110"
-            >
-              Scarica App ▾
-            </button>
-
-            {appOpen && (
-              <div className="absolute right-0 mt-3 w-52 overflow-hidden rounded-2xl border border-gray-700 bg-[#1a1a1a] shadow-xl">
-                <a
-                  href="/download/android"
-                  className="block px-5 py-3 text-sm text-gray-200 hover:bg-[#262626]"
-                >
-                  <span className="inline-flex items-center gap-2"><PlatformIcon platform="android" size={18} />Android</span>
-                </a>
-
-                <a
-                  href="/download/iphone"
-                  className="block border-t border-gray-700 px-5 py-3 text-sm text-gray-200 hover:bg-[#262626]"
-                >
-                  <span className="inline-flex items-center gap-2"><PlatformIcon platform="iphone" size={18} />iPhone</span>
-                </a>
-              </div>
-            )}
-          </div>
+          <a
+            href="/download"
+            className="rounded-full bg-[#A6E824] px-5 py-2 text-sm font-semibold text-black shadow-lg shadow-[#A6E824]/25 transition hover:brightness-110"
+          >
+            Scarica l&apos;app
+          </a>
 
           <a
             href="/login"
@@ -135,36 +110,14 @@ export default function Header() {
               </>
             )}
 
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setMobileAppOpen(!mobileAppOpen)}
-                style={{ color: fantagolGreen }}
-                className="block w-full text-left font-semibold"
-              >
-                Scarica App ▾
-              </button>
-
-              {mobileAppOpen && (
-                <div className="space-y-2 pt-1">
-                  <a
-                    onClick={closeMenu}
-                    className="block pl-4 text-base"
-                    href="/download/android"
-                  >
-                    <span className="inline-flex items-center gap-2"><PlatformIcon platform="android" size={18} />Android</span>
-                  </a>
-
-                  <a
-                    onClick={closeMenu}
-                    className="block pl-4 text-base"
-                    href="/download/iphone"
-                  >
-                    <span className="inline-flex items-center gap-2"><PlatformIcon platform="iphone" size={18} />iPhone</span>
-                  </a>
-                </div>
-              )}
-            </div>
+            <a
+              onClick={closeMenu}
+              className="block font-semibold"
+              style={{ color: fantagolGreen }}
+              href="/download"
+            >
+              Scarica l&apos;app
+            </a>
 
             <a onClick={closeMenu} className="block" href="/regolamento">
               Come si Gioca
