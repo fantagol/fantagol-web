@@ -307,6 +307,18 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
+  if (icon === "download") {
+    return (
+      <span className={base}>
+        <span className="relative h-6 w-6">
+          <span className="absolute left-1/2 top-0 h-3.5 w-1.5 -translate-x-1/2 rounded-full bg-[#A6E824]" />
+          <span className="absolute left-1/2 top-3.5 h-0 w-0 -translate-x-1/2 border-l-[7px] border-r-[7px] border-t-[9px] border-l-transparent border-r-transparent border-t-[#A6E824]" />
+          <span className="absolute bottom-0 left-1/2 h-1.5 w-5 -translate-x-1/2 rounded-full bg-[#A6E824]" />
+        </span>
+      </span>
+    );
+  }
+
   if (icon === "logout") {
     return (
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-950/20">
@@ -1340,7 +1352,7 @@ export default function HamburgerDrawer({
           />
 
           <DrawerMenuItem
-            icon="plus"
+            icon="download"
             title="Scarica l'app"
             subtitle="Versione ufficiale per il tuo dispositivo"
             onClick={() => goTo("/download")}
@@ -1362,14 +1374,14 @@ export default function HamburgerDrawer({
           <DrawerMenuItem
             icon="help"
             title="Supporto"
-            subtitle="Aiuto e informazioni"
-            onClick={() => goTo("#")}
+            subtitle="Risoluzione problemi e contatti"
+            onClick={() => goTo("/supporto")}
           />
 
           <DrawerMenuItem
             icon="donate"
             title="Sostieni FantaGol"
-            subtitle="Contributi liberi al progetto"
+            subtitle="Aiutaci con gestione e sviluppo"
             onClick={() => goTo("/donazioni")}
           />
 

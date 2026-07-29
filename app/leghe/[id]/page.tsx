@@ -274,8 +274,8 @@ function getProviderScoreLabel(match: DashboardMatch) {
 
 function MatchMiniRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(88px,auto)_auto_minmax(0,1fr)] items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-3 py-3 sm:gap-3">
-      <span className="min-w-0 truncate text-right text-sm font-black text-white sm:text-base">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 sm:gap-x-1.5 sm:px-3">
+      <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white sm:text-base">
         {match.home}
       </span>
 
@@ -288,13 +288,14 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
         className="h-8 w-8 sm:h-9 sm:w-9"
       />
 
-      <div className="text-center">
+      <div className="min-w-[64px] text-center">
         <div className="text-xl font-black leading-none text-[#A6E824] sm:text-2xl">
           {getProviderScoreLabel(match)}
         </div>
 
-        <div className="mt-1 whitespace-nowrap text-[10px] font-semibold text-gray-500 sm:text-[11px]">
-          {match.kickoffDay} · {match.kickoffHour}
+        <div className="mt-1 flex flex-col items-center whitespace-nowrap text-[9px] font-semibold leading-[1.15] text-gray-500 sm:text-[10px]">
+          <span>{match.kickoffDay}</span>
+          <span>{match.kickoffHour}</span>
         </div>
       </div>
 
@@ -307,7 +308,7 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
         className="h-8 w-8 sm:h-9 sm:w-9"
       />
 
-      <span className="min-w-0 truncate text-left text-sm font-black text-white sm:text-base">
+      <span className="min-w-0 truncate pl-0.5 text-left text-sm font-black text-white sm:text-base">
         {match.away}
       </span>
     </div>
