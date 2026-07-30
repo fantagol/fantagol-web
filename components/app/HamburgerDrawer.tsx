@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { leaguePath } from "../../lib/navigation/league-paths";
+import { useNativeAppMode } from "../../lib/platform/app-mode";
 import KitPreview from "../club/KitPreview";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
@@ -702,6 +703,7 @@ export default function HamburgerDrawer({
   const [leagueActionModal, setLeagueActionModal] =
     useState<LeagueActionModal>(null);
   const [leagueActionLoading, setLeagueActionLoading] = useState(false);
+  const isNativeApp = useNativeAppMode();
 
   useEffect(() => {
     setDrawerLeague((current) => ({
@@ -830,7 +832,7 @@ export default function HamburgerDrawer({
     if (!ok) return;
 
     await supabase.auth.signOut();
-    window.location.href = "/";
+    window.location.href = isNativeApp ? "/login" : "/";
   }
 
   function copyInviteLink() {
@@ -1351,12 +1353,14 @@ export default function HamburgerDrawer({
             onClick={() => goTo("/regolamento")}
           />
 
-          <DrawerMenuItem
-            icon="download"
-            title="Scarica l'app"
-            subtitle="Versione ufficiale per il tuo dispositivo"
-            onClick={() => goTo("/download")}
-          />
+          {!isNativeApp && (
+            <DrawerMenuItem
+              icon="download"
+              title="Scarica l'app"
+              subtitle="Versione ufficiale per il tuo dispositivo"
+              onClick={() => goTo("/download")}
+            />
+          )}
 
           <DrawerMenuItem
             icon="settings"
