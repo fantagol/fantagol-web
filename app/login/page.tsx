@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
+import { createOAuthCallbackUrl } from "../../lib/auth/oauth-redirect";
 import { supabase } from "../../lib/supabaseClient";
 
 const PENDING_AUTH_DESTINATION_KEY = "fantagol.pendingAuthDestination.v1";
@@ -72,21 +73,22 @@ export default function LoginPage() {
     setLoading(true);
     window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
 
-    const callbackUrl = new URL("/auth/callback", window.location.origin);
-    callbackUrl.searchParams.set("returnTo", returnTo);
+    const callbackUrl = createOAuthCallbackUrl(returnTo);
+
+    alert(callbackUrl);
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: callbackUrl.toString(),
-      },
+        provider: "google",
+        options: {
+            redirectTo: callbackUrl,
+        },
     });
 
     if (error) {
-      setLoading(false);
-      alert(error.message);
+        setLoading(false);
+        alert(error.message);
     }
-  }
+}
 
   async function handleEmailLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,3 +212,4 @@ export default function LoginPage() {
     </main>
   );
 }
+
