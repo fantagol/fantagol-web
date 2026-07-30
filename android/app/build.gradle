@@ -1,6 +1,66 @@
 apply plugin: 'com.android.application'
 
+
+// FANTAGOL_RELEASE_SIGNING_BEGIN
+def fantagolSigningPropertiesPath =
+        System.getenv("FANTAGOL_ANDROID_SIGNING_PROPERTIES")
+
+def fantagolSigningProperties = new Properties()
+
+def fantagolSigningPropertiesFile =
+        fantagolSigningPropertiesPath
+                ? file(fantagolSigningPropertiesPath)
+                : null
+
+def fantagolSigningConfigured =
+        fantagolSigningPropertiesFile != null &&
+        fantagolSigningPropertiesFile.exists()
+
+if (fantagolSigningConfigured) {
+    fantagolSigningPropertiesFile.withInputStream {
+        fantagolSigningProperties.load(it)
+    }
+
+    def fantagolRequiredSigningProperties = [
+            "storeFile",
+            "storePassword",
+            "keyAlias",
+            "keyPassword"
+    ]
+
+    def fantagolMissingSigningProperties =
+            fantagolRequiredSigningProperties.findAll {
+                !fantagolSigningProperties.getProperty(it)
+            }
+
+    if (!fantagolMissingSigningProperties.isEmpty()) {
+        throw new GradleException(
+                "Missing FantaGol signing properties: " +
+                fantagolMissingSigningProperties.join(", ")
+        )
+    }
+}
+// FANTAGOL_RELEASE_SIGNING_END
+
 android {
+    signingConfigs {
+        release {
+            if (fantagolSigningConfigured) {
+                storeFile file(
+                        fantagolSigningProperties.getProperty("storeFile")
+                )
+                storePassword fantagolSigningProperties.getProperty(
+                        "storePassword"
+                )
+                keyAlias fantagolSigningProperties.getProperty(
+                        "keyAlias"
+                )
+                keyPassword fantagolSigningProperties.getProperty(
+                        "keyPassword"
+                )
+            }
+        }
+    }
     namespace = "app.fantagol.android"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
@@ -18,7 +78,8 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+                        signingConfig signingConfigs.release
+minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
@@ -51,4 +112,18 @@ try {
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// Prevent unsigned FantaGol release artifacts.
+gradle.taskGraph.whenReady { taskGraph ->
+    def fantagolReleaseRequested = taskGraph.allTasks.any { task ->
+        task.name.toLowerCase().contains("release")
+    }
+
+    if (fantagolReleaseRequested && !fantagolSigningConfigured) {
+        throw new GradleException(
+                "FantaGol release signing is not configured. " +
+                "Set FANTAGOL_ANDROID_SIGNING_PROPERTIES."
+        )
+    }
 }
