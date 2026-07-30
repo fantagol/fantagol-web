@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: "FantaGol",
   webDir: "android-shell",
   server: {
-    url: "https://fantagol.app/leghe",
+    url: "https://fantagol.app/leghe?fantagol_app=android",
     cleartext: false,
     androidScheme: "https",
   },
