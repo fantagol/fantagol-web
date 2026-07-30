@@ -3,14 +3,15 @@
 const config: CapacitorConfig = {
   appId: "app.fantagol.android",
   appName: "FantaGol",
-  webDir: "android-shell",
+  webDir: "out",
+
   server: {
-    url: "https://fantagol.app/leghe?fantagol_app=android",
+    url: "https://www.fantagol.app/leghe?fantagol_app=android",
     cleartext: false,
-    androidScheme: "https",
-  },
-  android: {
-    allowMixedContent: false,
+    allowNavigation: [
+      "fantagol.app",
+      "www.fantagol.app",
+    ],
   },
 };
 
