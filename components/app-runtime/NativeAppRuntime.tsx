@@ -1,8 +1,13 @@
-﻿"use client";
+"use client";
 
-import { App, type BackButtonListenerEvent } from "@capacitor/app";
+import {
+  App,
+  type BackButtonListenerEvent,
+  type URLOpenListenerEvent,
+} from "@capacitor/app";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { useEffect } from "react";
+import { NATIVE_OAUTH_CALLBACK_URL } from "../../lib/auth/oauth-redirect";
 import { isNativeFantaGolApp } from "../../lib/platform/app-mode";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -72,12 +77,8 @@ async function refreshSessionAfterResume(): Promise<void> {
       }, SESSION_REFRESH_TIMEOUT_MS);
     });
 
-    await Promise.race([
-      supabase.auth.getSession(),
-      timeoutRequest,
-    ]);
-  }
-  finally {
+    await Promise.race([supabase.auth.getSession(), timeoutRequest]);
+  } finally {
     if (timeoutId !== undefined) {
       window.clearTimeout(timeoutId);
     }
@@ -89,8 +90,7 @@ async function recoverAfterResume(): Promise<void> {
 
   try {
     await refreshSessionAfterResume();
-  }
-  catch {
+  } catch {
     /*
      * Manteniamo la pagina corrente in caso di rete temporaneamente assente.
      * Supabase potrà riprovare alla richiesta successiva.
@@ -139,15 +139,41 @@ function handleNativeBack(event: BackButtonListenerEvent): void {
 
   const leagueDashboardPath = getLeagueDashboardPath(pathname);
 
-  if (
-    leagueDashboardPath &&
-    pathname !== leagueDashboardPath
-  ) {
+  if (leagueDashboardPath && pathname !== leagueDashboardPath) {
     window.location.replace(leagueDashboardPath);
     return;
   }
 
   window.location.replace(LEAGUES_ENTRY_PATH);
+}
+
+function isNativeOAuthCallback(url: URL): boolean {
+  const expected = new URL(NATIVE_OAUTH_CALLBACK_URL);
+
+  return (
+    url.protocol === expected.protocol &&
+    url.hostname === expected.hostname &&
+    url.pathname.replace(/\/+$/, "") ===
+      expected.pathname.replace(/\/+$/, "")
+  );
+}
+
+function handleNativeAppUrlOpen(event: URLOpenListenerEvent): void {
+  let openedUrl: URL;
+
+  try {
+    openedUrl = new URL(event.url);
+  } catch {
+    return;
+  }
+
+  if (!isNativeOAuthCallback(openedUrl)) {
+    return;
+  }
+
+  const callbackPath = `/auth/callback${openedUrl.search}${openedUrl.hash}`;
+
+  window.location.replace(callbackPath);
 }
 
 export default function NativeAppRuntime() {
@@ -159,36 +185,45 @@ export default function NativeAppRuntime() {
     let disposed = false;
     const handles: PluginListenerHandle[] = [];
 
+    async function retainHandle(
+      handlePromise: Promise<PluginListenerHandle>,
+    ): Promise<void> {
+      const handle = await handlePromise;
+
+      if (disposed) {
+        await handle.remove();
+        return;
+      }
+
+      handles.push(handle);
+    }
+
     async function registerListeners(): Promise<void> {
-      const appStateHandle = await App.addListener(
-        "appStateChange",
-        ({ isActive }) => {
+      await retainHandle(
+        App.addListener("appUrlOpen", handleNativeAppUrlOpen),
+      );
+
+      const launchUrl = await App.getLaunchUrl();
+
+      if (!disposed && launchUrl?.url) {
+        handleNativeAppUrlOpen({
+          url: launchUrl.url,
+        });
+      }
+
+      await retainHandle(
+        App.addListener("appStateChange", ({ isActive }) => {
           if (disposed || !isActive) {
             return;
           }
 
           void recoverAfterResume();
-        },
+        }),
       );
 
-      if (disposed) {
-        await appStateHandle.remove();
-        return;
-      }
-
-      handles.push(appStateHandle);
-
-      const backButtonHandle = await App.addListener(
-        "backButton",
-        handleNativeBack,
+      await retainHandle(
+        App.addListener("backButton", handleNativeBack),
       );
-
-      if (disposed) {
-        await backButtonHandle.remove();
-        return;
-      }
-
-      handles.push(backButtonHandle);
     }
 
     void registerListeners();
