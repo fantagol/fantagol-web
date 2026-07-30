@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
+import { createOAuthCallbackUrl } from "../../lib/auth/oauth-redirect";
 import { supabase } from "../../lib/supabaseClient";
 
 const PENDING_AUTH_DESTINATION_KEY = "fantagol.pendingAuthDestination.v1";
@@ -57,13 +58,12 @@ export default function RegistratiPage() {
     setLoading(true);
     window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
 
-    const callbackUrl = new URL("/auth/callback", window.location.origin);
-    callbackUrl.searchParams.set("returnTo", returnTo);
+    const callbackUrl = createOAuthCallbackUrl(returnTo);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: callbackUrl.toString(),
+        redirectTo: callbackUrl,
       },
     });
 
@@ -218,3 +218,4 @@ export default function RegistratiPage() {
     </main>
   );
 }
+
