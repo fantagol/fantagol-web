@@ -40,7 +40,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [oauthDiagnostic, setOauthDiagnostic] = useState<string | null>(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -74,30 +73,8 @@ export default function LoginPage() {
     setLoading(true);
     window.localStorage.setItem(PENDING_AUTH_DESTINATION_KEY, returnTo);
 
-    const explicitPlatform = new URLSearchParams(window.location.search).get(
-      "fantagol_app",
-    );
-    const persistedPlatform = window.localStorage.getItem(
-      "fantagol:platform",
-    );
     const callbackUrl = createOAuthCallbackUrl(returnTo);
 
-    setOauthDiagnostic(
-      [
-        `location=${window.location.href}`,
-        `explicitPlatform=${explicitPlatform ?? "<null>"}`,
-        `persistedPlatform=${persistedPlatform ?? "<null>"}`,
-        `callbackUrl=${callbackUrl}`,
-      ].join("\n"),
-    );
-
-    setLoading(false);
-  }
-
-  async function continueGoogleLogin() {
-    setLoading(true);
-
-    const callbackUrl = createOAuthCallbackUrl(returnTo);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -162,32 +139,10 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="mb-4 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:opacity-60"
+                className="mb-6 w-full rounded-xl border border-gray-600 bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:opacity-60"
               >
-                Verifica callback Google
+                Continua con Google
               </button>
-
-              {oauthDiagnostic ? (
-                <div className="mb-4 rounded-xl border border-[#A6E824]/50 bg-black/60 p-4">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#A6E824]">
-                    Diagnostica OAuth
-                  </p>
-                  <pre className="whitespace-pre-wrap break-all text-xs leading-5 text-gray-200">
-                    {oauthDiagnostic}
-                  </pre>
-                </div>
-              ) : null}
-
-              {oauthDiagnostic ? (
-                <button
-                  type="button"
-                  onClick={continueGoogleLogin}
-                  disabled={loading}
-                  className="mb-6 w-full rounded-xl bg-[#A6E824] px-5 py-3 font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-                >
-                  {loading ? "Accesso in corso..." : "Procedi con Google"}
-                </button>
-              ) : null}
 
               <div className="mb-6 flex items-center gap-4 text-sm text-gray-500">
                 <div className="h-px flex-1 bg-gray-700" />
