@@ -342,34 +342,7 @@ export default function PublicLeaguesPage() {
       />
 
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Apri menu FantaGol"
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[#111417] transition hover:border-[#A6E824]/60"
-          >
-            <span className="space-y-1.5">
-              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
-              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
-              <span className="block h-0.5 w-5 rounded-full bg-[#A6E824]" />
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => window.location.assign("/leghe")}
-            className="text-lg font-black tracking-tight text-white transition hover:text-[#A6E824]"
-          >
-            FantaGol
-          </button>
-
-          <div className="h-11 w-11" aria-hidden="true" />
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
+      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#73CFE6]">
             FantaGol
