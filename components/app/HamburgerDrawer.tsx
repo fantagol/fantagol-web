@@ -320,6 +320,17 @@ function MenuIcon({ icon }: { icon: string }) {
     );
   }
 
+  if (icon === "privacy") {
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/25 bg-red-500/10">
+        <span className="relative h-6 w-5 rounded-b-xl border-2 border-red-300">
+          <span className="absolute left-1/2 top-[-7px] h-3 w-3 -translate-x-1/2 rounded-t-full border-2 border-b-0 border-red-300" />
+          <span className="absolute left-1/2 top-2 h-2 w-1 -translate-x-1/2 rounded-full bg-red-300" />
+        </span>
+      </span>
+    );
+  }
+
   if (icon === "logout") {
     return (
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-950/20">
@@ -1374,6 +1385,13 @@ export default function HamburgerDrawer({
           />
 
           <div className="my-4 border-t border-gray-700" />
+
+          <DrawerMenuItem
+            icon="privacy"
+            title="Privacy e account"
+            subtitle="Gestisci dati ed eliminazione account"
+            onClick={() => goTo("/elimina-account")}
+          />
 
           <DrawerMenuItem
             icon="help"
