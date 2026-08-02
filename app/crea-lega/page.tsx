@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import { supabase } from "../../lib/supabaseClient";
@@ -105,6 +105,9 @@ export default function CreaLegaPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [inviteValue, setInviteValue] = useState("");
   const [inviteErrorMessage, setInviteErrorMessage] = useState("");
+  const [privateHelpVisible, setPrivateHelpVisible] = useState(false);
+  const privateFormRef = useRef<HTMLFormElement | null>(null);
+  const leagueNameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -212,6 +215,21 @@ export default function CreaLegaPage() {
     window.location.replace(`/leghe/${result.league_id}`);
   }
 
+  function handleSelectPrivateLeague() {
+    setPrivateHelpVisible(true);
+
+    window.requestAnimationFrame(() => {
+      privateFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+
+      window.setTimeout(() => {
+        leagueNameInputRef.current?.focus();
+      }, 350);
+    });
+  }
+
   function handleOpenInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setInviteErrorMessage("");
@@ -285,13 +303,22 @@ export default function CreaLegaPage() {
           </p>
 
           <section className="mb-8 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[#A6E824] bg-[#A6E824]/10 p-5 text-left">
+            <button
+              type="button"
+              onClick={handleSelectPrivateLeague}
+              aria-controls="private-league-form"
+              className="rounded-2xl border border-[#A6E824] bg-[#A6E824]/10 p-5 text-left transition hover:bg-[#A6E824]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A6E824] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
               <span className="block font-bold text-white">Privata</span>
 
               <span className="mt-2 block text-sm leading-6 text-gray-400">
                 Partecipano soltanto gli utenti che ricevono il link di invito.
               </span>
-            </div>
+
+              <span className="mt-3 block text-xs font-semibold uppercase tracking-[0.14em] text-[#A6E824]">
+                
+              </span>
+            </button>
 
             <button
               type="button"
@@ -306,7 +333,23 @@ export default function CreaLegaPage() {
             </button>
           </section>
 
-          <form onSubmit={handleCreateLeague} className="space-y-6">
+          {privateHelpVisible && (
+            <div
+              role="status"
+              className="mb-6 rounded-xl border border-[#A6E824]/35 bg-[#A6E824]/10 px-4 py-3 text-sm leading-6 text-gray-200"
+            >
+              Compila i campi qui sotto per creare la tua lega privata. Dopo la
+              creazione riceverai il link da condividere con gli altri
+              partecipanti.
+            </div>
+          )}
+
+          <form
+            id="private-league-form"
+            ref={privateFormRef}
+            onSubmit={handleCreateLeague}
+            className="scroll-mt-24 space-y-6"
+          >
             <div>
               <label
                 htmlFor="league-name"
@@ -317,6 +360,7 @@ export default function CreaLegaPage() {
 
               <input
                 id="league-name"
+                ref={leagueNameInputRef}
                 type="text"
                 required
                 maxLength={80}
