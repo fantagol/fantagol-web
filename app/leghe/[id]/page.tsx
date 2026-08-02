@@ -274,8 +274,8 @@ function getProviderScoreLabel(match: DashboardMatch) {
 
 function MatchMiniRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 sm:gap-x-1.5 sm:px-3">
-      <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white sm:text-base">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3">
+      <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
         {match.home}
       </span>
 
@@ -285,11 +285,11 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
         alt={`${match.home} stemma`}
         fallbackLabel={match.home}
         size="sm"
-        className="h-8 w-8 sm:h-9 sm:w-9"
+        className="h-8 w-8 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9"
       />
 
-      <div className="min-w-[64px] text-center">
-        <div className="text-xl font-black leading-none text-[#A6E824] sm:text-2xl">
+      <div className="min-w-[64px] text-center max-[429px]:min-w-[58px] max-[399px]:min-w-[54px] max-[381px]:min-w-[50px]">
+        <div className="text-xl font-black leading-none text-[#A6E824] max-[429px]:text-lg max-[399px]:text-[17px] max-[381px]:text-base sm:text-2xl">
           {getProviderScoreLabel(match)}
         </div>
 
@@ -305,10 +305,10 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
         alt={`${match.away} stemma`}
         fallbackLabel={match.away}
         size="sm"
-        className="h-8 w-8 sm:h-9 sm:w-9"
+        className="h-8 w-8 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9"
       />
 
-      <span className="min-w-0 truncate pl-0.5 text-left text-sm font-black text-white sm:text-base">
+      <span className="min-w-0 truncate pl-0.5 text-left text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
         {match.away}
       </span>
     </div>
@@ -317,9 +317,9 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
 
 function DayMatchRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4 max-[429px]:gap-2">
       <div className="flex min-w-0 items-center justify-end gap-2">
-        <span className="truncate text-right text-sm font-black sm:text-base">
+        <span className="min-w-0 truncate text-right text-sm font-black max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
           {match.home}
         </span>
         <TeamCrest
@@ -331,7 +331,7 @@ function DayMatchRow({ match }: { match: DashboardMatch }) {
         />
       </div>
 
-      <div className="min-w-[68px] rounded-xl bg-[#A6E824]/10 px-3 py-2 text-center text-sm font-black text-[#A6E824]">
+      <div className="min-w-[68px] rounded-xl bg-[#A6E824]/10 px-3 py-2 text-center text-sm font-black text-[#A6E824] max-[429px]:min-w-[60px] max-[429px]:px-2 max-[399px]:min-w-[56px] max-[399px]:px-1.5 max-[381px]:min-w-[52px] max-[381px]:px-1">
         {getProviderScoreLabel(match)}
       </div>
 
@@ -343,7 +343,7 @@ function DayMatchRow({ match }: { match: DashboardMatch }) {
           fallbackLabel={match.away}
           size="sm"
         />
-        <span className="truncate text-sm font-black sm:text-base">
+        <span className="min-w-0 truncate text-sm font-black max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
           {match.away}
         </span>
       </div>
