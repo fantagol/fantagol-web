@@ -425,30 +425,59 @@ function PredictionSide({
   );
 }
 
+function StaticMemoryIndicator() {
+  return (
+    <span
+      className="relative flex h-8 w-8 translate-y-[-2px] items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-gray-300/30 via-gray-600/30 to-black/60 text-gray-200 opacity-55 shadow-[inset_0_2px_2px_rgba(255,255,255,0.14),inset_0_-4px_6px_rgba(0,0,0,0.68),0_3px_0_rgba(0,0,0,0.72),0_6px_12px_rgba(0,0,0,0.42)] sm:h-9 sm:w-9"
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 32 32"
+        className="h-[22px] w-[22px] drop-shadow-[0_1px_1px_rgba(0,0,0,0.60)] sm:h-6 sm:w-6"
+        fill="currentColor"
+      >
+        <path d="M25.3 8.2a11.2 11.2 0 0 0-16.8-1L6.2 4.9a1.35 1.35 0 0 0-2.3.96v7.02c0 .75.6 1.35 1.35 1.35h7.02a1.35 1.35 0 0 0 .96-2.3l-2.4-2.4a7.95 7.95 0 0 1 11.73.77 1.65 1.65 0 1 0 2.74-2.1Z" />
+        <path d="M26.75 17.77h-7.02a1.35 1.35 0 0 0-.96 2.3l2.4 2.4a7.95 7.95 0 0 1-11.73-.77 1.65 1.65 0 1 0-2.74 2.1 11.2 11.2 0 0 0 16.8 1l2.3 2.3a1.35 1.35 0 0 0 2.3-.96v-7.02c0-.75-.6-1.35-1.35-1.35Z" />
+      </svg>
+
+      <span className="pointer-events-none absolute inset-[3px] rounded-full border border-white/15" />
+    </span>
+  );
+}
+
 function LiveMatchCenter({ match }: { match: DuelMatch }) {
   return (
-    <div className="grid min-w-0 grid-cols-[auto_56px_auto] items-center justify-center gap-0.5 sm:grid-cols-[auto_110px_auto] sm:gap-1.5">
-      <div className="flex min-w-0 items-center justify-end gap-1">
+    <div className="grid min-w-0 grid-cols-[auto_56px_auto] grid-rows-[auto_auto] items-center justify-center gap-x-0.5 gap-y-0.5 sm:grid-cols-[auto_110px_auto] sm:gap-x-1.5 sm:gap-y-1">
+      <div className="col-start-1 row-start-1 flex min-w-0 items-center justify-end gap-1">
         <span className="text-[8px] font-black uppercase text-gray-400 sm:text-xs">
           {match.home}
         </span>
+
         <TeamBadge
           label={match.homeCrestLabel}
           crestReference={match.homeCrestReference}
           logoUrl={match.homeLogoUrl}
         />
       </div>
-      <div className="flex min-w-0 flex-col items-center">
+
+      <div className="col-start-1 row-start-2 flex justify-start -translate-x-6 pt-1 sm:-translate-x-8">
+        <StaticMemoryIndicator />
+      </div>
+
+      <div className="col-start-2 row-span-2 row-start-1 flex min-w-0 flex-col items-center">
         <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">
           {match.minute}
         </span>
+
         <div className="mt-1 flex items-center justify-center gap-1 sm:gap-2">
           <span className="text-2xl font-black leading-none text-[#A6E824] sm:text-5xl">
             {match.liveHome}
           </span>
+
           <span className="text-xl font-black leading-none text-[#A6E824] sm:text-4xl">
             -
           </span>
+
           <span className="text-2xl font-black leading-none text-white sm:text-5xl">
             {match.liveAway}
           </span>
@@ -458,20 +487,24 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
           <span className="text-lg font-black leading-none text-[#A6E824] sm:text-2xl">
             0
           </span>
+
           <span className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
             PT
           </span>
+
           <span className="text-lg font-black leading-none text-white sm:text-2xl">
             0
           </span>
         </div>
       </div>
-      <div className="flex min-w-0 items-center gap-1">
+
+      <div className="col-start-3 row-span-2 row-start-1 flex min-w-0 items-center gap-1">
         <TeamBadge
           label={match.awayCrestLabel}
           crestReference={match.awayCrestReference}
           logoUrl={match.awayLogoUrl}
         />
+
         <span className="text-[8px] font-black uppercase text-gray-400 sm:text-xs">
           {match.away}
         </span>

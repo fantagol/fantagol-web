@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Canonical league-scoped avatar URLs are public Supabase storage assets. */
+
 import { useEffect, useMemo, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
@@ -50,6 +52,7 @@ type StandingStats = {
 type StandingRow = {
   league_member_id: string;
   display_name: string;
+  avatar_url: string | null;
   position_preview: number;
   baseline_position: number;
   movement_preview: number;
@@ -131,6 +134,10 @@ function normalizeStandingRow(value: unknown): StandingRow | null {
       typeof row.display_name === "string" && row.display_name.trim()
         ? row.display_name
         : "Club FantaGol",
+    avatar_url:
+      typeof row.avatar_url === "string" && row.avatar_url.trim()
+        ? row.avatar_url.trim()
+        : null,
     position_preview: toNumber(row.position_preview),
     baseline_position: toNumber(row.baseline_position),
     movement_preview: toNumber(row.movement_preview),
@@ -445,7 +452,7 @@ setMode((currentMode) =>
           seguono il ruleset attivo della lega.
         </p>
 
-        <div className="mt-7 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+        <div className="mt-7 grid grid-cols-1 gap-3">
           {(
             [
               ["pure_points", "punti-puri"],
@@ -461,7 +468,7 @@ setMode((currentMode) =>
                 type="button"
                 onClick={() => setMode(candidateMode)}
                 disabled={!loading && !available}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-3 font-bold transition sm:px-5 ${
+                className={`flex w-full min-w-0 items-center justify-start gap-4 rounded-2xl px-5 py-4 text-left font-bold transition ${
                   mode === candidateMode
                     ? "bg-[#A6E824] text-black"
                     : available || loading
@@ -469,10 +476,10 @@ setMode((currentMode) =>
                       : "cursor-not-allowed bg-[#141719] text-gray-600"
                 }`}
               >
-                <span className="shrink-0 scale-75 sm:scale-90">
+                <span className="shrink-0 scale-90">
                   <FantaGolModeIcon mode={iconMode} />
                 </span>
-                <span className="truncate text-[10px] uppercase sm:text-sm">
+                <span className="min-w-0 text-sm uppercase tracking-wide sm:text-base">
                   {modeLabels[candidateMode]}
                 </span>
               </button>
@@ -598,11 +605,26 @@ setMode((currentMode) =>
 
                           <td className="sticky left-10 z-20 w-10 bg-[#111111] px-1 py-3 text-center sm:py-4">
                             <span
-                              className="mx-auto flex h-7 w-7 items-center justify-center rounded-full border border-[#A6E824]/30 bg-[#A6E824]/10 text-[11px] font-black uppercase text-[#A6E824]"
+                              className="relative mx-auto flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-[#A6E824]/30 bg-[#A6E824]/10 text-[11px] font-black uppercase text-[#A6E824]"
                               title={club.display_name}
-                              aria-hidden="true"
                             >
-                              {club.display_name.trim().charAt(0) || "F"}
+                              <span aria-hidden="true">
+                                {club.display_name.trim().charAt(0) || "F"}
+                              </span>
+
+                              {club.avatar_url && (
+                                <img
+                                  src={club.avatar_url}
+                                  alt={`Avatar di ${club.display_name}`}
+                                  loading="lazy"
+                                  decoding="async"
+                                  referrerPolicy="no-referrer"
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              )}
                             </span>
                           </td>
 
