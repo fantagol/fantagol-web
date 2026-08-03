@@ -8,6 +8,7 @@ import DangerZoneCard from "./components/DangerZoneCard";
 import InvitationCard from "./components/InvitationCard";
 import LeagueOverviewCard from "./components/LeagueOverviewCard";
 import LeaveLeagueCard from "./components/LeaveLeagueCard";
+import PostponedMatchPolicyCard from "./components/PostponedMatchPolicyCard";
 import RosterManagementCard from "./components/RosterManagementCard";
 import ScoringProfileCard from "./components/ScoringProfileCard";
 import { useLeagueAdministration } from "./hooks/useLeagueAdministration";
@@ -36,6 +37,7 @@ export default function LeagueAdministrationPage() {
     league,
     lifecycle,
     scoringProfile,
+    postponedMatchPolicy,
     events,
 
     action,
@@ -120,6 +122,18 @@ export default function LeagueAdministrationPage() {
             }
           />
         </div>
+
+        <PostponedMatchPolicyCard
+          postponedMatchPolicy={postponedMatchPolicy}
+          isAdmin={Boolean(isAdmin)}
+          action={action}
+          onSave={(policy, reason) =>
+            void administration.savePostponedMatchPolicy(
+              policy,
+              reason,
+            )
+          }
+        />
 
         <RosterManagementCard
           lifecycle={lifecycle}

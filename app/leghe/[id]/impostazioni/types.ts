@@ -56,6 +56,21 @@ export type ScoringSettings = Pick<
   | "opposite_sign_malus_enabled"
 >;
 
+export type PostponedMatchPolicyValue =
+  | "wait_keep_predictions"
+  | "wait_reopen_predictions"
+  | "exclude_from_round";
+
+export type PostponedMatchPolicy = {
+  league_id: string;
+  policy: PostponedMatchPolicyValue;
+  policy_version: number;
+  reason: string | null;
+  updated_by_member_id: string | null;
+  updated_at: string | null;
+  can_manage: boolean;
+};
+
 export type AdminEvent = {
   id: string;
   action_type: string;
@@ -71,6 +86,7 @@ export type LeagueAction =
   | "reopen"
   | "delete"
   | "save-scoring"
+  | "save-postponed-policy"
   | "leave-league"
   | "close-league"
   | null;

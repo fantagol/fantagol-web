@@ -10,6 +10,8 @@ import type {
   LeagueInfo,
   LeagueLifecycleState,
   MyLeagueRpcRow,
+  PostponedMatchPolicy,
+  PostponedMatchPolicyValue,
   ScoringProfile,
   ScoringSettings,
 } from "../types";
@@ -32,6 +34,8 @@ export function useLeagueAdministration(leagueId: string) {
   const [scoringProfile, setScoringProfile] = useState<ScoringProfile | null>(
     null,
   );
+  const [postponedMatchPolicy, setPostponedMatchPolicy] =
+    useState<PostponedMatchPolicy | null>(null);
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<LeagueAction>(null);
@@ -81,11 +85,19 @@ export function useLeagueAdministration(leagueId: string) {
 
       setLeague(currentLeague);
 
-      const [lifecycleResult, scoringResult, eventsResult] = await Promise.all([
+      const [
+        lifecycleResult,
+        scoringResult,
+        postponedPolicyResult,
+        eventsResult,
+      ] = await Promise.all([
         supabase.rpc("get_league_lifecycle_state_rpc", {
           target_league_id: currentLeague.id,
         }),
         supabase.rpc("get_active_league_scoring_profile_rpc", {
+          target_league_id: currentLeague.id,
+        }),
+        supabase.rpc("get_my_league_postponed_match_policy_rpc", {
           target_league_id: currentLeague.id,
         }),
         supabase.rpc("get_league_admin_events_rpc", {
@@ -96,6 +108,9 @@ export function useLeagueAdministration(leagueId: string) {
 
       if (lifecycleResult.error) throw lifecycleResult.error;
       if (scoringResult.error) throw scoringResult.error;
+      if (postponedPolicyResult.error) {
+        throw postponedPolicyResult.error;
+      }
       if (eventsResult.error) throw eventsResult.error;
 
       setLifecycle(
@@ -105,6 +120,12 @@ export function useLeagueAdministration(leagueId: string) {
 
       setScoringProfile(
         ((scoringResult.data || [])[0] as ScoringProfile | undefined) || null,
+      );
+
+      setPostponedMatchPolicy(
+        ((postponedPolicyResult.data || [])[0] as
+          | PostponedMatchPolicy
+          | undefined) || null,
       );
 
       setEvents(
@@ -192,6 +213,58 @@ export function useLeagueAdministration(leagueId: string) {
     }
 
     await finishAndReload("Profilo punteggi aggiornato e versionato.");
+  }
+
+  async function savePostponedMatchPolicy(
+    policy: PostponedMatchPolicyValue,
+    reason: string,
+  ) {
+    if (
+      !league ||
+      !isAdmin ||
+      action ||
+      !postponedMatchPolicy
+    ) {
+      return;
+    }
+
+    beginAction("save-postponed-policy");
+
+    const { data, error } = await supabase.rpc(
+      "update_my_league_postponed_match_policy_rpc",
+      {
+        target_league_id: league.id,
+        expected_policy_version:
+          postponedMatchPolicy.policy_version,
+        new_policy: policy,
+        change_reason: reason.trim() || null,
+      },
+    );
+
+    if (error) {
+      failAction(error.message);
+      return;
+    }
+
+    const writeResult = ((data || [])[0] as
+      | Omit<PostponedMatchPolicy, "can_manage">
+      | undefined);
+
+    if (!writeResult) {
+      failAction("POSTPONED_MATCH_POLICY_WRITE_RESULT_MISSING");
+      return;
+    }
+
+    setPostponedMatchPolicy({
+      ...writeResult,
+      can_manage: true,
+    });
+    setSuccessMessage(
+      "Gestione delle partite rinviate aggiornata.",
+    );
+    setAction(null);
+
+    await loadAdministration();
   }
 
   async function runRosterAction(regenerateSchedules: boolean) {
@@ -291,6 +364,7 @@ export function useLeagueAdministration(leagueId: string) {
     league,
     lifecycle,
     scoringProfile,
+    postponedMatchPolicy,
     events,
     loading,
     action,
@@ -309,5 +383,6 @@ export function useLeagueAdministration(leagueId: string) {
     closeLeague,
     copyInviteLink,
     saveScoringProfile,
+    savePostponedMatchPolicy,
   };
 }

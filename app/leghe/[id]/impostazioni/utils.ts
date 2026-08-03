@@ -34,6 +34,26 @@ export function translateError(message: string): string {
       "NO_FUTURE_FANTAGOL_ROUND_AVAILABLE",
       "Non esistono giornate future disponibili per avviare la lega.",
     ],
+    [
+      "ACTIVE_LEAGUE_ADMIN_REQUIRED",
+      "Questa impostazione pu? essere modificata soltanto dall'Admin attivo.",
+    ],
+    [
+      "POSTPONED_MATCH_POLICY_VERSION_CONFLICT",
+      "L'impostazione ? stata modificata da un'altra sessione. Ricarica la pagina e riprova.",
+    ],
+    [
+      "INVALID_POSTPONED_MATCH_POLICY",
+      "La modalit? selezionata non ? valida.",
+    ],
+    [
+      "POSTPONED_MATCH_POLICY_REASON_TOO_LONG",
+      "Il motivo della modifica non pu? superare 500 caratteri.",
+    ],
+    [
+      "POSTPONED_MATCH_POLICY_WRITE_RESULT_MISSING",
+      "Il salvataggio non ha restituito un risultato valido.",
+    ],
   ];
 
   const match = translations.find(([code]) => message.includes(code));
