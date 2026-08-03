@@ -5,18 +5,24 @@ import { ChangeEvent, PointerEvent, TouchEvent, WheelEvent, useEffect, useRef, u
 import FantaGolLogo from "../../../components/FantaGolLogo";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  buildLeagueScopedClubPath,
+  getMyLeagueIdentity,
+  readLeagueIdFromLocation,
+  resolveActiveLeagueId,
+  updateMyLeagueIdentity,
+  LeagueIdentityError,
+  type LeagueIdentity,
+} from "../../../lib/league-identity";
 
-type Club = {
-  club_id: string;
-  name: string;
-  motto: string | null;
-  crest_url: string | null;
-  stars_count: number;
-  total_titles: number;
-  real_name?: string | null;
-  avatar_zoom?: number | null;
-  avatar_x?: number | null;
-  avatar_y?: number | null;
+type Club = LeagueIdentity;
+
+type MyLeagueRow = {
+  league_id: string;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
 };
 
 type LeagueInfo = {
@@ -68,46 +74,80 @@ export default function ClubProfilePage() {
         return;
       }
 
-      const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (leaguesData || [])[0];
+      try {
+        const activeLeagueId =
+          await resolveActiveLeagueId(
+            supabase,
+            readLeagueIdFromLocation(),
+          );
 
-      if (firstLeague) {
+        const [{ data: leaguesData }, identity] =
+          await Promise.all([
+            supabase.rpc("get_my_leagues_rpc"),
+            getMyLeagueIdentity(
+              supabase,
+              activeLeagueId,
+            ),
+          ]);
+
+        const leagueRows =
+          (leaguesData || []) as MyLeagueRow[];
+
+        const activeLeague = leagueRows.find(
+          (row) => row.league_id === activeLeagueId,
+        );
+
         setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
+          leagueName:
+            activeLeague?.league_name ||
+            "Lega FantaGol",
+          displayName:
+            identity.display_name ||
+            "Club FantaGol",
+          inviteCode:
+            activeLeague?.invite_code ||
+            activeLeagueId,
+          role:
+            identity.membership_role ||
+            activeLeague?.role ||
+            "member",
         });
-      }
 
-      const { data, error } = await supabase.rpc("get_my_club_rpc");
+        setClub(identity);
+        setName(
+          identity.club_name ||
+          identity.display_name ||
+          "",
+        );
+        setMotto(identity.motto || "");
+        setRealName(identity.real_name || "");
 
-      if (error) {
-        alert(error.message);
+        const currentAvatar =
+          identity.avatar_url ||
+          identity.crest_url ||
+          null;
+
+        setAvatarUrl(currentAvatar);
+        setAvatarPreview(currentAvatar);
+        setAvatarZoom(
+          Number(identity.avatar_zoom || 1),
+        );
+        setAvatarX(
+          Number(identity.avatar_x || 0),
+        );
+        setAvatarY(
+          Number(identity.avatar_y || 0),
+        );
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Errore durante il caricamento del profilo.";
+
+        alert(message);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      if (data && data.length > 0) {
-        const loadedClub = data[0] as Club;
-        const currentDisplayName =
-          firstLeague?.display_name || loadedClub.name || "";
-
-        setClub({
-          ...loadedClub,
-          name: currentDisplayName,
-        });
-        setName(currentDisplayName);
-        setMotto(loadedClub.motto || "");
-        setRealName(loadedClub.real_name || "");
-        setAvatarUrl(loadedClub.crest_url || null);
-        setAvatarPreview(loadedClub.crest_url || null);
-        setAvatarZoom(Number(loadedClub.avatar_zoom || 1));
-        setAvatarX(Number(loadedClub.avatar_x || 0));
-        setAvatarY(Number(loadedClub.avatar_y || 0));
-      }
-
-      setLoading(false);
     }
 
     loadClub();
@@ -220,7 +260,7 @@ export default function ClubProfilePage() {
     localAvatarPreviewRef.current = localPreviewUrl;
     setSelectedAvatarFile(file);
     setAvatarPreview(localPreviewUrl);
-    setAvatarUrl(club.crest_url || null);
+    setAvatarUrl(club.avatar_url || club.crest_url || null);
     setEditingAvatar(true);
     resetAvatarPosition();
 
@@ -321,7 +361,10 @@ export default function ClubProfilePage() {
 
     let nextAvatarUrl = avatarUrl;
     let uploadedAvatarPath: string | null = null;
-    const previousAvatarPath = getStoragePathFromPublicUrl(club.crest_url);
+    const previousAvatarPath =
+      getStoragePathFromPublicUrl(
+        club.avatar_url || club.crest_url,
+      );
 
     try {
       if (selectedAvatarFile) {
@@ -335,7 +378,10 @@ export default function ClubProfilePage() {
         }
 
         const croppedBlob = await createCroppedAvatarBlob(selectedAvatarFile);
-        const filePath = `${session.user.id}/${club.club_id}/avatar-${Date.now()}-${crypto.randomUUID()}.png`;
+        const filePath =
+          `${session.user.id}/` +
+          `${club.league_member_profile_id}/` +
+          `avatar-${Date.now()}-${crypto.randomUUID()}.png`;
 
         const { error: uploadError } = await supabase.storage
           .from("club-avatars")
@@ -354,23 +400,21 @@ export default function ClubProfilePage() {
         uploadedAvatarPath = filePath;
       }
 
-      const { error } = await supabase.rpc("update_my_club_profile_rpc", {
-        p_name: cleanName,
-        p_motto: cleanMotto || null,
-        p_real_name: cleanRealName || null,
-        p_crest_url: nextAvatarUrl,
-        p_avatar_zoom: 1,
-        p_avatar_x: 0,
-        p_avatar_y: 0,
-      });
-
-      if (error) {
-        if (uploadedAvatarPath) {
-          await supabase.storage.from("club-avatars").remove([uploadedAvatarPath]);
-        }
-
-        throw error;
-      }
+      const writeResult =
+        await updateMyLeagueIdentity(supabase, {
+          leagueId: club.league_id,
+          expectedProfileVersion:
+            club.profile_version,
+          displayName: cleanName,
+          clubName: cleanName,
+          realName: cleanRealName || null,
+          motto: cleanMotto || null,
+          avatarUrl: nextAvatarUrl,
+          crestUrl: nextAvatarUrl,
+          avatarZoom: 1,
+          avatarX: 0,
+          avatarY: 0,
+        });
 
       if (
         previousAvatarPath &&
@@ -391,13 +435,34 @@ export default function ClubProfilePage() {
 
       setClub({
         ...club,
-        name: cleanName,
-        motto: cleanMotto || null,
-        real_name: cleanRealName || null,
-        crest_url: nextAvatarUrl,
-        avatar_zoom: 1,
-        avatar_x: 0,
-        avatar_y: 0,
+        display_name:
+          writeResult.display_name ??
+          cleanName,
+        club_name:
+          writeResult.club_name ??
+          cleanName,
+        real_name:
+          writeResult.real_name ??
+          (cleanRealName || null),
+        motto:
+          writeResult.motto ??
+          (cleanMotto || null),
+        avatar_url:
+          writeResult.avatar_url ??
+          nextAvatarUrl,
+        crest_url:
+          writeResult.crest_url ??
+          nextAvatarUrl,
+        avatar_zoom:
+          writeResult.avatar_zoom ?? 1,
+        avatar_x:
+          writeResult.avatar_x ?? 0,
+        avatar_y:
+          writeResult.avatar_y ?? 0,
+        profile_version:
+          writeResult.profile_version,
+        profile_updated_at:
+          writeResult.profile_updated_at,
       });
 
       if (localAvatarPreviewRef.current) {
@@ -410,10 +475,62 @@ export default function ClubProfilePage() {
         displayName: cleanName,
       }));
     } catch (error: unknown) {
+      if (uploadedAvatarPath) {
+        await supabase.storage
+          .from("club-avatars")
+          .remove([uploadedAvatarPath]);
+      }
+
+      if (
+        error instanceof LeagueIdentityError &&
+        error.versionConflict
+      ) {
+        try {
+          const refreshedIdentity =
+            await getMyLeagueIdentity(
+              supabase,
+              club.league_id,
+            );
+
+          setClub(refreshedIdentity);
+          setName(
+            refreshedIdentity.club_name ||
+            refreshedIdentity.display_name ||
+            "",
+          );
+          setMotto(refreshedIdentity.motto || "");
+          setRealName(
+            refreshedIdentity.real_name || "",
+          );
+
+          const refreshedAvatar =
+            refreshedIdentity.avatar_url ||
+            refreshedIdentity.crest_url ||
+            null;
+
+          setAvatarUrl(refreshedAvatar);
+          setAvatarPreview(refreshedAvatar);
+          setAvatarZoom(
+            Number(
+              refreshedIdentity.avatar_zoom || 1,
+            ),
+          );
+          setAvatarX(
+            Number(refreshedIdentity.avatar_x || 0),
+          );
+          setAvatarY(
+            Number(refreshedIdentity.avatar_y || 0),
+          );
+        } catch {
+          // Preserve the original conflict message.
+        }
+      }
+
       const message =
         error instanceof Error
           ? error.message
           : "Errore durante il salvataggio del profilo.";
+
       alert(message);
     } finally {
       setSaving(false);
@@ -465,7 +582,13 @@ export default function ClubProfilePage() {
       />
 
       <section className="mx-auto max-w-6xl px-6 py-10">
-        <a href="/club" className="text-sm font-bold text-[#A6E824] hover:underline">
+        <a
+          href={buildLeagueScopedClubPath(
+            "/club",
+            club.league_id,
+          )}
+          className="text-sm font-bold text-[#A6E824] hover:underline"
+        >
           ← Torna al Club
         </a>
 
@@ -475,7 +598,7 @@ export default function ClubProfilePage() {
               Profilo Club
             </p>
             <h1 className="mt-3 text-4xl font-black md:text-5xl">
-              {name.trim() || club.name}
+              {name.trim() || club.club_name || club.display_name}
             </h1>
             <p className="mt-3 max-w-2xl text-gray-400">
               Crea l&apos;avatar rotondo del tuo Club, aggiorna il nome e aggiungi un motto personale.

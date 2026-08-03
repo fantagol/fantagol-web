@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { leaguePath } from "../../lib/navigation/league-paths";
 import { useNativeAppMode } from "../../lib/platform/app-mode";
+import {
+  buildLeagueScopedClubPath,
+  getMyLeagueIdentity,
+  readStoredLeagueId,
+  storeLeagueId,
+} from "../../lib/league-identity";
 import KitPreview from "../club/KitPreview";
-
-const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
 
 type HamburgerDrawerProps = {
   open: boolean;
@@ -686,7 +690,7 @@ function LeagueLifecycleModal({
 
 function rememberLeague(targetLeagueId: string) {
   if (!targetLeagueId) return;
-  window.localStorage.setItem(LAST_LEAGUE_STORAGE_KEY, targetLeagueId);
+  storeLeagueId(targetLeagueId);
 }
 
 export default function HamburgerDrawer({
@@ -715,17 +719,6 @@ export default function HamburgerDrawer({
     useState<LeagueActionModal>(null);
   const [leagueActionLoading, setLeagueActionLoading] = useState(false);
   const isNativeApp = useNativeAppMode();
-
-  useEffect(() => {
-    setDrawerLeague((current) => ({
-      leagueId: current.leagueId,
-      leagueName,
-      displayName,
-      inviteCode,
-      role,
-      visibility: current.visibility,
-    }));
-  }, [leagueName, displayName, inviteCode, role]);
 
   function getCurrentLeagueIdFromPath() {
     const match = window.location.pathname.match(/\/leghe\/([^\/]+)/);
@@ -803,7 +796,7 @@ export default function HamburgerDrawer({
       );
 
       const rememberedLeagueId =
-        window.localStorage.getItem(LAST_LEAGUE_STORAGE_KEY) || "";
+        readStoredLeagueId() || "";
 
       const current =
         leagues.find((item) => item.leagueId === leagueId) ||
@@ -815,21 +808,56 @@ export default function HamburgerDrawer({
       rememberLeague(current.leagueId);
       setDrawerLeague(current);
 
-      const { data: clubData } = await supabase.rpc("get_my_club_rpc");
-      const club = (clubData || [])[0];
+      // Never render identity from the previously active league while
+      // the canonical profile for the new league is loading.
+      setDrawerClub(null);
 
-      if (club) {
-        setDrawerClub({
-          name: club.name || current.displayName || "Club FantaGol",
-          motto: club.motto || null,
-          kit_template: club.kit_template || "solid",
-          kit_primary_color: club.kit_primary_color || "#FFFFFF",
-          kit_secondary_color: club.kit_secondary_color || "#111417",
-          kit_third_color: club.kit_third_color || "#A6E824",
-          kit_logo_mode: club.kit_logo_mode || "center_horizontal",
-          kit_crest_position: club.kit_crest_position || "left_chest",
-          stars_count: club.stars_count || 0,
+      try {
+        const identity =
+          await getMyLeagueIdentity(
+            supabase,
+            current.leagueId,
+          );
+
+        setDrawerLeague({
+          ...current,
+          displayName:
+            identity.display_name ||
+            current.displayName,
+          role:
+            identity.membership_role ||
+            current.role,
         });
+
+        setDrawerClub({
+          name:
+            identity.club_name ||
+            identity.display_name ||
+            current.displayName ||
+            "Club FantaGol",
+          motto: identity.motto || null,
+          kit_template:
+            identity.kit_template || "solid",
+          kit_primary_color:
+            identity.kit_primary_color ||
+            "#FFFFFF",
+          kit_secondary_color:
+            identity.kit_secondary_color ||
+            "#111417",
+          kit_third_color:
+            identity.kit_third_color ||
+            "#A6E824",
+          kit_logo_mode:
+            identity.kit_logo_mode ||
+            "center_horizontal",
+          kit_crest_position:
+            identity.kit_crest_position ||
+            "left_chest",
+          stars_count:
+            identity.stars_count || 0,
+        });
+      } catch {
+        setDrawerClub(null);
       }
     }
 
@@ -869,7 +897,7 @@ export default function HamburgerDrawer({
       targetLeagueId ||
       drawerLeague.leagueId ||
       getCurrentLeagueIdFromPath() ||
-      window.localStorage.getItem(LAST_LEAGUE_STORAGE_KEY) ||
+      readStoredLeagueId() ||
       ""
     );
   }
@@ -1123,7 +1151,14 @@ export default function HamburgerDrawer({
           {drawerClub && (
             <button
               type="button"
-              onClick={() => goTo("/club")}
+              onClick={() =>
+                goTo(
+                  buildLeagueScopedClubPath(
+                    "/club",
+                    drawerLeague.leagueId,
+                  ),
+                )
+              }
               className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/35 p-3 text-left transition hover:border-[#A6E824]/60 hover:bg-white/[0.03]"
             >
               <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#171b1d]">
@@ -1338,14 +1373,31 @@ export default function HamburgerDrawer({
             icon="club"
             title="Il Mio Club"
             subtitle="Profilo, avatar e kit"
-            onClick={() => goTo("/club")}
+            onClick={() =>
+              goTo(
+                buildLeagueScopedClubPath(
+                  "/club",
+                  drawerLeague.leagueId,
+                ),
+              )
+            }
           />
 
           <DrawerMenuItem
             icon="hall"
             title="Hall of Fame"
             subtitle="Titoli, stelle e modalità vinte"
-            onClick={() => goTo("/club?scrollTo=hall-of-fame")}
+            onClick={() =>
+              goTo(
+                buildLeagueScopedClubPath(
+                  "/club",
+                  drawerLeague.leagueId,
+                  {
+                    scrollTo: "hall-of-fame",
+                  },
+                ),
+              )
+            }
           />
 
           <DrawerMenuItem

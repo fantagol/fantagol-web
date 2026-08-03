@@ -5,20 +5,24 @@ import FantaGolLogo from "../../../components/FantaGolLogo";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import KitPreview from "../../../components/club/KitPreview";
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  buildLeagueScopedClubPath,
+  getMyLeagueIdentity,
+  readLeagueIdFromLocation,
+  resolveActiveLeagueId,
+  updateMyLeagueKit,
+  LeagueIdentityError,
+  type LeagueIdentity,
+} from "../../../lib/league-identity";
 
-type Club = {
-  club_id: string;
-  name: string;
-  motto: string | null;
-  crest_url: string | null;
-  kit_template: string;
-  kit_primary_color: string;
-  kit_secondary_color: string;
-  kit_third_color: string;
-  kit_logo_mode: string;
-  kit_crest_position: string;
-  stars_count: number;
-  total_titles: number;
+type Club = LeagueIdentity;
+
+type MyLeagueRow = {
+  league_id: string;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
 };
 
 type LeagueInfo = {
@@ -90,38 +94,76 @@ export default function ClubKitPage() {
         return;
       }
 
-      const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (leaguesData || [])[0];
+      try {
+        const activeLeagueId =
+          await resolveActiveLeagueId(
+            supabase,
+            readLeagueIdFromLocation(),
+          );
 
-      if (firstLeague) {
+        const [{ data: leaguesData }, identity] =
+          await Promise.all([
+            supabase.rpc("get_my_leagues_rpc"),
+            getMyLeagueIdentity(
+              supabase,
+              activeLeagueId,
+            ),
+          ]);
+
+        const leagueRows =
+          (leaguesData || []) as MyLeagueRow[];
+
+        const activeLeague = leagueRows.find(
+          (row) => row.league_id === activeLeagueId,
+        );
+
         setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
+          leagueName:
+            activeLeague?.league_name ||
+            "Lega FantaGol",
+          displayName:
+            identity.display_name ||
+            "Club FantaGol",
+          inviteCode:
+            activeLeague?.invite_code ||
+            activeLeagueId,
+          role:
+            identity.membership_role ||
+            activeLeague?.role ||
+            "member",
         });
-      }
 
-      const { data, error } = await supabase.rpc("get_my_club_rpc");
+        setClub(identity);
+        setTemplate(
+          identity.kit_template || "solid",
+        );
+        setPrimary(
+          identity.kit_primary_color || "#FFFFFF",
+        );
+        setSecondary(
+          identity.kit_secondary_color || "#111417",
+        );
+        setThird(
+          identity.kit_third_color || "#A6E824",
+        );
+        setLogoMode(
+          identity.kit_logo_mode ||
+          "center_horizontal",
+        );
+        setCrestPosition(
+          identity.kit_crest_position ||
+          "left_chest",
+        );
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Errore durante il caricamento del kit.";
 
-      if (error) {
-        alert(error.message);
+        alert(message);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      if (data && data.length > 0) {
-        const loadedClub = data[0] as Club;
-        setClub(loadedClub);
-        setTemplate(loadedClub.kit_template || "solid");
-        setPrimary(loadedClub.kit_primary_color || "#FFFFFF");
-        setSecondary(loadedClub.kit_secondary_color || "#111417");
-        setThird(loadedClub.kit_third_color || "#A6E824");
-        setLogoMode(loadedClub.kit_logo_mode || "center_horizontal");
-        setCrestPosition(loadedClub.kit_crest_position || "left_chest");
-      }
-
-      setLoading(false);
     }
 
     loadClub();
@@ -137,32 +179,98 @@ export default function ClubKitPage() {
     setSaving(true);
     setSaved(false);
 
-    const { error } = await supabase.rpc("update_my_club_kit_rpc", {
-      p_kit_template: template,
-      p_kit_primary_color: primary,
-      p_kit_secondary_color: secondary,
-      p_kit_third_color: third,
-      p_kit_logo_mode: logoMode,
-      p_kit_crest_position: crestPosition,
-    });
+    try {
+      const writeResult =
+        await updateMyLeagueKit(supabase, {
+          leagueId: club.league_id,
+          expectedProfileVersion:
+            club.profile_version,
+          kitTemplate: template,
+          kitPrimaryColor: primary,
+          kitSecondaryColor: secondary,
+          kitThirdColor: third,
+          kitLogoMode: logoMode,
+          kitCrestPosition: crestPosition,
+        });
 
-    setSaving(false);
+      setClub({
+        ...club,
+        kit_template:
+          writeResult.kit_template ??
+          template,
+        kit_primary_color:
+          writeResult.kit_primary_color ??
+          primary,
+        kit_secondary_color:
+          writeResult.kit_secondary_color ??
+          secondary,
+        kit_third_color:
+          writeResult.kit_third_color ??
+          third,
+        kit_logo_mode:
+          writeResult.kit_logo_mode ??
+          logoMode,
+        kit_crest_position:
+          writeResult.kit_crest_position ??
+          crestPosition,
+        profile_version:
+          writeResult.profile_version,
+        profile_updated_at:
+          writeResult.profile_updated_at,
+      });
 
-    if (error) {
-      alert(error.message);
-      return;
+      setSaved(true);
+    } catch (error: unknown) {
+      if (
+        error instanceof LeagueIdentityError &&
+        error.versionConflict
+      ) {
+        try {
+          const refreshedIdentity =
+            await getMyLeagueIdentity(
+              supabase,
+              club.league_id,
+            );
+
+          setClub(refreshedIdentity);
+          setTemplate(
+            refreshedIdentity.kit_template ||
+            "solid",
+          );
+          setPrimary(
+            refreshedIdentity.kit_primary_color ||
+            "#FFFFFF",
+          );
+          setSecondary(
+            refreshedIdentity.kit_secondary_color ||
+            "#111417",
+          );
+          setThird(
+            refreshedIdentity.kit_third_color ||
+            "#A6E824",
+          );
+          setLogoMode(
+            refreshedIdentity.kit_logo_mode ||
+            "center_horizontal",
+          );
+          setCrestPosition(
+            refreshedIdentity.kit_crest_position ||
+            "left_chest",
+          );
+        } catch {
+          // Preserve the original conflict message.
+        }
+      }
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Errore durante il salvataggio del kit.";
+
+      alert(message);
+    } finally {
+      setSaving(false);
     }
-
-    setSaved(true);
-    setClub({
-      ...club,
-      kit_template: template,
-      kit_primary_color: primary,
-      kit_secondary_color: secondary,
-      kit_third_color: third,
-      kit_logo_mode: logoMode,
-      kit_crest_position: crestPosition,
-    });
   }
 
   if (loading) {
@@ -212,7 +320,13 @@ export default function ClubKitPage() {
       />
 
       <section className="mx-auto max-w-6xl px-6 py-10">
-        <a href="/club" className="text-sm font-bold text-[#A6E824] hover:underline">
+        <a
+          href={buildLeagueScopedClubPath(
+            "/club",
+            club.league_id,
+          )}
+          className="text-sm font-bold text-[#A6E824] hover:underline"
+        >
           ← Torna al Club
         </a>
 
@@ -221,7 +335,7 @@ export default function ClubKitPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#A6E824]">
               Personalizza Kit
             </p>
-            <h1 className="mt-3 text-4xl font-black md:text-5xl">{club.name}</h1>
+            <h1 className="mt-3 text-4xl font-black md:text-5xl">{club.club_name || club.display_name}</h1>
             <p className="mt-3 max-w-2xl text-gray-400">
               Scegli modello, colori e posizione dello stemma. L&apos;anteprima si aggiorna in tempo reale.
             </p>

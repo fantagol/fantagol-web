@@ -6,23 +6,30 @@ import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import FantaGolModeIcon from "../../components/app/FantaGolModeIcon";
 import KitPreview from "../../components/club/KitPreview";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  getMyLeagueHallOfFame,
+  buildLeagueScopedClubPath,
+  getMyLeagueIdentity,
+  readLeagueIdFromLocation,
+  resolveActiveLeagueId,
+  type LeagueHallOfFame,
+  type LeagueIdentity,
+} from "../../lib/league-identity";
 
-type Club = {
-  club_id: string;
-  name: string;
-  motto: string | null;
-  crest_url: string | null;
-  kit_template: string;
-  kit_primary_color: string;
-  kit_secondary_color: string;
-  kit_third_color: string;
-  kit_logo_mode: string;
-  kit_crest_position: string;
-  stars_count: number;
-  total_titles: number;
-  fantacalcio_titles?: number;
-  one_to_one_titles?: number;
-  punti_puri_titles?: number;
+type Club = LeagueIdentity &
+  Pick<
+    LeagueHallOfFame,
+    | "fantacalcio_titles"
+    | "one_to_one_titles"
+    | "punti_puri_titles"
+  >;
+
+type MyLeagueRow = {
+  league_id: string;
+  league_name?: string | null;
+  display_name?: string | null;
+  invite_code?: string | null;
+  role?: string | null;
 };
 
 type LeagueInfo = {
@@ -54,31 +61,82 @@ export default function ClubPage() {
         return;
       }
 
-      const { data: leaguesData } = await supabase.rpc("get_my_leagues_rpc");
-      const firstLeague = (leaguesData || [])[0];
+      try {
+        const activeLeagueId =
+          await resolveActiveLeagueId(
+            supabase,
+            readLeagueIdFromLocation(),
+          );
 
-      if (firstLeague) {
+        const [
+          { data: leaguesData },
+          identity,
+          hallOfFame,
+        ] = await Promise.all([
+          supabase.rpc("get_my_leagues_rpc"),
+          getMyLeagueIdentity(
+            supabase,
+            activeLeagueId,
+          ),
+          getMyLeagueHallOfFame(
+            supabase,
+            activeLeagueId,
+          ),
+        ]);
+
+        const leagueRows = (leaguesData || []) as MyLeagueRow[];
+        const activeLeague = leagueRows.find(
+          (row) => row.league_id === activeLeagueId,
+        );
+
         setLeagueInfo({
-          leagueName: firstLeague.league_name || "Lega FantaGol",
-          displayName: firstLeague.display_name || "Club FantaGol",
-          inviteCode: firstLeague.invite_code || firstLeague.league_id || "",
-          role: firstLeague.role || "member",
+          leagueName:
+            activeLeague?.league_name || "Lega FantaGol",
+          displayName:
+            identity.display_name || "Club FantaGol",
+          inviteCode:
+            activeLeague?.invite_code ||
+            activeLeagueId,
+          role:
+            identity.membership_role ||
+            activeLeague?.role ||
+            "member",
         });
-      }
 
-      const { data, error } = await supabase.rpc("get_my_club_rpc");
+        if (
+          hallOfFame.league_member_id !==
+            identity.league_member_id ||
+          hallOfFame.league_id !==
+            identity.league_id
+        ) {
+          throw new Error(
+            "I dati Hall of Fame non corrispondono al profilo della lega.",
+          );
+        }
 
-      if (error) {
-        alert(error.message);
+        setClub({
+          ...identity,
+          stars_count:
+            hallOfFame.stars_count,
+          total_titles:
+            hallOfFame.total_titles,
+          fantacalcio_titles:
+            hallOfFame.fantacalcio_titles,
+          one_to_one_titles:
+            hallOfFame.one_to_one_titles,
+          punti_puri_titles:
+            hallOfFame.punti_puri_titles,
+        });
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Errore durante il caricamento del Club.";
+
+        alert(message);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      if (data && data.length > 0) {
-        setClub(data[0]);
-      }
-
-      setLoading(false);
     }
 
     loadClub();
@@ -95,11 +153,20 @@ export default function ClubPage() {
       if (!el) return;
 
       el.scrollIntoView({ behavior: "smooth", block: "start" });
-      window.history.replaceState({}, "", "/club");
+      window.history.replaceState(
+        {},
+        "",
+        buildLeagueScopedClubPath(
+          "/club",
+          club?.league_id ||
+            readLeagueIdFromLocation() ||
+            "",
+        ),
+      );
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [loading]);
+  }, [loading, club?.league_id]);
 
   if (loading) {
     return (
@@ -150,7 +217,7 @@ export default function ClubPage() {
           Il Mio Club
         </p>
 
-        <h1 className="mt-3 text-5xl font-black">{club.name}</h1>
+        <h1 className="mt-3 text-5xl font-black">{club.club_name || club.display_name}</h1>
 
         <p className="mt-4 text-gray-400">
           {club.motto || "Il tuo Club FantaGol sta per iniziare la sua storia."}
@@ -206,7 +273,7 @@ export default function ClubPage() {
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
-                    {club.fantacalcio_titles || 0}
+                    {club.fantacalcio_titles}
                   </div>
                 </div>
 
@@ -222,7 +289,7 @@ export default function ClubPage() {
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
-                    {club.one_to_one_titles || 0}
+                    {club.one_to_one_titles}
                   </div>
                 </div>
 
@@ -238,7 +305,7 @@ export default function ClubPage() {
                     
                   </div>
                   <div className="text-2xl font-black text-[#A6E824]">
-                    {club.punti_puri_titles || 0}
+                    {club.punti_puri_titles}
                   </div>
                 </div>
               </div>
@@ -251,14 +318,20 @@ export default function ClubPage() {
 
               <div className="mt-6 space-y-4">
                 <a
-                  href="/club/kit"
+                  href={buildLeagueScopedClubPath(
+                    "/club/kit",
+                    club.league_id,
+                  )}
                   className="block w-full rounded-2xl bg-[#A6E824] py-4 text-center font-bold text-black transition hover:brightness-110"
                 >
                   Personalizza Kit
                 </a>
 
                 <a
-                  href="/club/profilo"
+                  href={buildLeagueScopedClubPath(
+                    "/club/profilo",
+                    club.league_id,
+                  )}
                   className="block w-full rounded-2xl border border-gray-700 py-4 text-center font-bold transition hover:border-[#A6E824] hover:text-[#A6E824]"
                 >
                   Profilo Club
