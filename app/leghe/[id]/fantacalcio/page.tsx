@@ -412,20 +412,102 @@ function PredictionSide({
   );
 }
 
-function LiveMatchCenter({ match }: { match: DuelMatch }) {
+type SwapIndicatorState =
+  | "idle"
+  | "selected"
+  | "candidate"
+  | "disabled";
+
+type SwapIndicatorTone = "red" | "green";
+
+function SwapIndicator({
+  state,
+  tone,
+}: {
+  state: SwapIndicatorState;
+  tone: SwapIndicatorTone;
+}) {
+  const active = state === "selected";
+  const candidate = state === "candidate";
+  const disabled = state === "disabled";
+  const redTone = tone === "red";
+
+  const activeClasses = redTone
+    ? "border-red-300/90 bg-gradient-to-br from-red-300 via-red-500 to-red-900 text-white shadow-[inset_0_2px_3px_rgba(255,255,255,0.48),inset_0_-4px_6px_rgba(69,10,10,0.75),0_4px_0_rgba(69,10,10,0.92),0_7px_14px_rgba(239,68,68,0.45)]"
+    : "border-[#d9ff7a]/90 bg-gradient-to-br from-[#e5ff9d] via-[#A6E824] to-[#456b08] text-[#101806] shadow-[inset_0_2px_3px_rgba(255,255,255,0.58),inset_0_-4px_6px_rgba(38,61,5,0.72),0_4px_0_rgba(38,61,5,0.95),0_7px_14px_rgba(166,232,36,0.42)]";
+
+  const candidateClasses = redTone
+    ? "border-red-400/85 bg-gradient-to-br from-red-300/90 via-red-500/85 to-red-900/90 text-white shadow-[inset_0_2px_3px_rgba(255,255,255,0.38),inset_0_-4px_6px_rgba(69,10,10,0.65),0_3px_0_rgba(69,10,10,0.88),0_0_18px_rgba(239,68,68,0.48)] motion-safe:animate-pulse"
+    : "border-[#d9ff7a]/85 bg-gradient-to-br from-[#e5ff9d]/90 via-[#A6E824]/90 to-[#456b08]/95 text-[#101806] shadow-[inset_0_2px_3px_rgba(255,255,255,0.46),inset_0_-4px_6px_rgba(38,61,5,0.68),0_3px_0_rgba(38,61,5,0.9),0_0_18px_rgba(166,232,36,0.46)] motion-safe:animate-pulse";
+
+  const pingClasses = redTone
+    ? "border-red-400/45"
+    : "border-[#A6E824]/45";
+
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(70px,auto)_auto_minmax(0,1fr)] items-center gap-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(120px,auto)_auto_minmax(0,1fr)] sm:gap-2">
-      <span className="min-w-0 truncate text-right text-[9px] font-black uppercase text-gray-300 sm:text-xs">
+    <span
+      className={`relative flex h-8 w-8 translate-y-[-2px] items-center justify-center rounded-full border transition-all duration-200 sm:h-9 sm:w-9 ${
+        active
+          ? activeClasses
+          : candidate
+            ? candidateClasses
+            : disabled
+              ? "border-white/5 bg-gradient-to-br from-gray-700/30 to-black/50 text-gray-700 opacity-20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.05)]"
+              : "border-white/20 bg-gradient-to-br from-gray-400/25 via-gray-700/25 to-black/50 text-gray-300 opacity-55 shadow-[inset_0_2px_2px_rgba(255,255,255,0.12),inset_0_-3px_5px_rgba(0,0,0,0.6),0_3px_0_rgba(0,0,0,0.65),0_5px_10px_rgba(0,0,0,0.38)]"
+      }`}
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 32 32"
+        className="h-[22px] w-[22px] drop-shadow-[0_1px_1px_rgba(0,0,0,0.55)] sm:h-6 sm:w-6"
+        fill="currentColor"
+      >
+        <path d="M25.3 8.2a11.2 11.2 0 0 0-16.8-1L6.2 4.9a1.35 1.35 0 0 0-2.3.96v7.02c0 .75.6 1.35 1.35 1.35h7.02a1.35 1.35 0 0 0 .96-2.3l-2.4-2.4a7.95 7.95 0 0 1 11.73.77 1.65 1.65 0 1 0 2.74-2.1Z" />
+        <path d="M26.75 17.77h-7.02a1.35 1.35 0 0 0-.96 2.3l2.4 2.4a7.95 7.95 0 0 1-11.73-.77 1.65 1.65 0 1 0-2.74 2.1 11.2 11.2 0 0 0 16.8 1l2.3 2.3a1.35 1.35 0 0 0 2.3-.96v-7.02c0-.75-.6-1.35-1.35-1.35Z" />
+      </svg>
+
+      <span className="pointer-events-none absolute inset-[3px] rounded-full border border-white/15" />
+
+      {candidate && (
+        <span
+          className={`absolute inset-[-6px] rounded-full border ${pingClasses} motion-safe:animate-ping`}
+        />
+      )}
+    </span>
+  );
+}
+
+function LiveMatchCenter({
+  match,
+  swapState = "idle",
+  swapTone = "green",
+}: {
+  match: DuelMatch;
+  swapState?: SwapIndicatorState;
+  swapTone?: SwapIndicatorTone;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(70px,auto)_auto_minmax(0,1fr)] grid-rows-[auto_auto] items-center gap-x-1 gap-y-0.5 sm:grid-cols-[minmax(0,1fr)_auto_minmax(120px,auto)_auto_minmax(0,1fr)] sm:gap-x-2 sm:gap-y-1">
+      <span className="col-start-1 row-start-1 min-w-0 truncate text-right text-[9px] font-black uppercase text-gray-300 sm:text-xs">
         {match.home}
       </span>
 
-      <TeamBadge
+      <div className="col-start-2 row-start-1">
+        <TeamBadge
         label={match.homeCrestLabel}
         crestReference={match.homeCrestReference}
         logoUrl={match.homeLogoUrl}
-      />
+        />
+      </div>
 
-      <div className="flex min-w-0 flex-col items-center px-0.5">
+      <div className="col-span-2 col-start-1 row-start-2 flex justify-center pr-2 pt-1 sm:pr-5">
+        <SwapIndicator
+          state={swapState}
+          tone={swapTone}
+        />
+      </div>
+
+      <div className="col-start-3 row-span-2 row-start-1 flex min-w-0 flex-col items-center px-0.5">
         <span className="rounded-md bg-[#A6E824]/15 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#A6E824] sm:text-xs">
           {match.minute}
         </span>
@@ -457,13 +539,15 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
         </div>
       </div>
 
-      <TeamBadge
+      <div className="col-start-4 row-span-2 row-start-1">
+        <TeamBadge
         label={match.awayCrestLabel}
         crestReference={match.awayCrestReference}
         logoUrl={match.awayLogoUrl}
-      />
+        />
+      </div>
 
-      <span className="min-w-0 truncate text-left text-[9px] font-black uppercase text-gray-300 sm:text-xs">
+      <span className="col-start-5 row-span-2 row-start-1 min-w-0 truncate text-left text-[9px] font-black uppercase text-gray-300 sm:text-xs">
         {match.away}
       </span>
     </div>
@@ -1571,13 +1655,48 @@ export default function FantacalcioLivePage() {
                   const matchIndex = group.offset + groupIndex;
                   const selected = selectedMatchIndex === matchIndex;
 
+                  const selectedGroup =
+                    selectedMatchIndex === null
+                      ? null
+                      : selectedMatchIndex < 5
+                        ? "attacco"
+                        : "difesa";
+
+                  const currentGroup =
+                    matchIndex < 5 ? "attacco" : "difesa";
+
+                  const swapCandidate =
+                    selectedMatchIndex !== null &&
+                    !selected &&
+                    selectedGroup !== currentGroup;
+
+                  const swapIndicatorState: SwapIndicatorState =
+                    interactionLocked || strategyLoading || savingStrategy
+                      ? "disabled"
+                      : selected
+                        ? "selected"
+                        : swapCandidate
+                          ? "candidate"
+                          : "idle";
+
+                  const swapIndicatorTone: SwapIndicatorTone =
+                    currentGroup === "attacco"
+                      ? "red"
+                      : "green";
+
                   return (
                     <article
                       key={match.id}
-                      className={`border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4 ${
+                      className={`border-b border-white/10 px-2 py-2 transition-all duration-200 last:border-b-0 sm:px-5 sm:py-4 ${
                         selected && !interactionLocked
-                          ? "bg-[#A6E824]/10 ring-1 ring-inset ring-[#A6E824]/60"
-                          : ""
+                          ? currentGroup === "attacco"
+                            ? "bg-red-500/[0.09] ring-1 ring-inset ring-red-400/55 shadow-[inset_0_0_24px_rgba(239,68,68,0.07)]"
+                            : "bg-[#A6E824]/[0.09] ring-1 ring-inset ring-[#A6E824]/55 shadow-[inset_0_0_24px_rgba(166,232,36,0.07)]"
+                          : swapCandidate
+                            ? currentGroup === "attacco"
+                              ? "bg-red-500/[0.045] ring-1 ring-inset ring-red-500/15 motion-safe:animate-pulse"
+                              : "bg-[#A6E824]/[0.045] ring-1 ring-inset ring-[#A6E824]/15 motion-safe:animate-pulse"
+                            : ""
                       }`}
                     >
                       <div className="grid grid-cols-[75%_25%] items-center gap-1 sm:grid-cols-[2.35fr_1fr] sm:gap-5">
@@ -1602,7 +1721,11 @@ export default function FantacalcioLivePage() {
                             homeName={match.home}
                             awayName={match.away}
                           />
-                          <LiveMatchCenter match={match} />
+                          <LiveMatchCenter
+                            match={match}
+                            swapState={swapIndicatorState}
+                            swapTone={swapIndicatorTone}
+                          />
                         </button>
 
                         {interactionLocked ? (
