@@ -446,7 +446,7 @@ function SwapIndicator({
 
   return (
     <span
-      className={`relative flex h-8 w-8 translate-y-[-2px] items-center justify-center rounded-full border transition-all duration-200 sm:h-9 sm:w-9 ${
+      className={`relative flex h-7 w-7 min-[370px]:h-[30px] min-[370px]:w-[30px] min-[390px]:h-8 min-[390px]:w-8  translate-y-[-2px] items-center justify-center rounded-full border transition-all duration-200 sm:h-9 sm:w-9 ${
         active
           ? activeClasses
           : candidate
@@ -459,7 +459,7 @@ function SwapIndicator({
     >
       <svg
         viewBox="0 0 32 32"
-        className="h-[22px] w-[22px] drop-shadow-[0_1px_1px_rgba(0,0,0,0.55)] sm:h-6 sm:w-6"
+        className="h-[18px] w-[18px] min-[370px]:h-5 min-[370px]:w-5 min-[390px]:h-[22px] min-[390px]:w-[22px]  drop-shadow-[0_1px_1px_rgba(0,0,0,0.55)] sm:h-6 sm:w-6"
         fill="currentColor"
       >
         <path d="M25.3 8.2a11.2 11.2 0 0 0-16.8-1L6.2 4.9a1.35 1.35 0 0 0-2.3.96v7.02c0 .75.6 1.35 1.35 1.35h7.02a1.35 1.35 0 0 0 .96-2.3l-2.4-2.4a7.95 7.95 0 0 1 11.73.77 1.65 1.65 0 1 0 2.74-2.1Z" />
