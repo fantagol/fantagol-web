@@ -1062,7 +1062,7 @@ export default function LeagueDashboardPage() {
         supabase.rpc("get_my_one_to_one_preview_rpc", {
           p_league_round_id: currentRound.league_round_id,
         }),
-        supabase.rpc("get_current_league_members_rpc", {
+        supabase.rpc("get_current_league_members_v2_rpc", {
           target_league_id: leagueId,
         }),
       ]);

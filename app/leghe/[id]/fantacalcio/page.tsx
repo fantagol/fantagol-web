@@ -1,5 +1,7 @@
 "use client";
 
+
+import { getMyLeagueIdentity } from "../../../../lib/league-identity/client";
 /* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -718,27 +720,56 @@ export default function FantacalcioLivePage() {
         role: current.role || "member",
       });
 
-      const { data: clubData } = await supabase.rpc("get_my_club_rpc");
-      const club = (clubData || [])[0];
 
-      if (club) {
-        const currentClub = {
-          name: club.name || current.display_name || "Club FantaGol",
-          motto: club.motto || null,
-          crest_url: club.crest_url || null,
-          kit_template: club.kit_template || "solid",
-          kit_primary_color: club.kit_primary_color || "#FFFFFF",
-          kit_secondary_color: club.kit_secondary_color || "#111417",
-          kit_third_color: club.kit_third_color || "#A6E824",
-          kit_logo_mode: club.kit_logo_mode || "center_horizontal",
-          kit_crest_position: club.kit_crest_position || "left_chest",
-          stars_count: club.stars_count || 0,
-        };
+      const identity = await getMyLeagueIdentity(
+        supabase,
+        leagueId,
+      );
 
-        setClubInfo(currentClub);
+      setLeagueInfo({
+        name: current.league_name || "Lega FantaGol",
+        displayName:
+          identity.display_name ||
+          current.display_name ||
+          "Club FantaGol",
+        inviteCode: current.invite_code || leagueId,
+        role:
+          identity.membership_role ||
+          current.role ||
+          "member",
+      });
 
-        setOpponentClubInfo(null);
-      }
+      const currentClub = {
+        name:
+          identity.club_name ||
+          identity.display_name ||
+          current.display_name ||
+          "Club FantaGol",
+        motto: identity.motto || null,
+        crest_url:
+          identity.crest_url ||
+          identity.avatar_url ||
+          null,
+        kit_template:
+          identity.kit_template || "solid",
+        kit_primary_color:
+          identity.kit_primary_color || "#FFFFFF",
+        kit_secondary_color:
+          identity.kit_secondary_color || "#111417",
+        kit_third_color:
+          identity.kit_third_color || "#A6E824",
+        kit_logo_mode:
+          identity.kit_logo_mode ||
+          "center_horizontal",
+        kit_crest_position:
+          identity.kit_crest_position ||
+          "left_chest",
+        stars_count: identity.stars_count || 0,
+      };
+
+      setClubInfo(currentClub);
+      setOpponentClubInfo(null);
+
     }
 
     loadLeagueInfo();

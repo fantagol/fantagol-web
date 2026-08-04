@@ -151,7 +151,7 @@ export default function MembriPage() {
     });
 
     const { data: membersData, error: membersError } = await supabase.rpc(
-      "get_current_league_members_rpc",
+      "get_current_league_members_v2_rpc",
       {
         target_league_id: selectedLeague.league_id,
       },
