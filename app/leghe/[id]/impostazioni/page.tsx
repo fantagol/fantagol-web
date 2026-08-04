@@ -58,6 +58,11 @@ export default function LeagueAdministrationPage() {
           league={league}
           lifecycle={lifecycle}
           isAdmin={isAdmin}
+          onOpenAdminGuide={() =>
+            router.push(
+              `/leghe/${league.id}/impostazioni/guida-admin`,
+            )
+          }
         />
 
         {(errorMessage || successMessage) && (
