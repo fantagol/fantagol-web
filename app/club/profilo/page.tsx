@@ -47,6 +47,8 @@ export default function ClubProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const localAvatarPreviewRef = useRef<string | null>(null);
   const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
+  const [avatarNaturalWidth, setAvatarNaturalWidth] = useState(0);
+  const [avatarNaturalHeight, setAvatarNaturalHeight] = useState(0);
 
   const [avatarZoom, setAvatarZoom] = useState(1);
   const [avatarX, setAvatarX] = useState(0);
@@ -115,8 +117,8 @@ export default function ClubProfilePage() {
 
         setClub(identity);
         setName(
-          identity.club_name ||
           identity.display_name ||
+          identity.club_name ||
           "",
         );
         setMotto(identity.motto || "");
@@ -161,8 +163,78 @@ export default function ClubProfilePage() {
     };
   }, []);
 
+  const AVATAR_EDITOR_SIZE = 224;
+  const AVATAR_OUTPUT_SIZE = 1024;
+  const AVATAR_VISIBLE_SIZE = 768;
+  const AVATAR_SAVED_ZOOM =
+    AVATAR_OUTPUT_SIZE / AVATAR_VISIBLE_SIZE;
+
   function clampAvatarZoom(value: number) {
-    return Math.min(2.5, Math.max(0.75, Number(value.toFixed(2))));
+    return Math.min(
+      4,
+      Math.max(1, Number(value.toFixed(3))),
+    );
+  }
+
+  function getAvatarRenderedSize(zoom = avatarZoom) {
+    if (!avatarNaturalWidth || !avatarNaturalHeight) {
+      return {
+        width: AVATAR_EDITOR_SIZE,
+        height: AVATAR_EDITOR_SIZE,
+      };
+    }
+
+    const coverScale = Math.max(
+      AVATAR_EDITOR_SIZE / avatarNaturalWidth,
+      AVATAR_EDITOR_SIZE / avatarNaturalHeight,
+    );
+
+    return {
+      width:
+        avatarNaturalWidth *
+        coverScale *
+        zoom,
+      height:
+        avatarNaturalHeight *
+        coverScale *
+        zoom,
+    };
+  }
+
+  function clampAvatarPosition(
+    nextX: number,
+    nextY: number,
+    zoom = avatarZoom,
+  ) {
+    const rendered = getAvatarRenderedSize(zoom);
+
+    const maximumX = Math.max(
+      0,
+      (rendered.width - AVATAR_EDITOR_SIZE) / 2,
+    );
+
+    const maximumY = Math.max(
+      0,
+      (rendered.height - AVATAR_EDITOR_SIZE) / 2,
+    );
+
+    return {
+      x: Math.min(maximumX, Math.max(-maximumX, nextX)),
+      y: Math.min(maximumY, Math.max(-maximumY, nextY)),
+    };
+  }
+
+  function applyAvatarZoom(nextZoom: number) {
+    const clampedZoom = clampAvatarZoom(nextZoom);
+    const position = clampAvatarPosition(
+      avatarX,
+      avatarY,
+      clampedZoom,
+    );
+
+    setAvatarZoom(clampedZoom);
+    setAvatarX(position.x);
+    setAvatarY(position.y);
   }
 
   function resetAvatarPosition() {
@@ -176,7 +248,7 @@ export default function ClubProfilePage() {
 
     event.preventDefault();
     const delta = event.deltaY < 0 ? 0.08 : -0.08;
-    setAvatarZoom((current) => clampAvatarZoom(current + delta));
+    applyAvatarZoom(avatarZoom + delta);
   }
 
   function handleAvatarPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -198,8 +270,17 @@ export default function ClubProfilePage() {
 
     event.preventDefault();
     const start = avatarDragStartRef.current;
-    setAvatarX(start.avatarX + event.clientX - start.pointerX);
-    setAvatarY(start.avatarY + event.clientY - start.pointerY);
+    const position = clampAvatarPosition(
+      start.avatarX +
+        event.clientX -
+        start.pointerX,
+      start.avatarY +
+        event.clientY -
+        start.pointerY,
+    );
+
+    setAvatarX(position.x);
+    setAvatarY(position.y);
   }
 
   function handleAvatarPointerUp() {
@@ -229,8 +310,13 @@ export default function ClubProfilePage() {
 
     event.preventDefault();
     const distance = getTouchDistance(event.touches);
-    const scale = distance / pinchStartRef.current.distance;
-    setAvatarZoom(clampAvatarZoom(pinchStartRef.current.zoom * scale));
+    const scale =
+      distance /
+      pinchStartRef.current.distance;
+
+    applyAvatarZoom(
+      pinchStartRef.current.zoom * scale,
+    );
   }
 
   function handleAvatarDoubleClick() {
@@ -256,16 +342,38 @@ export default function ClubProfilePage() {
       URL.revokeObjectURL(localAvatarPreviewRef.current);
     }
 
-    const localPreviewUrl = URL.createObjectURL(file);
-    localAvatarPreviewRef.current = localPreviewUrl;
-    setSelectedAvatarFile(file);
-    setAvatarPreview(localPreviewUrl);
-    setAvatarUrl(club.avatar_url || club.crest_url || null);
-    setEditingAvatar(true);
-    resetAvatarPosition();
+    try {
+      const sourceImage =
+        await createImageFromFile(file);
 
-    setUploading(false);
-    event.target.value = "";
+      const localPreviewUrl =
+        URL.createObjectURL(file);
+
+      localAvatarPreviewRef.current =
+        localPreviewUrl;
+
+      setSelectedAvatarFile(file);
+      setAvatarNaturalWidth(sourceImage.naturalWidth);
+      setAvatarNaturalHeight(sourceImage.naturalHeight);
+      setAvatarPreview(localPreviewUrl);
+      setAvatarUrl(
+        club.avatar_url ||
+        club.crest_url ||
+        null,
+      );
+      setEditingAvatar(true);
+      resetAvatarPosition();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Impossibile leggere l'immagine selezionata.";
+
+      alert(message);
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
   }
 
   function getStoragePathFromPublicUrl(publicUrl: string | null) {
@@ -299,49 +407,111 @@ export default function ClubProfilePage() {
     });
   }
 
-  async function createCroppedAvatarBlob(file: File) {
+  async function createMarginAvatarBlob(file: File) {
     const image = await createImageFromFile(file);
-    const size = 512;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
+
+    const canvas =
+      document.createElement("canvas");
+
+    canvas.width = AVATAR_OUTPUT_SIZE;
+    canvas.height = AVATAR_OUTPUT_SIZE;
 
     const context = canvas.getContext("2d");
 
     if (!context) {
-      throw new Error("Impossibile preparare l'avatar.");
+      throw new Error(
+        "Impossibile preparare l'avatar.",
+      );
     }
 
-    context.clearRect(0, 0, size, size);
-    context.save();
-    context.beginPath();
-    context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-    context.clip();
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.clearRect(
+      0,
+      0,
+      AVATAR_OUTPUT_SIZE,
+      AVATAR_OUTPUT_SIZE,
+    );
 
-    const baseScale = Math.min(size / image.width, size / image.height);
-    const drawWidth = image.width * baseScale * avatarZoom;
-    const drawHeight = image.height * baseScale * avatarZoom;
-    const scaleRatio = size / 224;
-    const drawX = (size - drawWidth) / 2 + avatarX * scaleRatio;
-    const drawY = (size - drawHeight) / 2 + avatarY * scaleRatio;
+    const editorCoverScale = Math.max(
+      AVATAR_EDITOR_SIZE / image.width,
+      AVATAR_EDITOR_SIZE / image.height,
+    );
 
-    context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-    context.restore();
+    const editorDrawWidth =
+      image.width *
+      editorCoverScale *
+      avatarZoom;
 
-    return new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Impossibile generare l'avatar."));
-            return;
-          }
+    const editorDrawHeight =
+      image.height *
+      editorCoverScale *
+      avatarZoom;
 
-          resolve(blob);
-        },
-        "image/png",
-        0.92
-      );
-    });
+    const editorDrawX =
+      (AVATAR_EDITOR_SIZE - editorDrawWidth) / 2 +
+      avatarX;
+
+    const editorDrawY =
+      (AVATAR_EDITOR_SIZE - editorDrawHeight) / 2 +
+      avatarY;
+
+    const outputScale =
+      AVATAR_VISIBLE_SIZE /
+      AVATAR_EDITOR_SIZE;
+
+    const outputMargin =
+      (AVATAR_OUTPUT_SIZE -
+        AVATAR_VISIBLE_SIZE) /
+      2;
+
+    const outputDrawWidth =
+      editorDrawWidth * outputScale;
+
+    const outputDrawHeight =
+      editorDrawHeight * outputScale;
+
+    const outputDrawX =
+      outputMargin +
+      editorDrawX * outputScale;
+
+    const outputDrawY =
+      outputMargin +
+      editorDrawY * outputScale;
+
+    /*
+     * Fill the complete square with the same source.
+     * The saved runtime zoom restores the exact central
+     * 768px framing while preserving the surrounding area.
+     */
+    context.drawImage(
+      image,
+      outputDrawX,
+      outputDrawY,
+      outputDrawWidth,
+      outputDrawHeight,
+    );
+
+    return new Promise<Blob>(
+      (resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(
+                new Error(
+                  "Impossibile generare l'avatar.",
+                ),
+              );
+              return;
+            }
+
+            resolve(blob);
+          },
+          "image/png",
+          0.94,
+        );
+      },
+    );
   }
 
   async function saveProfile() {
@@ -377,7 +547,7 @@ export default function ClubProfilePage() {
           return;
         }
 
-        const croppedBlob = await createCroppedAvatarBlob(selectedAvatarFile);
+        const croppedBlob = await createMarginAvatarBlob(selectedAvatarFile);
         const filePath =
           `${session.user.id}/` +
           `${club.league_member_profile_id}/` +
@@ -411,9 +581,15 @@ export default function ClubProfilePage() {
           motto: cleanMotto || null,
           avatarUrl: nextAvatarUrl,
           crestUrl: nextAvatarUrl,
-          avatarZoom: 1,
-          avatarX: 0,
-          avatarY: 0,
+          avatarZoom: selectedAvatarFile
+            ? AVATAR_SAVED_ZOOM
+            : avatarZoom,
+          avatarX: selectedAvatarFile
+            ? 0
+            : Math.round(avatarX),
+          avatarY: selectedAvatarFile
+            ? 0
+            : Math.round(avatarY),
         });
 
       if (
@@ -427,9 +603,35 @@ export default function ClubProfilePage() {
       setSaved(true);
       setAvatarUrl(nextAvatarUrl);
       setAvatarPreview(nextAvatarUrl ? `${nextAvatarUrl}?saved=${Date.now()}` : null);
-      setAvatarZoom(1);
-      setAvatarX(0);
-      setAvatarY(0);
+      const savedAvatarZoom =
+        selectedAvatarFile
+          ? AVATAR_SAVED_ZOOM
+          : (
+              writeResult.avatar_zoom ??
+              avatarZoom
+            );
+
+      const savedAvatarX =
+        selectedAvatarFile
+          ? 0
+          : (
+              writeResult.avatar_x ??
+              avatarX
+            );
+
+      const savedAvatarY =
+        selectedAvatarFile
+          ? 0
+          : (
+              writeResult.avatar_y ??
+              avatarY
+            );
+
+      setAvatarZoom(savedAvatarZoom);
+      setAvatarX(savedAvatarX);
+      setAvatarY(savedAvatarY);
+      setAvatarNaturalWidth(0);
+      setAvatarNaturalHeight(0);
       setEditingAvatar(false);
       setSelectedAvatarFile(null);
 
@@ -454,11 +656,14 @@ export default function ClubProfilePage() {
           writeResult.crest_url ??
           nextAvatarUrl,
         avatar_zoom:
-          writeResult.avatar_zoom ?? 1,
+          writeResult.avatar_zoom ??
+          savedAvatarZoom,
         avatar_x:
-          writeResult.avatar_x ?? 0,
+          writeResult.avatar_x ??
+          savedAvatarX,
         avatar_y:
-          writeResult.avatar_y ?? 0,
+          writeResult.avatar_y ??
+          savedAvatarY,
         profile_version:
           writeResult.profile_version,
         profile_updated_at:
@@ -494,8 +699,8 @@ export default function ClubProfilePage() {
 
           setClub(refreshedIdentity);
           setName(
-            refreshedIdentity.club_name ||
             refreshedIdentity.display_name ||
+            refreshedIdentity.club_name ||
             "",
           );
           setMotto(refreshedIdentity.motto || "");
@@ -598,7 +803,7 @@ export default function ClubProfilePage() {
               Profilo Club
             </p>
             <h1 className="mt-3 text-4xl font-black md:text-5xl">
-              {name.trim() || club.club_name || club.display_name}
+              {name.trim() || club.display_name || club.club_name}
             </h1>
             <p className="mt-3 max-w-2xl text-gray-400">
               Crea l&apos;avatar rotondo del tuo Club, aggiorna il nome e aggiungi un motto personale.
@@ -642,10 +847,10 @@ export default function ClubProfilePage() {
                   alt="Avatar Club"
                   className="h-full w-full"
                   style={{
-                    objectFit: selectedAvatarFile ? "contain" : "cover",
+                    objectFit: "cover",
                     transform: selectedAvatarFile
                       ? `translate(${avatarX}px, ${avatarY}px) scale(${avatarZoom})`
-                      : "none",
+                      : `translate(${avatarX}%, ${avatarY}%) scale(${avatarZoom})`,
                     transformOrigin: "center",
                   }}
                 />
@@ -740,10 +945,10 @@ export default function ClubProfilePage() {
                         alt="Anteprima avatar"
                         className="h-full w-full"
                         style={{
-                          objectFit: selectedAvatarFile ? "contain" : "cover",
+                          objectFit: "cover",
                           transform: selectedAvatarFile
-                            ? `translate(${avatarX / 3}px, ${avatarY / 3}px) scale(${avatarZoom})`
-                            : "none",
+                            ? `translate(${avatarX * (64 / 224)}px, ${avatarY * (64 / 224)}px) scale(${avatarZoom})`
+                            : `translate(${avatarX}%, ${avatarY}%) scale(${avatarZoom})`,
                           transformOrigin: "center",
                         }}
                       />
@@ -758,9 +963,11 @@ export default function ClubProfilePage() {
                     <div className="text-xl font-black">
                       {name.trim() || "Club FantaGol"}
                     </div>
-                    <div className="mt-1 text-xs font-semibold text-gray-500">
-                      {realName.trim() || "Nome reale"}
-                    </div>
+                    {realName.trim() && (
+                      <div className="mt-1 text-xs font-semibold text-gray-500">
+                        {realName.trim()}
+                      </div>
+                    )}
                     <div className="mt-1 text-sm text-gray-400">
                       {motto.trim() || "Il tuo Club FantaGol sta per iniziare la sua storia."}
                     </div>

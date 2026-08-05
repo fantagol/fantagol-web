@@ -1,12 +1,12 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Canonical league-scoped avatar URLs are public Supabase storage assets. */
 
 import { useEffect, useMemo, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import FantaGolModeIcon from "../../components/app/FantaGolModeIcon";
 import { supabase } from "../../lib/supabaseClient";
+import ClubAvatar from "@/components/app/ClubAvatar";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
 
@@ -47,6 +47,22 @@ type StandingStats = {
   mini_draws?: number;
   mini_losses?: number;
   mini_difference?: number;
+};
+
+type LeagueMemberAvatarGeometryRow = {
+  membership_id: string;
+  avatar_url?: string | null;
+  crest_url?: string | null;
+  avatar_zoom?: number | string | null;
+  avatar_x?: number | string | null;
+  avatar_y?: number | string | null;
+};
+
+type ClubAvatarGeometry = {
+  src: string | null;
+  zoom: number;
+  x: number;
+  y: number;
 };
 
 type StandingRow = {
@@ -232,6 +248,13 @@ function Movement({ value }: { value: number }) {
 }
 
 export default function ClassifichePage() {
+  const [
+    avatarGeometryByMemberId,
+    setAvatarGeometryByMemberId,
+  ] = useState<Map<string, ClubAvatarGeometry>>(
+    () => new Map(),
+  );
+
   const [mode, setMode] = useState<Mode>("pure_points");
   const [menuOpen, setMenuOpen] = useState(false);
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
@@ -305,6 +328,79 @@ export default function ClassifichePage() {
           selectedLeague.invite_code || selectedLeague.league_id,
         role: selectedLeague.role || "member",
       });
+
+      const {
+        data: memberGeometryData,
+        error: memberGeometryError,
+      } = await supabase.rpc(
+        "get_current_league_members_v2_rpc",
+        {
+          target_league_id:
+            selectedLeague.league_id,
+        },
+      );
+
+      if (cancelled) return;
+
+      if (memberGeometryError) {
+        setErrorMessage(
+          memberGeometryError.message,
+        );
+        setLoading(false);
+        return;
+      }
+
+      const nextAvatarGeometry =
+        new Map<string, ClubAvatarGeometry>();
+
+      (
+        (memberGeometryData || []) as
+          LeagueMemberAvatarGeometryRow[]
+      ).forEach((member) => {
+        const membershipId =
+          typeof member.membership_id === "string"
+            ? member.membership_id
+            : "";
+
+        if (!membershipId) return;
+
+        const rawZoom = Number(
+          member.avatar_zoom ?? 1,
+        );
+        const rawX = Number(
+          member.avatar_x ?? 0,
+        );
+        const rawY = Number(
+          member.avatar_y ?? 0,
+        );
+
+        nextAvatarGeometry.set(
+          membershipId,
+          {
+            src:
+              member.avatar_url ||
+              member.crest_url ||
+              null,
+            zoom:
+              Number.isFinite(rawZoom) &&
+              rawZoom > 0
+                ? rawZoom
+                : 1,
+            x:
+              Number.isFinite(rawX)
+                ? rawX
+                : 0,
+            y:
+              Number.isFinite(rawY)
+                ? rawY
+                : 0,
+          },
+        );
+      });
+
+      setAvatarGeometryByMemberId(
+        nextAvatarGeometry,
+      );
 
       const { data: roundData, error: roundError } = await supabase.rpc(
         "get_my_current_league_round_rpc",
@@ -604,28 +700,38 @@ setMode((currentMode) =>
                           </td>
 
                           <td className="sticky left-10 z-20 w-10 bg-[#111111] px-1 py-3 text-center sm:py-4">
-                            <span
-                              className="relative mx-auto flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-[#A6E824]/30 bg-[#A6E824]/10 text-[11px] font-black uppercase text-[#A6E824]"
-                              title={club.display_name}
-                            >
-                              <span aria-hidden="true">
-                                {club.display_name.trim().charAt(0) || "F"}
-                              </span>
+                            {(() => {
+                              const geometry =
+                                avatarGeometryByMemberId.get(
+                                  club.league_member_id,
+                                );
 
-                              {club.avatar_url && (
-                                <img
-                                  src={club.avatar_url}
+                              return (
+                                <ClubAvatar
+                                  src={
+                                    geometry?.src ||
+                                    club.avatar_url
+                                  }
                                   alt={`Avatar di ${club.display_name}`}
-                                  loading="lazy"
-                                  decoding="async"
-                                  referrerPolicy="no-referrer"
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                  onError={(event) => {
-                                    event.currentTarget.style.display = "none";
-                                  }}
+                                  fallbackLabel={
+                                    club.display_name
+                                  }
+                                  zoom={
+                                    geometry?.zoom || 1
+                                  }
+                                  x={
+                                    geometry?.x || 0
+                                  }
+                                  y={
+                                    geometry?.y || 0
+                                  }
+                                  className="mx-auto h-7 w-7 border border-[#A6E824]/30 bg-[#A6E824]/10 text-[11px] uppercase text-[#A6E824]"
+                                  title={
+                                    club.display_name
+                                  }
                                 />
-                              )}
-                            </span>
+                              );
+                            })()}
                           </td>
 
                           <td className="sticky left-20 z-20 w-32 bg-[#111111] px-2 py-3 sm:w-40 sm:px-3 sm:py-4">

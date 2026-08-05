@@ -1,11 +1,11 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useCallback, useEffect, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import KitPreview from "../../components/club/KitPreview";
 import { supabase } from "../../lib/supabaseClient";
+import ClubAvatar from "@/components/app/ClubAvatar";
 
 type LeagueInfo = {
   leagueId: string;
@@ -23,6 +23,9 @@ type Member = {
   role: string;
   status: string;
   avatarUrl: string | null;
+  avatarZoom: number;
+  avatarX: number;
+  avatarY: number;
   kitTemplate: string;
   kitPrimaryColor: string;
   kitSecondaryColor: string;
@@ -44,6 +47,9 @@ type LeagueMembershipRow = {
   club_name: string | null;
   real_name: string | null;
   crest_url: string | null;
+  avatar_zoom: number | null;
+  avatar_x: number | null;
+  avatar_y: number | null;
   kit_template: string | null;
   kit_primary_color: string | null;
   kit_secondary_color: string | null;
@@ -71,6 +77,9 @@ function mapMembershipToMember(row: LeagueMembershipRow): Member {
     role: row.role || "member",
     status: row.status || "active",
     avatarUrl: row.crest_url || null,
+    avatarZoom: Number(row.avatar_zoom || 1),
+    avatarX: Number(row.avatar_x || 0),
+    avatarY: Number(row.avatar_y || 0),
     kitTemplate: row.kit_template || "solid",
     kitPrimaryColor: row.kit_primary_color || "#FFFFFF",
     kitSecondaryColor: row.kit_secondary_color || "#A6E824",
@@ -393,19 +402,15 @@ export default function MembriPage() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#A6E824]/60 bg-black sm:h-14 sm:w-14">
-                          {member.avatarUrl ? (
-                            <img
-                              src={member.avatarUrl}
-                              alt={member.clubName}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xl font-black text-[#A6E824]">
-                              {member.clubName.slice(0, 1).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
+                        <ClubAvatar
+                          src={member.avatarUrl}
+                          alt={member.clubName}
+                          fallbackLabel={member.clubName}
+                          zoom={member.avatarZoom}
+                          x={member.avatarX}
+                          y={member.avatarY}
+                          className="h-12 w-12 shrink-0 border-2 border-[#A6E824]/60 bg-black text-xl sm:h-14 sm:w-14"
+                        />
 
                         <div className="min-w-0">
                           <h2 className="max-w-full truncate text-lg font-black sm:text-xl">

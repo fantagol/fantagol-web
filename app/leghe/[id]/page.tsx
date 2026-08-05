@@ -10,6 +10,7 @@ import DashboardCard from "../../../components/ui/DashboardCard";
 import HamburgerDrawer from "../../../components/app/HamburgerDrawer";
 import FantaGolModeIcon from "../../../components/app/FantaGolModeIcon";
 import TeamCrest from "../../../components/app/TeamCrest";
+import ClubAvatar from "@/components/app/ClubAvatar";
 
 const LAST_LEAGUE_STORAGE_KEY = "fantagol:last-league-id";
 
@@ -70,6 +71,9 @@ type LeagueMemberRow = {
   display_name?: string | null;
   club_name?: string | null;
   crest_url?: string | null;
+  avatar_zoom?: number | null;
+  avatar_x?: number | null;
+  avatar_y?: number | null;
 };
 
 type FixtureSide = {
@@ -172,6 +176,9 @@ type Duelist = {
   memberId: string;
   name: string;
   avatarUrl: string | null;
+  avatarZoom: number;
+  avatarX: number;
+  avatarY: number;
 };
 
 type DuelSummary = {
@@ -520,6 +527,18 @@ function extractLeagueMembers(value: unknown): LeagueMemberRow[] {
           typeof node.display_name === "string" ? node.display_name : null,
         club_name: typeof node.club_name === "string" ? node.club_name : null,
         crest_url: typeof node.crest_url === "string" ? node.crest_url : null,
+        avatar_zoom:
+          typeof node.avatar_zoom === "number"
+            ? node.avatar_zoom
+            : Number(node.avatar_zoom || 1),
+        avatar_x:
+          typeof node.avatar_x === "number"
+            ? node.avatar_x
+            : Number(node.avatar_x || 0),
+        avatar_y:
+          typeof node.avatar_y === "number"
+            ? node.avatar_y
+            : Number(node.avatar_y || 0),
       });
     }
 
@@ -635,6 +654,9 @@ function buildDuelSummary({
         leftSide?.display_name ||
         "Club FantaGol",
       avatarUrl: leftMember?.crest_url || null,
+      avatarZoom: Number(leftMember?.avatar_zoom || 1),
+      avatarX: Number(leftMember?.avatar_x || 0),
+      avatarY: Number(leftMember?.avatar_y || 0),
     },
     right: bye
       ? null
@@ -646,6 +668,9 @@ function buildDuelSummary({
             rightSide?.display_name ||
             "Avversario",
           avatarUrl: rightMember?.crest_url || null,
+          avatarZoom: Number(rightMember?.avatar_zoom || 1),
+          avatarX: Number(rightMember?.avatar_x || 0),
+          avatarY: Number(rightMember?.avatar_y || 0),
         },
     leftScore: orientFromHome ? homeScore : awayScore,
     rightScore: orientFromHome ? awayScore : homeScore,
@@ -662,25 +687,21 @@ function DuelAvatar({
   muted?: boolean;
 }) {
   const name = duelist?.name || "Riposo";
-  const avatarUrl = duelist?.avatarUrl || null;
 
   return (
     <div className="flex min-w-0 flex-col items-center">
-      <div
-        className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gradient-to-br from-white to-gray-300 text-sm font-black text-black shadow-lg shadow-black/30 ${
+      <ClubAvatar
+        src={duelist?.avatarUrl || null}
+        alt={`${name} avatar`}
+        fallbackLabel={name}
+        zoom={duelist?.avatarZoom || 1}
+        x={duelist?.avatarX || 0}
+        y={duelist?.avatarY || 0}
+        className={`h-11 w-11 shrink-0 border bg-gradient-to-br from-white to-gray-300 text-sm text-black shadow-lg shadow-black/30 ${
           muted ? "border-white/10 opacity-45" : "border-[#A6E824]/45"
         }`}
-      >
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt={`${name} avatar`}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          name.slice(0, 1).toUpperCase()
-        )}
-      </div>
+        imageClassName={muted ? "grayscale" : ""}
+      />
 
       <span
         className={`mt-1 max-w-[72px] truncate text-[10px] font-black uppercase ${
@@ -1146,6 +1167,9 @@ export default function LeagueDashboardPage() {
                 current.display_name ||
                 "Club FantaGol",
               avatarUrl: currentMember?.crest_url || null,
+              avatarZoom: Number(currentMember?.avatar_zoom || 1),
+              avatarX: Number(currentMember?.avatar_x || 0),
+              avatarY: Number(currentMember?.avatar_y || 0),
             }
           : null,
         fantacalcio: buildDuelSummary({

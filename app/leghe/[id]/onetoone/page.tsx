@@ -2,7 +2,6 @@
 
 
 import { getMyLeagueIdentity } from "../../../../lib/league-identity/client";
-/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import {
   useEffect,
   useMemo,
@@ -21,6 +20,7 @@ import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
+import ClubAvatar from "@/components/app/ClubAvatar";
 import {
   fromOneToOneStrategyPayload,
   toOneToOneStrategyPayload,
@@ -82,6 +82,9 @@ type ClubInfo = {
   name: string;
   motto?: string | null;
   crest_url: string | null;
+  avatar_zoom: number;
+  avatar_x: number;
+  avatar_y: number;
   kit_template: string;
   kit_primary_color: string;
   kit_secondary_color: string;
@@ -233,30 +236,33 @@ function TeamBadge({
 function Avatar({
   name,
   avatarUrl,
+  avatarZoom = 1,
+  avatarX = 0,
+  avatarY = 0,
   disabled = false,
 }: {
   name: string;
   avatarUrl?: string | null;
+  avatarZoom?: number;
+  avatarX?: number;
+  avatarY?: number;
   disabled?: boolean;
 }) {
   return (
-    <div
-      className={`flex h-12 w-12 min-[380px]:h-[52px] min-[380px]:w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gradient-to-br from-white to-gray-300 text-xl font-black text-black shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl ${
+    <ClubAvatar
+      src={avatarUrl}
+      alt={name}
+      fallbackLabel={name}
+      zoom={avatarZoom}
+      x={avatarX}
+      y={avatarY}
+      className={`h-12 w-12 min-[380px]:h-[52px] min-[380px]:w-[52px] shrink-0 border text-xl shadow-xl shadow-black/40 sm:h-20 sm:w-20 sm:text-3xl ${
         disabled
-          ? "border-white/5 grayscale opacity-30 saturate-0"
+          ? "border-white/5 opacity-30"
           : "border-white/15"
       }`}
-    >
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={name}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        name.slice(0, 1).toUpperCase()
-      )}
-    </div>
+      imageClassName={disabled ? "grayscale saturate-0" : ""}
+    />
   );
 }
 
@@ -726,6 +732,12 @@ export default function OneToOneLivePage() {
           identity.crest_url ||
           identity.avatar_url ||
           null,
+        avatar_zoom:
+          Number(identity.avatar_zoom || 1),
+        avatar_x:
+          Number(identity.avatar_x || 0),
+        avatar_y:
+          Number(identity.avatar_y || 0),
         kit_template:
           identity.kit_template || "solid",
         kit_primary_color:
@@ -958,6 +970,9 @@ export default function OneToOneLivePage() {
           clubInfo?.motto ||
           "Il tuo Club FantaGol sta per iniziare la sua storia.",
         avatarUrl: clubInfo?.crest_url || null,
+        avatarZoom: clubInfo?.avatar_zoom || 1,
+        avatarX: clubInfo?.avatar_x || 0,
+        avatarY: clubInfo?.avatar_y || 0,
         kitTemplate: clubInfo?.kit_template || "solid",
         kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
         kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
@@ -972,6 +987,9 @@ export default function OneToOneLivePage() {
         clubName: "Real Exact",
         motto: "Precisione, coraggio e pronostici al millimetro.",
         avatarUrl: null,
+        avatarZoom: 1,
+        avatarX: 0,
+        avatarY: 0,
         kitTemplate: "vertical_3",
         kitPrimaryColor: "#A6E824",
         kitSecondaryColor: "#111417",
@@ -985,6 +1003,9 @@ export default function OneToOneLivePage() {
         clubName: "Bonus Show",
         motto: "Ogni bonus è una dichiarazione di intenti.",
         avatarUrl: null,
+        avatarZoom: 1,
+        avatarX: 0,
+        avatarY: 0,
         kitTemplate: "diagonal",
         kitPrimaryColor: "#1f2427",
         kitSecondaryColor: "#A6E824",
@@ -1006,6 +1027,9 @@ export default function OneToOneLivePage() {
     name: activeProfile?.clubName || "Club FantaGol",
     motto: activeProfile?.motto || null,
     crest_url: activeProfile?.avatarUrl || null,
+    avatar_zoom: activeProfile?.avatarZoom || 1,
+    avatar_x: activeProfile?.avatarX || 0,
+    avatar_y: activeProfile?.avatarY || 0,
     kit_template: activeProfile?.kitTemplate || "solid",
     kit_primary_color: activeProfile?.kitPrimaryColor || "#FFFFFF",
     kit_secondary_color: activeProfile?.kitSecondaryColor || "#111417",
@@ -1511,6 +1535,9 @@ export default function OneToOneLivePage() {
                 <Avatar
                   name={viewedClubInfo.name}
                   avatarUrl={viewedClubInfo.crest_url}
+                  avatarZoom={viewedClubInfo.avatar_zoom}
+                  avatarX={viewedClubInfo.avatar_x}
+                  avatarY={viewedClubInfo.avatar_y}
                 />
                 <p className="mt-1 max-w-[54px] truncate text-[9px] font-black uppercase leading-none text-white sm:max-w-[72px] sm:text-[10px]">
                   {viewedClubInfo.name}
@@ -1557,6 +1584,9 @@ export default function OneToOneLivePage() {
                       : opponentClubInfo?.name || "Avversario"
                   }
                   avatarUrl={isByeRound ? null : opponentClubInfo?.crest_url}
+                  avatarZoom={1}
+                  avatarX={0}
+                  avatarY={0}
                   disabled={isByeRound}
                 />
                 <p

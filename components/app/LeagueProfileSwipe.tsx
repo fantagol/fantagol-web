@@ -1,8 +1,8 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- Dynamic external assets intentionally preserve the current crop, fallback, and sizing contracts. */
 import { useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 import KitPreview from "../club/KitPreview";
+import ClubAvatar from "./ClubAvatar";
 
 export type LeagueSwipeMode = "punti_puri" | "fantacalcio" | "one_to_one";
 
@@ -10,6 +10,9 @@ export type SwipeClubProfile = {
   id: string;
   clubName: string;
   avatarUrl: string | null;
+  avatarZoom?: number;
+  avatarX?: number;
+  avatarY?: number;
   kitTemplate: string;
   kitPrimaryColor: string;
   kitSecondaryColor: string;
@@ -76,13 +79,15 @@ function modeLabel(mode: LeagueSwipeMode) {
 
 function AvatarMini({ profile }: { profile: SwipeClubProfile }) {
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#A6E824]/50 bg-black text-base font-black text-[#A6E824]">
-      {profile.avatarUrl ? (
-        <img src={profile.avatarUrl} alt={profile.clubName} className="h-full w-full object-cover" />
-      ) : (
-        profile.clubName.slice(0, 1).toUpperCase()
-      )}
-    </div>
+    <ClubAvatar
+      src={profile.avatarUrl}
+      alt={profile.clubName}
+      fallbackLabel={profile.clubName}
+      zoom={profile.avatarZoom || 1}
+      x={profile.avatarX || 0}
+      y={profile.avatarY || 0}
+      className="h-11 w-11 shrink-0 border border-[#A6E824]/50 text-base"
+    />
   );
 }
 
