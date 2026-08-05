@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
+import StrategyAvailabilityModal from "../../../../components/app/StrategyAvailabilityModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import TeamCrest from "../../../../components/app/TeamCrest";
 import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
@@ -677,6 +678,9 @@ export default function OneToOneLivePage() {
   const [leftGoals, setLeftGoals] = useState(0);
   const [rightGoals, setRightGoals] = useState(0);
 
+  const [strategyPendingSchedule, setStrategyPendingSchedule] = useState(false);
+  const [strategyAvailabilityModalOpen, setStrategyAvailabilityModalOpen] = useState(false);
+
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setMounted(true);
@@ -816,13 +820,21 @@ export default function OneToOneLivePage() {
         return;
       }
 
-      if (
-        strategyStatusError &&
-        !isMissingActiveFixtureError(strategyStatusError.message)
-      ) {
-        setStrategyError(strategyStatusError.message);
-        setStrategyLoading(false);
-        return;
+      if (strategyStatusError) {
+        if (isMissingActiveFixtureError(strategyStatusError.message)) {
+          setStrategyPendingSchedule(true);
+          setStrategyError(null);
+          setStrategyExists(false);
+          setHasOfficialSubmission(false);
+          setHasUnconfirmedChanges(false);
+        } else {
+          setStrategyPendingSchedule(false);
+          setStrategyError(strategyStatusError.message);
+          setStrategyLoading(false);
+          return;
+        }
+      } else {
+        setStrategyPendingSchedule(false);
       }
 
       const rows = (predictionData || []) as RoundPredictionRow[];
@@ -1197,6 +1209,7 @@ export default function OneToOneLivePage() {
     y: number;
   } | null>(null);
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
+
   const allSlotsComplete =
     leftSlots.length === 10 && leftSlots.every((slot) => slot !== null);
 
@@ -1232,6 +1245,7 @@ export default function OneToOneLivePage() {
 
   async function persistPairings(nextSlots: (PredictionSlot | null)[]) {
     if (
+      strategyPendingSchedule ||
       isByeRound ||
       !leagueRoundId ||
       !leagueFixtureId ||
@@ -1241,9 +1255,10 @@ export default function OneToOneLivePage() {
       return;
     }
 
+    const activeLeagueFixtureId = leagueFixtureId;
     const completeSlots = nextSlots as PredictionSlot[];
     const payload = toOneToOneStrategyPayload({
-      fixtureId: leagueFixtureId,
+      fixtureId: activeLeagueFixtureId,
       pairs: completeSlots.map((slot, index) => ({
         sourceMatchId: slot.matchId,
         targetMatchId: liveRows[index].id,
@@ -1383,6 +1398,11 @@ export default function OneToOneLivePage() {
   }
 
   async function submitStrategy() {
+    if (strategyPendingSchedule) {
+      setStrategyAvailabilityModalOpen(true);
+      return;
+    }
+
     if (
       interactionLocked ||
       submitting ||
@@ -1390,12 +1410,18 @@ export default function OneToOneLivePage() {
       savingStrategy ||
       !isViewingSelf ||
       !leagueRoundId ||
-      !leagueFixtureId ||
       liveRows.length !== 10 ||
       (hasOfficialSubmission && !hasUnconfirmedChanges)
     ) {
       return;
     }
+
+    if (!leagueFixtureId) {
+      setStrategyAvailabilityModalOpen(true);
+      return;
+    }
+
+    const activeLeagueFixtureId = leagueFixtureId;
 
     if (!allSlotsComplete) {
       alert("Completa tutti gli abbinamenti prima di inviare.");
@@ -1407,7 +1433,7 @@ export default function OneToOneLivePage() {
     if (!strategyExists) {
       const completeSlots = leftSlots as PredictionSlot[];
       const payload = toOneToOneStrategyPayload({
-        fixtureId: leagueFixtureId,
+        fixtureId: activeLeagueFixtureId,
         pairs: completeSlots.map((slot, index) => ({
           sourceMatchId: slot.matchId,
           targetMatchId: liveRows[index].id,
@@ -1955,6 +1981,11 @@ export default function OneToOneLivePage() {
         onSecondary={() => router.push(`/leghe/${leagueId}/fantacalcio`)}
         onClose={() => setSubmissionModalOpen(false)}
       />
+      <StrategyAvailabilityModal
+        open={strategyAvailabilityModalOpen}
+        onClose={() => setStrategyAvailabilityModalOpen(false)}
+      />
+
     </main>
   );
 }

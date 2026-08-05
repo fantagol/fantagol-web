@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HamburgerDrawer from "../../../../components/app/HamburgerDrawer";
 import SubmissionModal from "../../../../components/app/SubmissionModal";
+import StrategyAvailabilityModal from "../../../../components/app/StrategyAvailabilityModal";
 import RoundSubmissionButton from "../../../../components/app/RoundSubmissionButton";
 import TeamCrest from "../../../../components/app/TeamCrest";
 import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
@@ -709,6 +710,9 @@ export default function FantacalcioLivePage() {
   const [leftGoals, setLeftGoals] = useState(0);
   const [rightGoals, setRightGoals] = useState(0);
 
+  const [strategyPendingSchedule, setStrategyPendingSchedule] = useState(false);
+  const [strategyAvailabilityModalOpen, setStrategyAvailabilityModalOpen] = useState(false);
+
   useEffect(() => {
     async function loadLeagueInfo() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
@@ -841,13 +845,21 @@ export default function FantacalcioLivePage() {
         return;
       }
 
-      if (
-        strategyStatusError &&
-        !isMissingActiveFixtureError(strategyStatusError.message)
-      ) {
-        setStrategyError(strategyStatusError.message);
-        setStrategyLoading(false);
-        return;
+      if (strategyStatusError) {
+        if (isMissingActiveFixtureError(strategyStatusError.message)) {
+          setStrategyPendingSchedule(true);
+          setStrategyError(null);
+          setStrategyExists(false);
+          setHasOfficialSubmission(false);
+          setHasUnconfirmedChanges(false);
+        } else {
+          setStrategyPendingSchedule(false);
+          setStrategyError(strategyStatusError.message);
+          setStrategyLoading(false);
+          return;
+        }
+      } else {
+        setStrategyPendingSchedule(false);
       }
 
       const rows = (predictionData || []) as RoundPredictionRow[];
@@ -1184,6 +1196,7 @@ export default function FantacalcioLivePage() {
     null,
   );
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
+
   const displayedLiveRows = canViewProfileContent
     ? liveRows
     : liveRows.map((match) => ({
@@ -1195,7 +1208,7 @@ export default function FantacalcioLivePage() {
       }));
 
   async function persistStrategy(nextRows: DuelMatch[]) {
-    if (isByeRound || !leagueRoundId || nextRows.length !== 10) return;
+    if (strategyPendingSchedule || isByeRound || !leagueRoundId || nextRows.length !== 10) return;
 
     const payload = toFantacalcioStrategyPayload({
       attackMatchIds: nextRows.slice(0, 5).map((match) => match.id),
@@ -1257,6 +1270,11 @@ export default function FantacalcioLivePage() {
   }
 
   async function submitStrategy() {
+    if (strategyPendingSchedule) {
+      setStrategyAvailabilityModalOpen(true);
+      return;
+    }
+
     if (
       interactionLocked ||
       submitting ||
@@ -1842,6 +1860,11 @@ export default function FantacalcioLivePage() {
         onPrimary={() => router.push(`/leghe/${leagueId}/onetoone`)}
         onClose={() => setSubmissionModalOpen(false)}
       />
+      <StrategyAvailabilityModal
+        open={strategyAvailabilityModalOpen}
+        onClose={() => setStrategyAvailabilityModalOpen(false)}
+      />
+
     </main>
   );
 }
