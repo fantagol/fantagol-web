@@ -3,27 +3,28 @@
 -- Migration 198
 -- Strategy Default Fallback and Availability Contract
 --
--- Canonical rules:
+-- Certified aggregate alignment:
 --
--- 1. An explicit official Strategy remains authoritative.
--- 2. A complete saved workspace is auto-submitted by the existing lock engine.
--- 3. A missing or incomplete workspace receives the canonical default only when
---    the member officially submitted the complete Prediction set.
--- 4. A member without an official Prediction submission remains genuinely
---    absent and receives no Strategy fallback.
--- 5. A BYE never requires nor receives a Strategy.
--- 6. When a pre-deadline schedule is regenerated, an existing non-BYE Strategy
---    aggregate is rebound to the new active fixture without invalidating its
---    official payload solely because the opponent changed.
---
--- The existing certified lock implementation is preserved behind a wrapper.
+-- - strategies is the lifecycle aggregate;
+-- - mode is inherited from league_fixtures.mode;
+-- - strategies has no payload and no strategy_type column;
+-- - workspace and official payloads live only in strategy_versions;
+-- - one Strategy aggregate is identified by league_fixture_id +
+--   league_member_id;
+-- - official Prediction participation is required before any fallback;
+-- - BYE fixtures never require or receive a Strategy;
+-- - explicit official Strategy remains authoritative;
+-- - complete draft workspace remains authoritative and is auto-submitted by
+--   the certified lock engine;
+-- - missing or incomplete workspace receives the canonical default only as
+--   the final fallback.
 -- ============================================================================
 
 begin;
 
--- --------------------------------------------------------------------------
--- 1. Preserve the certified Strategy lock implementation.
--- --------------------------------------------------------------------------
+-- ============================================================================
+-- 1. PRESERVE THE CERTIFIED LOCK IMPLEMENTATION
+-- ============================================================================
 
 do $migration$
 begin
@@ -34,8 +35,9 @@ begin
     if to_regprocedure(
          'public.lock_round_strategies_rpc(uuid)'
        ) is null then
-      raise exception
-        'LOCK_ROUND_STRATEGIES_RPC_NOT_FOUND';
+      raise exception using
+        errcode = 'P0001',
+        message = 'LOCK_ROUND_STRATEGIES_RPC_NOT_FOUND';
     end if;
 
     alter function public.lock_round_strategies_rpc(uuid)
@@ -44,9 +46,9 @@ begin
 end;
 $migration$;
 
--- --------------------------------------------------------------------------
--- 2. Build the canonical default payload from the official ordered Match Set.
--- --------------------------------------------------------------------------
+-- ============================================================================
+-- 2. CANONICAL DEFAULT PAYLOAD BUILDER
+-- ============================================================================
 
 create or replace function public.build_canonical_default_strategy_payload(
   p_league_round_id uuid,
@@ -61,6 +63,12 @@ declare
   v_fantagol_round_id uuid;
   v_match_ids uuid[];
 begin
+  if p_league_round_id is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRATEGY_ROUND_REQUIRED';
+  end if;
+
   if p_mode not in ('fantacalcio', 'one_to_one') then
     raise exception using
       errcode = 'P0001',
@@ -70,12 +78,13 @@ begin
   select lr.fantagol_round_id
   into v_fantagol_round_id
   from public.league_rounds lr
-  where lr.id = p_league_round_id;
+  where lr.id = p_league_round_id
+    and lr.enabled = true;
 
   if not found then
     raise exception using
       errcode = 'P0001',
-      message = 'LEAGUE_ROUND_NOT_FOUND';
+      message = 'STRATEGY_ROUND_NOT_FOUND';
   end if;
 
   select array_agg(
@@ -108,17 +117,18 @@ begin
         select jsonb_agg(
           jsonb_build_object(
             'match_id',
-            item.match_id,
+            ordered_match.match_id,
             'department',
             case
-              when item.ordinality <= 5 then 'attack'
+              when ordered_match.ordinality <= 5
+                then 'attack'
               else 'defense'
             end
           )
-          order by item.ordinality
+          order by ordered_match.ordinality
         )
         from unnest(v_match_ids)
-          with ordinality as item(
+          with ordinality as ordered_match(
             match_id,
             ordinality
           )
@@ -134,16 +144,16 @@ begin
       select jsonb_agg(
         jsonb_build_object(
           'position',
-          item.ordinality,
+          ordered_match.ordinality,
           'own_match_id',
-          item.match_id,
+          ordered_match.match_id,
           'opponent_match_id',
-          item.match_id
+          ordered_match.match_id
         )
-        order by item.ordinality
+        order by ordered_match.ordinality
       )
       from unnest(v_match_ids)
-        with ordinality as item(
+        with ordinality as ordered_match(
           match_id,
           ordinality
         )
@@ -156,7 +166,7 @@ comment on function public.build_canonical_default_strategy_payload(
   uuid,
   text
 ) is
-'Builds the deterministic schema_version 1 Strategy fallback from the official ordered ten-match set: slots 1-5 Attack and 6-10 Defense for Fantacalcio; identity matrix 1-to-1 through 10-to-10 for One-to-One.';
+'Builds the deterministic schema_version 1 Strategy fallback from the ordered official ten-match set: slots 1-5 Attack and 6-10 Defense for Fantacalcio; identity pairings 1-to-1 through 10-to-10 for One-to-One.';
 
 revoke all
 on function public.build_canonical_default_strategy_payload(
@@ -186,14 +196,9 @@ on function public.build_canonical_default_strategy_payload(
 )
 to service_role;
 
--- --------------------------------------------------------------------------
--- 3. Materialize missing or invalid fallback workspaces.
---
--- Participation is certified by a complete official Prediction snapshot:
--- every required match must have submitted_version and official_submitted_at.
--- Status may already be locked because Prediction locking precedes Strategy
--- locking in the runtime pipeline.
--- --------------------------------------------------------------------------
+-- ============================================================================
+-- 3. MATERIALIZE ELIGIBLE DEFAULT WORKSPACES
+-- ============================================================================
 
 create or replace function public.materialize_round_strategy_defaults_rpc(
   p_league_round_id uuid
@@ -225,6 +230,7 @@ declare
   v_strategy public.strategies%rowtype;
 
   v_official_prediction_count integer;
+  v_workspace_payload jsonb;
   v_default_payload jsonb;
   v_workspace_complete boolean;
   v_next_version integer;
@@ -238,6 +244,12 @@ declare
   v_skipped_predictions_count integer := 0;
   v_skipped_bye_count integer := 0;
 begin
+  if p_league_round_id is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRATEGY_ROUND_REQUIRED';
+  end if;
+
   select
     lr.league_id,
     lr.fantagol_round_id,
@@ -249,12 +261,19 @@ begin
   from public.league_rounds lr
   join public.fantagol_rounds fr
     on fr.id = lr.fantagol_round_id
-  where lr.id = p_league_round_id;
+  where lr.id = p_league_round_id
+    and lr.enabled = true;
 
   if not found then
     raise exception using
       errcode = 'P0001',
-      message = 'LEAGUE_ROUND_NOT_FOUND';
+      message = 'STRATEGY_ROUND_NOT_FOUND';
+  end if;
+
+  if v_match_set_version is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRATEGY_OFFICIAL_MATCH_SET_NOT_FOUND';
   end if;
 
   select count(*)::integer
@@ -297,6 +316,10 @@ begin
        and lsv.active = true
       where lf.league_id = v_league_id
         and lf.league_round_id = p_league_round_id
+        and lf.mode in (
+          'fantacalcio',
+          'one_to_one'
+        )
     ),
     fixture_members as (
       select
@@ -312,7 +335,7 @@ begin
         af.league_fixture_id,
         af.mode,
         af.is_bye,
-        af.away_member_id
+        af.away_member_id as league_member_id
       from active_fixtures af
       where af.away_member_id is not null
     )
@@ -341,6 +364,11 @@ begin
 
     v_eligible_count :=
       v_eligible_count + 1;
+
+    -- ------------------------------------------------------------------------
+    -- A fallback exists only for a member who officially participated by
+    -- submitting all ten required Predictions.
+    -- ------------------------------------------------------------------------
 
     select count(*)::integer
     into v_official_prediction_count
@@ -373,57 +401,99 @@ begin
       continue;
     end if;
 
+    -- ------------------------------------------------------------------------
+    -- First resolve the aggregate already attached to the active fixture.
+    -- ------------------------------------------------------------------------
+
     select s.*
     into v_strategy
     from public.strategies s
-    where s.league_round_id =
-          p_league_round_id
+    where s.league_fixture_id =
+          v_item.league_fixture_id
       and s.league_member_id =
           v_item.league_member_id
-      and s.strategy_type =
-          v_item.mode
     for update;
 
-    if found then
-      if v_strategy.league_fixture_id
-         is distinct from
-         v_item.league_fixture_id then
+    -- ------------------------------------------------------------------------
+    -- If the schedule was regenerated before the first round, preserve the
+    -- latest aggregate belonging to the same round, member and mode.
+    --
+    -- Opponent changes do not invalidate the Strategy. Only a BYE removes the
+    -- requirement, and BYEs were already excluded above.
+    -- ------------------------------------------------------------------------
 
+    if not found then
+      select s.*
+      into v_strategy
+      from public.strategies s
+      join public.league_fixtures historical_fixture
+        on historical_fixture.id =
+           s.league_fixture_id
+      where s.league_round_id =
+            p_league_round_id
+        and s.league_member_id =
+            v_item.league_member_id
+        and historical_fixture.mode =
+            v_item.mode
+      order by
+        s.updated_at desc,
+        s.created_at desc,
+        s.id desc
+      limit 1
+      for update of s;
+
+      if found then
         update public.strategies s
         set
           league_fixture_id =
             v_item.league_fixture_id
-        where s.id = v_strategy.id;
-
-        v_strategy.league_fixture_id :=
-          v_item.league_fixture_id;
+        where s.id = v_strategy.id
+        returning s.*
+        into v_strategy;
 
         v_rebound_count :=
           v_rebound_count + 1;
       end if;
+    end if;
 
-      if v_strategy.submitted_version
-         is not null then
-
+    if found then
+      -- Explicit official Strategy is always authoritative.
+      if v_strategy.submitted_version is not null then
         v_preserved_official_count :=
           v_preserved_official_count + 1;
 
         continue;
       end if;
 
-      v_workspace_complete := true;
+      -- Current workspace payload is the immutable version referenced by
+      -- strategies.version.
+      select sv.payload
+      into v_workspace_payload
+      from public.strategy_versions sv
+      where sv.strategy_id =
+            v_strategy.id
+        and sv.version =
+            v_strategy.version;
 
-      begin
-        perform public.validate_strategy_submission_payload(
-          v_item.mode,
-          v_strategy.payload,
-          p_league_round_id
-        );
-      exception
-        when others then
-          v_workspace_complete := false;
-      end;
+      v_workspace_complete := false;
 
+      if found then
+        begin
+          perform public.validate_strategy_submission_payload(
+            v_item.mode,
+            v_workspace_payload,
+            p_league_round_id
+          );
+
+          v_workspace_complete := true;
+        exception
+          when others then
+            v_workspace_complete := false;
+        end;
+      end if;
+
+      -- A complete draft is preserved and will be auto-submitted by the
+      -- certified lock implementation.
       if v_workspace_complete then
         v_preserved_complete_count :=
           v_preserved_complete_count + 1;
@@ -431,6 +501,8 @@ begin
         continue;
       end if;
 
+      -- Missing or incomplete workspace becomes the deterministic final
+      -- fallback. Existing immutable history remains untouched.
       v_default_payload :=
         public.build_canonical_default_strategy_payload(
           p_league_round_id,
@@ -470,7 +542,7 @@ begin
           'operation',
           'canonical_default_fallback_materialized',
           'reason',
-          'official_predictions_present_incomplete_strategy',
+          'official_predictions_present_incomplete_or_missing_workspace',
           'mode',
           v_item.mode,
           'schema_version',
@@ -492,8 +564,6 @@ begin
       set
         league_fixture_id =
           v_item.league_fixture_id,
-        payload =
-          v_default_payload,
         status =
           'draft',
         source =
@@ -516,6 +586,11 @@ begin
       continue;
     end if;
 
+    -- ------------------------------------------------------------------------
+    -- No aggregate exists: create lifecycle aggregate first, then append the
+    -- immutable default workspace version.
+    -- ------------------------------------------------------------------------
+
     v_default_payload :=
       public.build_canonical_default_strategy_payload(
         p_league_round_id,
@@ -534,8 +609,6 @@ begin
       league_member_id,
       user_id,
       league_fixture_id,
-      strategy_type,
-      payload,
       status,
       source,
       version
@@ -546,8 +619,6 @@ begin
       v_item.league_member_id,
       v_item.user_id,
       v_item.league_fixture_id,
-      v_item.mode,
-      v_default_payload,
       'draft',
       'standard',
       1
@@ -617,7 +688,7 @@ $function$;
 comment on function public.materialize_round_strategy_defaults_rpc(
   uuid
 ) is
-'Materializes canonical Strategy defaults immediately before Strategy lock, exclusively for non-BYE active-fixture members with a complete official Prediction submission. Existing official Strategies and complete workspaces are preserved; incomplete or missing workspaces receive the deterministic fallback.';
+'Immediately before Strategy lock, materializes deterministic complete fallback workspaces only for active non-BYE fixture members with all ten official Predictions. Explicit submissions and complete drafts are preserved. Payloads are stored exclusively in immutable strategy_versions.';
 
 revoke all
 on function public.materialize_round_strategy_defaults_rpc(
@@ -643,12 +714,9 @@ on function public.materialize_round_strategy_defaults_rpc(
 )
 to service_role;
 
--- --------------------------------------------------------------------------
--- 4. Certified wrapper.
---
--- First guarantee eligible fallback workspaces, then delegate all official
--- submission/restoration/locking behavior to the previously certified engine.
--- --------------------------------------------------------------------------
+-- ============================================================================
+-- 4. CERTIFIED LOCK WRAPPER
+-- ============================================================================
 
 create or replace function public.lock_round_strategies_rpc(
   p_league_round_id uuid
@@ -670,10 +738,9 @@ security definer
 set search_path = public
 as $function$
 begin
-  perform
-    public.materialize_round_strategy_defaults_rpc(
-      p_league_round_id
-    );
+  perform public.materialize_round_strategy_defaults_rpc(
+    p_league_round_id
+  );
 
   return query
   select *
@@ -686,7 +753,7 @@ $function$;
 comment on function public.lock_round_strategies_rpc(
   uuid
 ) is
-'Locks all active non-BYE round Strategies. Before delegating to the certified Strategy Lock Engine, it guarantees a canonical complete fallback only for members with a complete official Prediction submission. Members without official predictions remain missing.';
+'Locks all active non-BYE round Strategies. Before delegating to the certified Strategy Lock Engine, it guarantees a canonical fallback only for members with all ten official Predictions. Members without official Predictions remain genuinely missing.';
 
 revoke all
 on function public.lock_round_strategies_rpc(
@@ -712,6 +779,7 @@ on function public.lock_round_strategies_rpc(
 )
 to service_role;
 
+-- Preserved implementation remains internal.
 revoke all
 on function public.lock_round_strategies_pre_default_198_rpc(
   uuid
