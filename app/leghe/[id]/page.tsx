@@ -1130,31 +1130,83 @@ export default function LeagueDashboardPage() {
         currentMemberId,
       );
 
+      const compatibleFantacalcioPreview =
+        scheduledFantacalcioFixture &&
+        fantacalcioPreviewFixture &&
+        (fantacalcioPreviewFixture.home_member_id ||
+          fantacalcioPreviewFixture.home?.member_id ||
+          "") === scheduledFantacalcioFixture.home_member_id &&
+        (fantacalcioPreviewFixture.away_member_id ||
+          fantacalcioPreviewFixture.away?.member_id ||
+          null) === scheduledFantacalcioFixture.away_member_id
+          ? fantacalcioPreviewFixture
+          : null;
+
+      const compatibleOneToOnePreview =
+        scheduledOneToOneFixture &&
+        oneToOnePreviewFixture &&
+        (oneToOnePreviewFixture.home_member_id ||
+          oneToOnePreviewFixture.home?.member_id ||
+          "") === scheduledOneToOneFixture.home_member_id &&
+        (oneToOnePreviewFixture.away_member_id ||
+          oneToOnePreviewFixture.away?.member_id ||
+          null) === scheduledOneToOneFixture.away_member_id
+          ? oneToOnePreviewFixture
+          : null;
+
       const fantacalcioFixture: FantacalcioFixture | null =
-        fantacalcioPreviewFixture ||
-        (scheduledFantacalcioFixture
+        scheduledFantacalcioFixture
           ? {
+              ...(compatibleFantacalcioPreview || {}),
               fixture_phase: scheduledFantacalcioFixture.fixture_phase,
               is_bye: scheduledFantacalcioFixture.is_bye,
               home_member_id: scheduledFantacalcioFixture.home_member_id,
               home_display_name: scheduledFantacalcioFixture.home_display_name,
               away_member_id: scheduledFantacalcioFixture.away_member_id,
               away_display_name: scheduledFantacalcioFixture.away_display_name,
+              home: {
+                ...(compatibleFantacalcioPreview?.home || {}),
+                member_id: scheduledFantacalcioFixture.home_member_id,
+                display_name:
+                  scheduledFantacalcioFixture.home_display_name,
+              },
+              away: scheduledFantacalcioFixture.away_member_id
+                ? {
+                    ...(compatibleFantacalcioPreview?.away || {}),
+                    member_id: scheduledFantacalcioFixture.away_member_id,
+                    display_name:
+                      scheduledFantacalcioFixture.away_display_name,
+                  }
+                : null,
             }
-          : null);
+          : null;
 
       const oneToOneFixture: OneToOneFixture | null =
-        oneToOnePreviewFixture ||
-        (scheduledOneToOneFixture
+        scheduledOneToOneFixture
           ? {
+              ...(compatibleOneToOnePreview || {}),
               fixture_phase: scheduledOneToOneFixture.fixture_phase,
               is_bye: scheduledOneToOneFixture.is_bye,
               home_member_id: scheduledOneToOneFixture.home_member_id,
               home_display_name: scheduledOneToOneFixture.home_display_name,
               away_member_id: scheduledOneToOneFixture.away_member_id,
               away_display_name: scheduledOneToOneFixture.away_display_name,
+              home: {
+                ...(compatibleOneToOnePreview?.home || {}),
+                member_id: scheduledOneToOneFixture.home_member_id,
+                display_name:
+                  scheduledOneToOneFixture.home_display_name,
+              },
+              away: scheduledOneToOneFixture.away_member_id
+                ? {
+                    ...(compatibleOneToOnePreview?.away || {}),
+                    member_id: scheduledOneToOneFixture.away_member_id,
+                    display_name:
+                      scheduledOneToOneFixture.away_display_name,
+                  }
+                : null,
             }
-          : null);
+          : null;
 
       setLiveModeSummary({
         purePoints: toFiniteNumber(purePointsRow?.round_points),

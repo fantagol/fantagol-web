@@ -71,6 +71,56 @@ type MyLeagueRpcRow = {
   role: string | null;
 };
 
+type CanonicalMatchupRow = {
+  fixture_id: string;
+  mode: "fantacalcio" | "one_to_one";
+  current_member_id: string;
+  opponent_member_id: string | null;
+  opponent_display_name: string | null;
+  is_bye: boolean;
+};
+
+type CanonicalSwipeFixtureRow = {
+  id: string;
+  schedule_version_id: string;
+  league_id: string;
+  league_round_id: string;
+  mode: string;
+  pairing_round_number: number;
+  home_member_id: string;
+  away_member_id: string | null;
+  is_bye: boolean;
+};
+
+type CanonicalSwipeScreen = {
+  fixtureId: string;
+  pairingRoundNumber: number;
+  isBye: boolean;
+  isCurrentUser: boolean;
+  currentMemberId: string | null;
+  homeMemberId: string;
+  awayMemberId: string | null;
+  homeMember: CanonicalLeagueMemberRow | null;
+  awayMember: CanonicalLeagueMemberRow | null;
+};
+type CanonicalLeagueMemberRow = {
+  membership_id: string;
+  display_name: string | null;
+  club_name: string | null;
+  motto: string | null;
+  avatar_url: string | null;
+  crest_url: string | null;
+  avatar_zoom: number | string | null;
+  avatar_x: number | string | null;
+  avatar_y: number | string | null;
+  kit_template: string | null;
+  kit_primary_color: string | null;
+  kit_secondary_color: string | null;
+  kit_third_color: string | null;
+  kit_logo_mode: string | null;
+  kit_crest_position: string | null;
+  stars_count: number | null;
+};
 type ClubInfo = {
   name: string;
   motto?: string | null;
@@ -684,6 +734,9 @@ export default function FantacalcioLivePage() {
   const swipeLockRef = useRef<"x" | "y" | null>(null);
   const [swipeDragX, setSwipeDragX] = useState(0);
   const [swipeTransition, setSwipeTransition] = useState(false);
+  const [canonicalSwipeScreens, setCanonicalSwipeScreens] = useState<
+    CanonicalSwipeScreen[]
+  >([]);
   const [opponentClubInfo, setOpponentClubInfo] = useState<ClubInfo | null>(
     null,
   );
@@ -862,6 +915,179 @@ export default function FantacalcioLivePage() {
         setStrategyPendingSchedule(false);
       }
 
+      const { data: matchupData, error: matchupError } =
+        await supabase.rpc("get_my_dashboard_matchups_rpc", {
+          p_league_round_id: currentLeagueRoundId,
+        });
+
+      if (matchupError) {
+        setStrategyError(matchupError.message);
+        setStrategyLoading(false);
+        return;
+      }
+
+      const canonicalMatchup =
+        ((matchupData || []) as CanonicalMatchupRow[]).find(
+          (row) => row.mode === "fantacalcio",
+        ) || null;
+
+      if (canonicalMatchup?.opponent_member_id) {
+        const [
+          { data: memberData, error: memberError },
+          { data: scheduleData, error: scheduleError },
+        ] = await Promise.all([
+          supabase.rpc("get_current_league_members_v2_rpc", {
+            target_league_id: leagueId,
+          }),
+          supabase
+            .from("league_schedule_versions")
+            .select("id")
+            .eq("league_id", leagueId)
+            .eq("active", true)
+            .order("version", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        if (scheduleError) {
+          setStrategyError(scheduleError.message);
+          setStrategyLoading(false);
+          return;
+        }
+
+        if (memberError) {
+          setStrategyError(memberError.message);
+          setStrategyLoading(false);
+          return;
+        }
+
+        const members =
+          (memberData || []) as CanonicalLeagueMemberRow[];
+
+        if (!scheduleData?.id) {
+          setCanonicalSwipeScreens([]);
+        } else {
+          const { data: fixtureData, error: fixtureError } =
+            await supabase
+              .from("league_fixtures")
+              .select(
+                "id,schedule_version_id,league_id,league_round_id,mode,pairing_round_number,home_member_id,away_member_id,is_bye",
+              )
+              .eq("schedule_version_id", scheduleData.id)
+              .eq("league_round_id", currentLeagueRoundId)
+              .eq("mode", "fantacalcio")
+              .order("pairing_round_number", { ascending: true })
+              .order("id", { ascending: true });
+
+          if (fixtureError) {
+            setStrategyError(fixtureError.message);
+            setStrategyLoading(false);
+            return;
+          }
+
+          const memberById = new Map(
+            members.map((member) => [
+              member.membership_id,
+              member,
+            ]),
+          );
+
+          const currentMemberId =
+            canonicalMatchup?.current_member_id || null;
+
+          const screens =
+            ((fixtureData || []) as CanonicalSwipeFixtureRow[])
+              .map((fixture) => ({
+                fixtureId: fixture.id,
+                pairingRoundNumber:
+                  fixture.pairing_round_number,
+                isBye: fixture.is_bye,
+                isCurrentUser: Boolean(
+                  currentMemberId &&
+                    (fixture.home_member_id === currentMemberId ||
+                      fixture.away_member_id === currentMemberId),
+                ),
+                currentMemberId,
+                homeMemberId: fixture.home_member_id,
+                awayMemberId: fixture.away_member_id,
+                homeMember:
+                  memberById.get(fixture.home_member_id) || null,
+                awayMember: fixture.away_member_id
+                  ? memberById.get(fixture.away_member_id) || null
+                  : null,
+              }))
+              .sort((left, right) => {
+                if (left.isCurrentUser !== right.isCurrentUser) {
+                  return left.isCurrentUser ? -1 : 1;
+                }
+
+                if (
+                  left.pairingRoundNumber !==
+                  right.pairingRoundNumber
+                ) {
+                  return (
+                    left.pairingRoundNumber -
+                    right.pairingRoundNumber
+                  );
+                }
+
+                return left.fixtureId.localeCompare(
+                  right.fixtureId,
+                );
+              });
+
+          setCanonicalSwipeScreens(screens);
+        }
+        const opponentMember =
+          ((memberData || []) as CanonicalLeagueMemberRow[]).find(
+            (member) =>
+              member.membership_id ===
+              canonicalMatchup.opponent_member_id,
+          ) || null;
+
+        if (!opponentMember) {
+          setStrategyError(
+            "L'avversario della giornata non è presente tra i membri attivi della lega.",
+          );
+          setStrategyLoading(false);
+          return;
+        }
+
+        setOpponentClubInfo({
+          name:
+            opponentMember.club_name ||
+            opponentMember.display_name ||
+            canonicalMatchup.opponent_display_name ||
+            "Avversario",
+          motto: opponentMember.motto || null,
+          crest_url:
+            opponentMember.crest_url ||
+            opponentMember.avatar_url ||
+            null,
+          avatar_zoom: Number(opponentMember.avatar_zoom || 1),
+          avatar_x: Number(opponentMember.avatar_x || 0),
+          avatar_y: Number(opponentMember.avatar_y || 0),
+          kit_template:
+            opponentMember.kit_template || "solid",
+          kit_primary_color:
+            opponentMember.kit_primary_color || "#FFFFFF",
+          kit_secondary_color:
+            opponentMember.kit_secondary_color || "#111417",
+          kit_third_color:
+            opponentMember.kit_third_color || "#A6E824",
+          kit_logo_mode:
+            opponentMember.kit_logo_mode ||
+            "center_horizontal",
+          kit_crest_position:
+            opponentMember.kit_crest_position ||
+            "left_chest",
+          stars_count:
+            opponentMember.stars_count || 0,
+        });
+      } else {
+        setOpponentClubInfo(null);
+      }
+
       const rows = (predictionData || []) as RoundPredictionRow[];
       if (rows.length !== 10) {
         setStrategyError(
@@ -977,84 +1203,134 @@ export default function FantacalcioLivePage() {
   const interactionLocked =
     strategyLocked || (activeSwipeIndex === 0 && isByeRound);
   const isLiveForSwipe = strategyLocked;
-  const swipeProfiles = useMemo(
-    () => [
-      {
-        id: "me",
-        clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
-        motto:
-          clubInfo?.motto ||
-          "Il tuo Club FantaGol sta per iniziare la sua storia.",
-        avatarUrl: clubInfo?.crest_url || null,
-        avatarZoom: clubInfo?.avatar_zoom || 1,
-        avatarX: clubInfo?.avatar_x || 0,
-        avatarY: clubInfo?.avatar_y || 0,
-        kitTemplate: clubInfo?.kit_template || "solid",
-        kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
-        kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
-        kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
-        kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
-        kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
-        starsCount: clubInfo?.stars_count || 0,
-        isCurrentUser: true,
-      },
-      {
-        id: "demo-1",
-        clubName: "Real Exact",
-        motto: "Precisione, coraggio e pronostici al millimetro.",
-        avatarUrl: null,
-        avatarZoom: 1,
-        avatarX: 0,
-        avatarY: 0,
-        kitTemplate: "vertical_3",
-        kitPrimaryColor: "#A6E824",
-        kitSecondaryColor: "#111417",
-        kitThirdColor: "#FFFFFF",
-        kitLogoMode: "center_horizontal",
-        kitCrestPosition: "left_chest",
-        starsCount: 2,
-      },
-      {
-        id: "demo-2",
-        clubName: "Bonus Show",
-        motto: "Ogni bonus è una dichiarazione di intenti.",
-        avatarUrl: null,
-        avatarZoom: 1,
-        avatarX: 0,
-        avatarY: 0,
-        kitTemplate: "diagonal",
-        kitPrimaryColor: "#1f2427",
-        kitSecondaryColor: "#A6E824",
-        kitThirdColor: "#FFFFFF",
-        kitLogoMode: "wordmark_only",
-        kitCrestPosition: "left_chest",
-        starsCount: 1,
-      },
-    ],
-    [clubInfo, leagueInfo.displayName],
-  );
+      const swipeProfiles = canonicalSwipeScreens.map((screen) => {
+    const currentUserIsAway = Boolean(
+      screen.isCurrentUser &&
+        screen.currentMemberId &&
+        screen.awayMemberId === screen.currentMemberId,
+    );
 
+    const leftMember = currentUserIsAway
+      ? screen.awayMember
+      : screen.homeMember;
+
+    const rightMember = currentUserIsAway
+      ? screen.homeMember
+      : screen.awayMember;
+
+    const leftClub: ClubInfo = {
+      name:
+        leftMember?.club_name ||
+        leftMember?.display_name ||
+        "Club FantaGol",
+      motto: leftMember?.motto || null,
+      crest_url:
+        leftMember?.crest_url ||
+        leftMember?.avatar_url ||
+        null,
+      avatar_zoom: Number(leftMember?.avatar_zoom || 1),
+      avatar_x: Number(leftMember?.avatar_x || 0),
+      avatar_y: Number(leftMember?.avatar_y || 0),
+      kit_template: leftMember?.kit_template || "solid",
+      kit_primary_color:
+        leftMember?.kit_primary_color || "#FFFFFF",
+      kit_secondary_color:
+        leftMember?.kit_secondary_color || "#111417",
+      kit_third_color:
+        leftMember?.kit_third_color || "#A6E824",
+      kit_logo_mode:
+        leftMember?.kit_logo_mode || "center_horizontal",
+      kit_crest_position:
+        leftMember?.kit_crest_position || "left_chest",
+      stars_count: leftMember?.stars_count || 0,
+    };
+
+    const rightClub: ClubInfo | null = screen.isBye
+      ? null
+      : {
+          name:
+            rightMember?.club_name ||
+            rightMember?.display_name ||
+            "Club FantaGol",
+          motto: rightMember?.motto || null,
+          crest_url:
+            rightMember?.crest_url ||
+            rightMember?.avatar_url ||
+            null,
+          avatar_zoom: Number(rightMember?.avatar_zoom || 1),
+          avatar_x: Number(rightMember?.avatar_x || 0),
+          avatar_y: Number(rightMember?.avatar_y || 0),
+          kit_template:
+            rightMember?.kit_template || "solid",
+          kit_primary_color:
+            rightMember?.kit_primary_color || "#FFFFFF",
+          kit_secondary_color:
+            rightMember?.kit_secondary_color || "#111417",
+          kit_third_color:
+            rightMember?.kit_third_color || "#A6E824",
+          kit_logo_mode:
+            rightMember?.kit_logo_mode || "center_horizontal",
+          kit_crest_position:
+            rightMember?.kit_crest_position || "left_chest",
+          stars_count: rightMember?.stars_count || 0,
+        };
+
+    return {
+      id: screen.fixtureId,
+      isCurrentUser: screen.isCurrentUser,
+
+      clubName: leftClub.name,
+      motto: leftClub.motto,
+      avatarUrl: leftClub.crest_url,
+      avatarZoom: leftClub.avatar_zoom,
+      avatarX: leftClub.avatar_x,
+      avatarY: leftClub.avatar_y,
+      kitTemplate: leftClub.kit_template,
+      kitPrimaryColor: leftClub.kit_primary_color,
+      kitSecondaryColor: leftClub.kit_secondary_color,
+      kitThirdColor: leftClub.kit_third_color,
+      kitLogoMode: leftClub.kit_logo_mode,
+      kitCrestPosition: leftClub.kit_crest_position,
+      starsCount: leftClub.stars_count,
+
+      leftClub,
+      rightClub,
+      fixture: screen,
+    };
+  });
   const activeProfile =
     swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
+
   const isFirstProfile = activeSwipeIndex === 0;
-  const isLastProfile = activeSwipeIndex === swipeProfiles.length - 1;
-  const isViewingSelf = activeProfile?.isCurrentUser === true;
-  const viewedIsByeRound = isViewingSelf ? isByeRound : false;
-  const viewedClubInfo: ClubInfo = {
-    name: activeProfile?.clubName || "Club FantaGol",
-    motto: activeProfile?.motto || null,
-    crest_url: activeProfile?.avatarUrl || null,
-    avatar_zoom: activeProfile?.avatarZoom || 1,
-    avatar_x: activeProfile?.avatarX || 0,
-    avatar_y: activeProfile?.avatarY || 0,
-    kit_template: activeProfile?.kitTemplate || "solid",
-    kit_primary_color: activeProfile?.kitPrimaryColor || "#FFFFFF",
-    kit_secondary_color: activeProfile?.kitSecondaryColor || "#111417",
-    kit_third_color: activeProfile?.kitThirdColor || "#A6E824",
-    kit_logo_mode: activeProfile?.kitLogoMode || "center_horizontal",
-    kit_crest_position: activeProfile?.kitCrestPosition || "left_chest",
-    stars_count: activeProfile?.starsCount || 0,
-  };
+  const isLastProfile =
+    activeSwipeIndex === swipeProfiles.length - 1;
+
+  const isViewingSelf =
+    activeProfile?.isCurrentUser === true;
+
+  const viewedIsByeRound =
+    activeProfile?.fixture.isBye === true;
+
+  const viewedClubInfo: ClubInfo =
+    activeProfile?.leftClub || {
+      name: "Club FantaGol",
+      motto: null,
+      crest_url: null,
+      avatar_zoom: 1,
+      avatar_x: 0,
+      avatar_y: 0,
+      kit_template: "solid",
+      kit_primary_color: "#FFFFFF",
+      kit_secondary_color: "#111417",
+      kit_third_color: "#A6E824",
+      kit_logo_mode: "center_horizontal",
+      kit_crest_position: "left_chest",
+      stars_count: 0,
+    };
+
+  const viewedOpponentClubInfo: ClubInfo | null =
+    activeProfile?.rightClub || null;
+
   const canViewProfileContent = isViewingSelf || isLiveForSwipe;
   const displayedLeftPoints = canViewProfileContent ? leftPoints : 0;
   const displayedRightPoints = canViewProfileContent ? rightPoints : 0;
@@ -1067,7 +1343,7 @@ export default function FantacalcioLivePage() {
       typeof window !== "undefined" ? window.innerWidth : 420;
     const exitX = direction === "next" ? -viewportWidth : viewportWidth;
     const enterX =
-      direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
+      direction === "next" ? viewportWidth * 0.30 : -viewportWidth * 0.30;
 
     setSwipeTransition(true);
     setSwipeDragX(exitX);
@@ -1145,6 +1421,11 @@ export default function FantacalcioLivePage() {
 
     if (swipeLockRef.current !== "x") return;
 
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+
     const blockedAtStart = isFirstProfile && deltaX > 0;
     const blockedAtEnd = isLastProfile && deltaX < 0;
     const resistance = blockedAtStart || blockedAtEnd ? 0.22 : 1;
@@ -1158,6 +1439,14 @@ export default function FantacalcioLivePage() {
     const endX = event.changedTouches[0]?.clientX ?? swipeStartXRef.current;
     const deltaX = endX - swipeStartXRef.current;
     const threshold = 70;
+    const wasHorizontalSwipe = swipeLockRef.current === "x";
+
+    if (wasHorizontalSwipe) {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      event.stopPropagation();
+    }
 
     swipeStartXRef.current = null;
     swipeStartYRef.current = null;
@@ -1339,7 +1628,7 @@ export default function FantacalcioLivePage() {
 
   return (
     <main
-      className="min-h-screen overflow-x-hidden bg-[#061014] text-white"
+      className="min-h-screen overflow-x-hidden bg-[#061014] text-white [touch-action:pan-y] [overscroll-behavior-x:none]"
       onTouchStart={handlePageSwipeStart}
       onTouchMove={handlePageSwipeMove}
       onTouchEnd={handlePageSwipeEnd}
@@ -1461,10 +1750,10 @@ export default function FantacalcioLivePage() {
                   name={
                     viewedIsByeRound
                       ? "Riposo"
-                      : opponentClubInfo?.name || "Avversario"
+                      : viewedOpponentClubInfo?.name || "Avversario"
                   }
                   avatarUrl={
-                    viewedIsByeRound ? null : opponentClubInfo?.crest_url
+                    viewedIsByeRound ? null : viewedOpponentClubInfo?.crest_url
                   }
                   avatarZoom={1}
                   avatarX={0}
@@ -1478,7 +1767,7 @@ export default function FantacalcioLivePage() {
                 >
                   {viewedIsByeRound
                     ? "Riposo"
-                    : opponentClubInfo?.name || "Avversario"}
+                    : viewedOpponentClubInfo?.name || "Avversario"}
                 </p>
               </div>
             </div>
@@ -1651,7 +1940,7 @@ export default function FantacalcioLivePage() {
               VS
             </div>
 
-            <ClubKitMini club={opponentClubInfo} align="right" />
+            <ClubKitMini club={viewedOpponentClubInfo} align="right" />
           </section>
         )}
 

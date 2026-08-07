@@ -254,7 +254,7 @@ export default function LeagueCalendarPage() {
           .eq("active", true)
           .order("version", { ascending: false })
           .limit(1),
-        supabase.rpc("get_current_league_members_rpc", {
+        supabase.rpc("get_current_league_members_v2_rpc", {
           target_league_id: leagueId,
         }),
       ]);

@@ -34,6 +34,37 @@ type MyLeagueRpcRow = {
   status?: string | null;
 };
 
+type CanonicalLeagueMemberRow = {
+  membership_id: string;
+  league_id: string;
+  user_id: string;
+  display_name: string | null;
+  club_name: string | null;
+  motto: string | null;
+  role: string;
+  status: string;
+  joined_at: string;
+  avatar_url: string | null;
+  crest_url: string | null;
+  avatar_zoom: number | null;
+  avatar_x: number | null;
+  avatar_y: number | null;
+  kit_template: string | null;
+  kit_primary_color: string | null;
+  kit_secondary_color: string | null;
+  kit_third_color: string | null;
+  kit_logo_mode: string | null;
+  kit_crest_position: string | null;
+  stars_count: number | null;
+};
+
+type CrossMemberPredictionRow = {
+  league_member_id: string;
+  match_id: string;
+  home_prediction: number | null;
+  away_prediction: number | null;
+};
+
 type ClubInfo = {
   name: string;
   motto?: string | null;
@@ -415,6 +446,11 @@ export default function GiornataPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const [clubInfo, setClubInfo] = useState<ClubInfo | null>(null);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
+  const [leagueMembers, setLeagueMembers] = useState<CanonicalLeagueMemberRow[]>([]);
+  const [crossMemberPredictions, setCrossMemberPredictions] = useState<
+    CrossMemberPredictionRow[]
+  >([]);
   const [activeSwipeIndex, setActiveSwipeIndex] = useState(0);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeStartYRef = useRef<number | null>(null);
@@ -455,6 +491,43 @@ export default function GiornataPage() {
         (row: MyLeagueRpcRow) => row.league_id === leagueId,
       );
       if (!current) return;
+
+      const resolvedCurrentMemberId = current.membership_id || null;
+      setCurrentMemberId(resolvedCurrentMemberId);
+
+      const { data: memberData, error: memberError } =
+        await supabase.rpc("get_current_league_members_v2_rpc", {
+          target_league_id: leagueId,
+        });
+
+      if (!memberError) {
+        const activeMembers =
+          ((memberData || []) as CanonicalLeagueMemberRow[])
+            .filter((member) => member.status === "active")
+            .sort((left, right) => {
+              const leftIsCurrent =
+                left.membership_id === resolvedCurrentMemberId;
+              const rightIsCurrent =
+                right.membership_id === resolvedCurrentMemberId;
+
+              if (leftIsCurrent !== rightIsCurrent) {
+                return leftIsCurrent ? -1 : 1;
+              }
+
+              const leftJoined = left.joined_at || "9999";
+              const rightJoined = right.joined_at || "9999";
+
+              if (leftJoined !== rightJoined) {
+                return leftJoined.localeCompare(rightJoined);
+              }
+
+              return left.membership_id.localeCompare(
+                right.membership_id,
+              );
+            });
+
+        setLeagueMembers(activeMembers);
+      }
 
       setLeagueInfo({
         name: current.league_name || "Lega FantaGol",
@@ -562,7 +635,8 @@ export default function GiornataPage() {
         return;
       }
 
-      setRound(buildRoundView(rows[0]));
+      const nextRound = buildRoundView(rows[0]);
+      setRound(nextRound);
       setMatches(
         rows.map((row) => {
           const kickoff = formatKickoff(row.kickoff);
@@ -600,6 +674,27 @@ export default function GiornataPage() {
       setPredictionSaveErrors(rows.map(() => null));
       setSubmitted(rows.some((row) => row.has_official_submission));
       setHasUnconfirmedChanges(rows.some((row) => row.has_unconfirmed_changes));
+
+      if (nextRound.isLive || nextRound.isFinished) {
+        const { data: visiblePredictionData, error: visiblePredictionError } =
+          await supabase
+            .from("predictions")
+            .select("league_member_id,match_id,home_prediction,away_prediction")
+            .eq("league_round_id", currentRound.league_round_id);
+
+        if (cancelled) return;
+
+        if (!visiblePredictionError) {
+          setCrossMemberPredictions(
+            (visiblePredictionData || []) as CrossMemberPredictionRow[],
+          );
+        } else {
+          setCrossMemberPredictions([]);
+        }
+      } else {
+        setCrossMemberPredictions([]);
+      }
+
       setRoundLoading(false);
     }
 
@@ -628,52 +723,64 @@ export default function GiornataPage() {
 
   const isLiveForSwipe = round?.isLive === true || round?.isFinished === true;
   const swipeProfiles = useMemo(
-    () => [
-      {
-        id: "me",
-        clubName: clubInfo?.name || leagueInfo.displayName || "Club FantaGol",
+    () =>
+      leagueMembers.map((member) => ({
+        id: member.membership_id,
+        memberId: member.membership_id,
+        clubName:
+          member.club_name ||
+          member.display_name ||
+          "Club FantaGol",
         motto:
-          clubInfo?.motto ||
+          member.motto ||
           "Il tuo Club FantaGol sta per iniziare la sua storia.",
-        avatarUrl: clubInfo?.crest_url || null,
-        kitTemplate: clubInfo?.kit_template || "solid",
-        kitPrimaryColor: clubInfo?.kit_primary_color || "#FFFFFF",
-        kitSecondaryColor: clubInfo?.kit_secondary_color || "#111417",
-        kitThirdColor: clubInfo?.kit_third_color || "#A6E824",
-        kitLogoMode: clubInfo?.kit_logo_mode || "center_horizontal",
-        kitCrestPosition: clubInfo?.kit_crest_position || "left_chest",
-        starsCount: clubInfo?.stars_count || 0,
-        isCurrentUser: true,
-      },
-      {
-        id: "demo-1",
-        clubName: "Real Exact",
-        motto: "Precisione, coraggio e pronostici al millimetro.",
-        avatarUrl: null,
-        kitTemplate: "vertical_3",
-        kitPrimaryColor: "#A6E824",
-        kitSecondaryColor: "#111417",
-        kitThirdColor: "#FFFFFF",
-        kitLogoMode: "center_horizontal",
-        kitCrestPosition: "left_chest",
-        starsCount: 2,
-      },
-      {
-        id: "demo-2",
-        clubName: "Bonus Show",
-        motto: "Ogni bonus è una dichiarazione di intenti.",
-        avatarUrl: null,
-        kitTemplate: "diagonal",
-        kitPrimaryColor: "#1f2427",
-        kitSecondaryColor: "#A6E824",
-        kitThirdColor: "#FFFFFF",
-        kitLogoMode: "wordmark_only",
-        kitCrestPosition: "left_chest",
-        starsCount: 1,
-      },
-    ],
-    [clubInfo, leagueInfo.displayName],
+        avatarUrl:
+          member.crest_url ||
+          member.avatar_url ||
+          null,
+        kitTemplate: member.kit_template || "solid",
+        kitPrimaryColor:
+          member.kit_primary_color || "#FFFFFF",
+        kitSecondaryColor:
+          member.kit_secondary_color || "#111417",
+        kitThirdColor:
+          member.kit_third_color || "#A6E824",
+        kitLogoMode:
+          member.kit_logo_mode || "center_horizontal",
+        kitCrestPosition:
+          member.kit_crest_position || "left_chest",
+        starsCount: member.stars_count || 0,
+        isCurrentUser:
+          member.membership_id === currentMemberId,
+      })),
+    [leagueMembers, currentMemberId],
   );
+
+  const predictionsByMemberAndMatch = useMemo(() => {
+    const index = new Map<string, Map<string, Prediction>>();
+
+    crossMemberPredictions.forEach((row) => {
+      let memberMap = index.get(row.league_member_id);
+
+      if (!memberMap) {
+        memberMap = new Map<string, Prediction>();
+        index.set(row.league_member_id, memberMap);
+      }
+
+      memberMap.set(row.match_id, {
+        home:
+          row.home_prediction === null
+            ? ""
+            : String(row.home_prediction),
+        away:
+          row.away_prediction === null
+            ? ""
+            : String(row.away_prediction),
+      });
+    });
+
+    return index;
+  }, [crossMemberPredictions]);
 
   const activeProfile =
     swipeProfiles[Math.min(activeSwipeIndex, swipeProfiles.length - 1)];
@@ -694,9 +801,20 @@ export default function GiornataPage() {
   };
   const canEdit = round?.canEdit === true && isViewingSelf;
   const canViewProfileContent = isViewingSelf || isLiveForSwipe;
+
+  const viewedMemberPredictions =
+    activeProfile?.memberId && !isViewingSelf
+      ? matches.map((match) =>
+          predictionsByMemberAndMatch
+            .get(activeProfile.memberId)
+            ?.get(match.id) || { home: "", away: "" },
+        )
+      : predictions;
+
   const displayedPredictions = canViewProfileContent
-    ? predictions
+    ? viewedMemberPredictions
     : matches.map(() => ({ home: "", away: "" }));
+
   const displayedCurrentPoints = canViewProfileContent ? currentPoints : 0;
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
@@ -705,7 +823,7 @@ export default function GiornataPage() {
       typeof window !== "undefined" ? window.innerWidth : 420;
     const exitX = direction === "next" ? -viewportWidth : viewportWidth;
     const enterX =
-      direction === "next" ? viewportWidth * 0.18 : -viewportWidth * 0.18;
+      direction === "next" ? viewportWidth * 0.30 : -viewportWidth * 0.30;
 
     setSwipeTransition(true);
     setSwipeDragX(exitX);
@@ -783,6 +901,11 @@ export default function GiornataPage() {
 
     if (swipeLockRef.current !== "x") return;
 
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+
     const blockedAtStart = isFirstProfile && deltaX > 0;
     const blockedAtEnd = isLastProfile && deltaX < 0;
     const resistance = blockedAtStart || blockedAtEnd ? 0.22 : 1;
@@ -796,6 +919,14 @@ export default function GiornataPage() {
     const endX = event.changedTouches[0]?.clientX ?? swipeStartXRef.current;
     const deltaX = endX - swipeStartXRef.current;
     const threshold = 70;
+    const wasHorizontalSwipe = swipeLockRef.current === "x";
+
+    if (wasHorizontalSwipe) {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      event.stopPropagation();
+    }
 
     swipeStartXRef.current = null;
     swipeStartYRef.current = null;
@@ -990,7 +1121,7 @@ export default function GiornataPage() {
 
   return (
     <main
-      className="min-h-screen overflow-x-hidden bg-[#061014] text-white"
+      className="min-h-screen overflow-x-hidden bg-[#061014] text-white [touch-action:pan-y] [overscroll-behavior-x:none]"
       onTouchStart={handlePageSwipeStart}
       onTouchMove={handlePageSwipeMove}
       onTouchEnd={handlePageSwipeEnd}
