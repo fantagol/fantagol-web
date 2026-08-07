@@ -1200,8 +1200,6 @@ export default function FantacalcioLivePage() {
   }, [leagueId]);
 
   const locked = strategyLocked;
-  const interactionLocked =
-    strategyLocked || (activeSwipeIndex === 0 && isByeRound);
   const isLiveForSwipe = strategyLocked;
       const swipeProfiles = canonicalSwipeScreens.map((screen) => {
     const currentUserIsAway = Boolean(
@@ -1307,6 +1305,9 @@ export default function FantacalcioLivePage() {
 
   const isViewingSelf =
     activeProfile?.isCurrentUser === true;
+
+  const interactionLocked =
+    strategyLocked || !isViewingSelf || (isViewingSelf && isByeRound);
 
   const viewedIsByeRound =
     activeProfile?.fixture.isBye === true;
@@ -1497,7 +1498,15 @@ export default function FantacalcioLivePage() {
       }));
 
   async function persistStrategy(nextRows: DuelMatch[]) {
-    if (strategyPendingSchedule || isByeRound || !leagueRoundId || nextRows.length !== 10) return;
+    if (
+      !isViewingSelf ||
+      strategyPendingSchedule ||
+      isByeRound ||
+      !leagueRoundId ||
+      nextRows.length !== 10
+    ) {
+      return;
+    }
 
     const payload = toFantacalcioStrategyPayload({
       attackMatchIds: nextRows.slice(0, 5).map((match) => match.id),
@@ -1527,7 +1536,14 @@ export default function FantacalcioLivePage() {
   }
 
   function handleSwapMatch(index: number) {
-    if (interactionLocked || strategyLoading || savingStrategy) return;
+    if (
+      !isViewingSelf ||
+      interactionLocked ||
+      strategyLoading ||
+      savingStrategy
+    ) {
+      return;
+    }
 
     if (selectedMatchIndex === null) {
       setSelectedMatchIndex(index);
@@ -2132,7 +2148,7 @@ export default function FantacalcioLivePage() {
               hasOfficialSubmission={hasOfficialSubmission}
               hasUnconfirmedChanges={hasUnconfirmedChanges}
               submitting={submitting || savingStrategy || strategyLoading}
-              disabled={liveRows.length !== 10}
+              disabled={!isViewingSelf || liveRows.length !== 10}
               onClick={submitStrategy}
             />
           </section>
