@@ -355,6 +355,7 @@ function DrawerMenuItem({
   danger = false,
   special = false,
   publicAccent = false,
+  badgeText,
   onClick,
 }: {
   icon: string;
@@ -363,6 +364,7 @@ function DrawerMenuItem({
   danger?: boolean;
   special?: boolean;
   publicAccent?: boolean;
+  badgeText?: string;
   onClick: () => void;
 }) {
   return (
@@ -392,16 +394,24 @@ function DrawerMenuItem({
         )}
       </span>
 
-      <span
-        className={`shrink-0 text-lg font-black ${
-          danger
-            ? "text-red-400"
-            : publicAccent
-              ? "text-[#73CFE6]"
-              : "text-[#A6E824]"
-        }`}
-      >
-        →
+      <span className="flex shrink-0 items-center gap-2">
+        {badgeText && (
+          <span className="rounded-full border border-[#A6E824]/40 bg-[#A6E824]/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#A6E824]">
+            {badgeText}
+          </span>
+        )}
+
+        <span
+          className={`text-lg font-black ${
+            danger
+              ? "text-red-400"
+              : publicAccent
+                ? "text-[#73CFE6]"
+                : "text-[#A6E824]"
+          }`}
+        >
+          →
+        </span>
       </span>
     </button>
   );
@@ -718,6 +728,7 @@ export default function HamburgerDrawer({
   const [leagueActionModal, setLeagueActionModal] =
     useState<LeagueActionModal>(null);
   const [leagueActionLoading, setLeagueActionLoading] = useState(false);
+  const [rewardUnseenPasses, setRewardUnseenPasses] = useState(0);
   const isNativeApp = useNativeAppMode();
 
   function getCurrentLeagueIdFromPath() {
@@ -727,6 +738,35 @@ export default function HamburgerDrawer({
 
   useEffect(() => {
     if (!open) return;
+
+    async function loadRewardSignal() {
+      const { data, error } = await supabase.rpc(
+        "get_my_reward_signal_rpc",
+      );
+
+      if (error) {
+        console.error(
+          "[HamburgerDrawer] Reward signal load failed.",
+          error,
+        );
+        return;
+      }
+
+      const payload =
+        data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : null;
+
+      const unseenPasses = Number(payload?.unseen_passes ?? 0);
+
+      setRewardUnseenPasses(
+        Number.isFinite(unseenPasses) && unseenPasses > 0
+          ? Math.trunc(unseenPasses)
+          : 0,
+      );
+    }
+
+    void loadRewardSignal();
 
     async function loadCurrentLeague() {
       const leagueId = getCurrentLeagueIdFromPath();
@@ -1350,6 +1390,11 @@ export default function HamburgerDrawer({
             title="CONTROL ROOM"
             subtitle="Statistiche globali FantaGol"
             special
+            badgeText={
+              rewardUnseenPasses > 0
+                ? "NUOVO"
+                : undefined
+            }
             onClick={() => goTo("/control-room")}
           />
 

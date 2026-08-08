@@ -197,20 +197,6 @@ const EMPTY_LEAGUE_INFO: LeagueInfo = {
   role: "member",
 };
 
-const CONTROL_ROOM_ACCESS_SECONDS = 15 * 60;
-const CONTROL_ROOM_ACCESS_STORAGE_PREFIX = "fantagol-control-room-access";
-
-/**
- * Temporary inspection mode.
- *
- * While true:
- * - every page entry starts a fresh 15-minute session;
- * - an expired local timer is automatically replaced;
- * - reaching 00:00 renews the local inspection session instead of redirecting.
- *
- * Set to false when the server-side pass validation and kick-out flow are ready.
- */
-const CONTROL_ROOM_SERVICE_ACCESS = true;
 
 function toNumber(value: unknown, fallback = 0): number {
   const parsed = Number(value);
@@ -1056,51 +1042,150 @@ export default function ControlRoomDetailPage() {
     Record<string, MatchPayload>
   >({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
-  const [remainingSeconds, setRemainingSeconds] = useState(
-    CONTROL_ROOM_ACCESS_SECONDS,
-  );
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [premiumAccessReady, setPremiumAccessReady] = useState(false);
 
   useEffect(() => {
-    const pathname = window.location.pathname;
-    const storageKey = `${CONTROL_ROOM_ACCESS_STORAGE_PREFIX}:${pathname}`;
-    const createExpiry = () =>
-      Date.now() + CONTROL_ROOM_ACCESS_SECONDS * 1000;
+    let cancelled = false;
+    let redirected = false;
+    let syncInFlight = false;
+    let accessConfirmed = false;
+    let currentRemainingSeconds = 0;
 
-    const storedExpiry = Number(sessionStorage.getItem(storageKey));
-    const storedExpiryIsValid =
-      Number.isFinite(storedExpiry) && storedExpiry > Date.now();
+    const match = window.location.pathname.match(
+      /^\/control-room\/([^/]+)\/?$/,
+    );
 
-    let expiry =
-      CONTROL_ROOM_SERVICE_ACCESS || !storedExpiryIsValid
-        ? createExpiry()
-        : storedExpiry;
+    const requestedSessionId = match
+      ? decodeURIComponent(match[1])
+      : null;
 
-    sessionStorage.setItem(storageKey, String(expiry));
+    const redirectExpired = () => {
+      if (cancelled || redirected) return;
 
-    const updateCountdown = () => {
-      const seconds = Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
-      setRemainingSeconds(seconds);
+      redirected = true;
+      accessConfirmed = false;
+      setPremiumAccessReady(false);
+      setRemainingSeconds(0);
 
-      if (seconds > 0) return;
-
-      if (CONTROL_ROOM_SERVICE_ACCESS) {
-        expiry = createExpiry();
-        sessionStorage.setItem(storageKey, String(expiry));
-        setRemainingSeconds(CONTROL_ROOM_ACCESS_SECONDS);
-        console.info(
-          "[Control Room] Sessione locale di servizio rinnovata per l'ispezione.",
-        );
-        return;
-      }
-
-      sessionStorage.removeItem(storageKey);
       window.location.replace("/control-room?access=expired");
     };
 
-    updateCountdown();
-    const intervalId = window.setInterval(updateCountdown, 1000);
+    const syncPremiumStatus = async () => {
+      if (cancelled || redirected || syncInFlight) return;
 
-    return () => window.clearInterval(intervalId);
+      syncInFlight = true;
+
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_my_premium_access_status_rpc",
+          {
+            p_resource_code: "CONTROL_ROOM",
+          },
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        if (cancelled || redirected) return;
+
+        const status =
+          data && typeof data === "object" && !Array.isArray(data)
+            ? (data as Record<string, unknown>)
+            : null;
+
+        const activeSessionId =
+          typeof status?.session_id === "string"
+            ? status.session_id
+            : null;
+
+        const backendRemainingSeconds = Number(
+          status?.remaining_seconds ?? 0,
+        );
+
+        const hasValidRemainingSeconds =
+          Number.isFinite(backendRemainingSeconds) &&
+          backendRemainingSeconds > 0;
+
+        if (
+          status?.authorized !== true ||
+          !requestedSessionId ||
+          activeSessionId !== requestedSessionId ||
+          !hasValidRemainingSeconds
+        ) {
+          redirectExpired();
+          return;
+        }
+
+        currentRemainingSeconds = Math.max(
+          0,
+          Math.trunc(backendRemainingSeconds),
+        );
+
+        accessConfirmed = true;
+        setRemainingSeconds(currentRemainingSeconds);
+        setPremiumAccessReady(true);
+      } catch (error) {
+        console.error(
+          "[Control Room] Premium access verification failed.",
+          error,
+        );
+
+        if (!accessConfirmed) {
+          redirectExpired();
+        }
+      } finally {
+        syncInFlight = false;
+      }
+    };
+
+    void syncPremiumStatus();
+
+    const countdownIntervalId = window.setInterval(() => {
+      if (cancelled || redirected || !accessConfirmed) {
+        return;
+      }
+
+      currentRemainingSeconds = Math.max(
+        0,
+        currentRemainingSeconds - 1,
+      );
+
+      setRemainingSeconds(currentRemainingSeconds);
+
+      if (currentRemainingSeconds === 0) {
+        accessConfirmed = false;
+        void syncPremiumStatus();
+      }
+    }, 1000);
+
+    const serverSyncIntervalId = window.setInterval(() => {
+      void syncPremiumStatus();
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void syncPremiumStatus();
+      }
+    };
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+
+    return () => {
+      cancelled = true;
+
+      window.clearInterval(countdownIntervalId);
+      window.clearInterval(serverSyncIntervalId);
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+    };
   }, []);
 
   const loadControlRoom = useCallback(async (manualRefresh = false) => {
@@ -1181,8 +1266,10 @@ export default function ControlRoomDetailPage() {
   }, []);
 
   useEffect(() => {
+    if (!premiumAccessReady) return;
+
     void loadControlRoom();
-  }, [loadControlRoom]);
+  }, [loadControlRoom, premiumAccessReady]);
 
   const overview = payload?.overview;
   const sourceMatches = useMemo(

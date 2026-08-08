@@ -1,3 +1,4 @@
+export * from "./certify-achievement-state-handler";
 export * from "./certification-readiness-handler";
 export * from "./certify-match-result-handler";
 export * from "./change-detector";

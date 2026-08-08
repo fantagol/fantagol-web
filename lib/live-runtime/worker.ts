@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { handleCertificationReadinessJob } from "./certification-readiness-handler";
+import { handleCertifyAchievementStateJob } from "./certify-achievement-state-handler";
 import { handleCertifyMatchResultJob } from "./certify-match-result-handler";
 import { handleCertifyRoundJob } from "./certify-round-handler";
 import { LiveRuntimeError } from "./errors";
@@ -266,6 +267,8 @@ const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
     handleRoundCertificationReadinessJob({ client, job }),
   certify_round: async ({ client, job }) =>
     handleCertifyRoundJob({ client, job }),
+  certify_achievement_state: async ({ client, job }) =>
+    handleCertifyAchievementStateJob({ client, job }),
 };
 
 export async function runLiveRuntimeWorkerOnce(

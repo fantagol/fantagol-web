@@ -6,8 +6,7 @@ import {
   requireSingleRpcRow,
 } from "./rpc-utils";
 
-export type LiveRuntimeJobType =
-  | "poll_match"
+export type LiveRuntimeJobType =| "poll_match"
   | "refresh_round"
   | "rebuild_league_round"
   | "publish_snapshot"
@@ -15,15 +14,19 @@ export type LiveRuntimeJobType =
   | "evaluate_certification_readiness"
   | "certify_match_result"
   | "evaluate_round_certification_readiness"
-  | "certify_round";
+  | "certify_round"
+  | "certify_achievement_state";
 
 export type LiveRuntimeScopeType =
   | "match"
   | "fantagol_round"
   | "league_round"
+  | "league"
+  | "league_member"
   | "round_simulation"
   | "live_state_snapshot"
-  | "publication";
+  | "publication"
+  | "account_lifecycle";
 
 export type LiveRuntimeJobStatus =
   | "pending"

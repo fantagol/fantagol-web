@@ -64,10 +64,206 @@ function FeaturePill({ label }: { label: string }) {
   );
 }
 
+type RewardSummaryRow = {
+  reward_code: string;
+  reward_label: string;
+  event_count: number;
+  passes_awarded: number;
+};
+
+const REWARD_DISPLAY_LABELS: Record<string, string> = {
+  LEAGUE_REACHED_8_ACTIVE_MEMBERS: "Lega 8+ membri",
+  CERTIFIED_EXACT_ACHIEVED: "Exact",
+  CERTIFIED_CANTONATA_ACHIEVED: "Cantonata",
+  CERTIFIED_GRAND_SLAM_ACHIEVED: "Grande Slam",
+  PROFILE_COMPLETED_AFTER_FIRST_LEAGUE_ROUND: "Profilo completato",
+  LEAGUE_SEASON_CERTIFIED_COMPLETE: "Stagione completata",
+};
+
+function getRewardDisplayLabel(reward: RewardSummaryRow) {
+  const baseLabel =
+    REWARD_DISPLAY_LABELS[reward.reward_code] ||
+    reward.reward_label?.trim() ||
+    reward.reward_code;
+
+  return reward.event_count > 1
+    ? `${reward.event_count} ${baseLabel}`
+    : baseLabel;
+}
+
 export default function ControlRoomPage() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [availablePasses] = useState(0);
+  const [availablePasses, setAvailablePasses] = useState(0);
+  const [premiumStatusLoading, setPremiumStatusLoading] = useState(true);
+  const [premiumAccessStarting, setPremiumAccessStarting] = useState(false);
+  const [activePremiumSessionId, setActivePremiumSessionId] = useState<string | null>(null);
   const [passPopupOpen, setPassPopupOpen] = useState(false);
+  const [rewardSummary, setRewardSummary] =
+    useState<RewardSummaryRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPremiumStatus() {
+      setPremiumStatusLoading(true);
+
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_my_premium_access_status_rpc",
+          {
+            p_resource_code: "CONTROL_ROOM",
+          },
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        if (cancelled) return;
+
+        const payload =
+          data && typeof data === "object" && !Array.isArray(data)
+            ? (data as Record<string, unknown>)
+            : null;
+
+        const passes = Number(payload?.available_passes ?? 0);
+
+        setAvailablePasses(
+          Number.isFinite(passes) && passes >= 0
+            ? Math.trunc(passes)
+            : 0,
+        );
+
+        const existingSessionId =
+          payload?.authorized === true &&
+          typeof payload?.session_id === "string"
+            ? payload.session_id
+            : null;
+
+        setActivePremiumSessionId(existingSessionId);
+      } catch (error) {
+        console.error(
+          "[Control Room] Premium status load failed.",
+          error,
+        );
+
+        if (!cancelled) {
+          setAvailablePasses(0);
+          setActivePremiumSessionId(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setPremiumStatusLoading(false);
+        }
+      }
+    }
+
+    void loadPremiumStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAndRevealRewards() {
+      const { data: signalData, error: signalError } =
+        await supabase.rpc("get_my_reward_signal_rpc");
+
+      if (signalError) {
+        console.error(
+          "[Control Room] Reward signal load failed.",
+          signalError,
+        );
+        return;
+      }
+
+      if (cancelled) return;
+
+      const signal =
+        signalData &&
+        typeof signalData === "object" &&
+        !Array.isArray(signalData)
+          ? (signalData as Record<string, unknown>)
+          : null;
+
+      const unseen = signal?.show_badge === true;
+
+      if (!unseen) {
+        setRewardSummary([]);
+        return;
+      }
+
+      const { data: summaryData, error: summaryError } =
+        await supabase.rpc(
+          "get_my_unseen_reward_summary_rpc",
+        );
+
+      if (summaryError) {
+        console.error(
+          "[Control Room] Reward summary load failed.",
+          summaryError,
+        );
+        return;
+      }
+
+      if (cancelled) return;
+
+      const rows = (summaryData || []) as RewardSummaryRow[];
+
+      setRewardSummary(
+        rows
+          .map((row) => ({
+            ...row,
+            event_count: Math.max(
+              0,
+              Math.trunc(Number(row.event_count) || 0),
+            ),
+            passes_awarded: Math.max(
+              0,
+              Math.trunc(Number(row.passes_awarded) || 0),
+            ),
+          }))
+          .filter(
+            (row) =>
+              row.event_count > 0 &&
+              row.passes_awarded > 0,
+          )
+          .sort(
+            (left, right) =>
+              right.passes_awarded -
+              left.passes_awarded,
+          )
+          .slice(0, 3),
+      );
+
+      const { error: revealError } = await supabase.rpc(
+        "reveal_my_reward_updates_rpc",
+      );
+
+      if (revealError) {
+        console.error(
+          "[Control Room] Reward acknowledgement failed.",
+          revealError,
+        );
+        return;
+      }
+
+      /*
+       * Intentionally keep rewardSummary in local state for this visit.
+       * Backend is already marked seen, so on the NEXT visit the summary
+       * and notification signals disappear.
+       */
+    }
+
+    void loadAndRevealRewards();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [leagueInfo, setLeagueInfo] = useState<LeagueInfo>({
     leagueName: "FantaGol",
     displayName: "Club FantaGol",
@@ -114,7 +310,7 @@ export default function ControlRoomPage() {
             type="button"
             onClick={() => setMenuOpen(true)}
             aria-label="Apri menu"
-            className="shrink-0 rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white transition hover:border-[#A6E824]"
+            className="relative shrink-0 rounded-lg border border-gray-600 bg-[#2b2f31] px-3 py-2 text-2xl leading-none text-white transition hover:border-[#A6E824]"
           >
             ☰
           </button>
@@ -211,35 +407,148 @@ export default function ControlRoomPage() {
           </div>
         </section>
 
-        <section className="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
+        <section className="mt-6 grid grid-cols-[96px_minmax(0,1fr)] gap-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-4">
           <button
             type="button"
-            onClick={() => {
-              if (availablePasses <= 0) {
+            onClick={async () => {
+          if (premiumStatusLoading || premiumAccessStarting) {
+            return;
+          }
+
+    if (activePremiumSessionId) {
+
+
+      window.location.assign(
+
+
+        `/control-room/${activePremiumSessionId}`,
+
+
+      );
+
+
+      return;
+
+
+    }
+
+
+
+    if (availablePasses <= 0) {
                 setPassPopupOpen(true);
                 return;
               }
 
-              window.location.href = `/control-room/session-${Date.now()}`;
+              setPremiumAccessStarting(true);
+
+    try {
+      const idempotencyKey =
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+          ? `control-room-${crypto.randomUUID()}`
+          : `control-room-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2)}`;
+
+      const { data, error } = await supabase.rpc(
+        "start_my_premium_access_session_rpc",
+        {
+          p_resource_code: "CONTROL_ROOM",
+          p_idempotency_key: idempotencyKey,
+        },
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      const payload =
+        data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : null;
+
+      const passes = Number(payload?.available_passes ?? availablePasses);
+
+      if (Number.isFinite(passes) && passes >= 0) {
+        setAvailablePasses(Math.trunc(passes));
+      }
+
+      if (payload?.authorized !== true) {
+        if (payload?.error_code === "COMMERCIAL_INSUFFICIENT_PASSES") {
+          setPassPopupOpen(true);
+          return;
+        }
+
+        throw new Error(
+          typeof payload?.error_code === "string"
+            ? payload.error_code
+            : "PREMIUM_ACCESS_NOT_AUTHORIZED",
+        );
+      }
+
+      const sessionId =
+        typeof payload?.session_id === "string"
+          ? payload.session_id
+          : null;
+
+      if (!sessionId) {
+        throw new Error("PREMIUM_ACCESS_SESSION_ID_MISSING");
+      }
+
+      window.location.assign(`/control-room/${sessionId}`);
+    } catch (error) {
+      console.error(
+        "[Control Room] Premium session start failed.",
+        error,
+      );
+    } finally {
+      setPremiumAccessStarting(false);
+    }
             }}
-            className="rounded-3xl border border-[#A6E824]/40 bg-[#A6E824]/10 p-4 text-left shadow-[0_0_22px_rgba(166,232,36,0.10)] transition hover:-translate-y-0.5 hover:border-[#A6E824] hover:brightness-110 sm:p-5"
+            className="flex min-w-0 flex-col items-center justify-center rounded-3xl border border-[#A6E824]/40 bg-[#A6E824]/10 px-2 py-4 text-center shadow-[0_0_22px_rgba(166,232,36,0.10)] transition hover:-translate-y-0.5 hover:border-[#A6E824] hover:brightness-110 sm:px-3 sm:py-5"
           >
             <AccessIcon />
 
-            <h3 className="mt-4 text-xl font-black uppercase tracking-[0.08em] text-[#A6E824] sm:text-2xl">
+            <h3 className="mt-2 text-sm font-black uppercase tracking-[0.04em] text-[#A6E824] sm:mt-3 sm:text-base">
               Accedi
             </h3>
           </button>
 
-          <div className="rounded-3xl border border-white/10 bg-[#111417] p-4 text-left shadow-lg shadow-black/30 sm:p-5">
+          <div className="min-w-0 rounded-3xl border border-white/10 bg-[#111417] p-4 text-left shadow-lg shadow-black/30 sm:p-5">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">
               Pass disponibili
             </p>
 
-            <div
-              className={`mt-3 text-6xl font-black leading-none ${availablePasses > 0 ? "text-[#A6E824]" : "text-gray-500"}`}
-            >
-              {availablePasses}
+            <div className="mt-3 flex min-h-[64px] items-center gap-1.5">
+              <div
+                className={`min-w-[48px] shrink-0 text-6xl font-black leading-none ${availablePasses > 0 ? "text-[#A6E824]" : "text-gray-500"}`}
+              >
+                {availablePasses}
+              </div>
+
+              {rewardSummary.length > 0 && (
+                <div className="min-w-0 flex-1 border-l border-white/10 pl-1.5 sm:pl-2">
+                  <div className="space-y-1.5">
+                    {rewardSummary.map((reward) => (
+                      <div
+                        key={reward.reward_code}
+                        className="flex min-w-0 items-baseline gap-1 whitespace-nowrap"
+                      >
+                        <span
+                          className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] font-bold tracking-[-0.02em] text-gray-300 sm:text-[11px]"
+                          title={getRewardDisplayLabel(reward)}
+                        >
+                          {getRewardDisplayLabel(reward)}
+                        </span>
+
+                        <span className="shrink-0 text-[9px] font-black tracking-[-0.02em] text-[#A6E824] sm:text-[11px]">
+                          +{reward.passes_awarded} Pass
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
