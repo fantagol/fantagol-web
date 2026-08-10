@@ -5,6 +5,7 @@ import { handleCertifyAchievementStateJob } from "./certify-achievement-state-ha
 import { handleCertifyMatchResultJob } from "./certify-match-result-handler";
 import { handleCertifyRoundJob } from "./certify-round-handler";
 import { LiveRuntimeError } from "./errors";
+import { handlePollBatchJob } from "./poll-batch-handler";
 import { handlePollMatchJob } from "./poll-match-handler";
 import {
   claimLiveRuntimeJob,
@@ -254,6 +255,8 @@ const publishSnapshotHandler: LiveRuntimeWorkerHandler = async ({
 const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
   refresh_round: async ({ client, job }) =>
     handleRefreshRoundJob({ client, job }),
+  poll_batch: async ({ client, job }) =>
+    handlePollBatchJob({ client, job }),
   poll_match: async ({ client, job }) =>
     handlePollMatchJob({ client, job }),
   rebuild_league_round: rebuildLeagueRoundHandler,

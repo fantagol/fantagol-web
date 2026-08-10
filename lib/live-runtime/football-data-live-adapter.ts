@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
-  LiveProviderAdapter,
+  LiveProviderBatchAdapter,
+  ProviderBatchPollRequest,
+  ProviderBatchPollResult,
   ProviderPollRequest,
   ProviderPollResult,
 } from "./provider-runtime";
@@ -106,7 +108,64 @@ function resolveApiToken(explicitToken?: string): string {
   return token;
 }
 
-export class FootballDataLiveAdapter implements LiveProviderAdapter {
+function requireIsoDate(
+  value: string | undefined,
+  field: string,
+): string {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
+    throw new FootballDataConfigurationError(
+      `${field} must use YYYY-MM-DD.`,
+    );
+  }
+
+  return value;
+}
+
+export function buildFootballDataBatchEndpoint(
+  request: ProviderBatchPollRequest,
+): string {
+  const mode = request.mode ?? "live";
+
+  const competitionCode =
+    request.competitionCode?.trim() || "SA";
+
+  const params = new URLSearchParams();
+
+  params.set("competitions", competitionCode);
+
+  if (mode === "live") {
+    params.set("status", "LIVE");
+
+    return `/matches?${params.toString()}`;
+  }
+
+  const dateFrom =
+    requireIsoDate(
+      request.dateFrom,
+      "dateFrom",
+    );
+
+  const dateTo =
+    requireIsoDate(
+      request.dateTo,
+      "dateTo",
+    );
+
+  if (dateTo <= dateFrom) {
+    throw new FootballDataConfigurationError(
+      "dateTo must be later than dateFrom.",
+    );
+  }
+
+  params.set("dateFrom", dateFrom);
+  params.set("dateTo", dateTo);
+
+  return `/matches?${params.toString()}`;
+}
+export class FootballDataLiveAdapter implements LiveProviderBatchAdapter {
   private readonly apiToken: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -189,6 +248,176 @@ export class FootballDataLiveAdapter implements LiveProviderAdapter {
           controller.signal.aborted)
       ) {
         throw new FootballDataTimeoutError(this.timeoutMs);
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  async pollMatches(
+    _client: SupabaseClient,
+    request: ProviderBatchPollRequest,
+  ): Promise<ProviderBatchPollResult> {
+    if (request.providerCode !== "football_data") {
+      throw new FootballDataConfigurationError(
+        `FootballDataLiveAdapter cannot handle '${request.providerCode}'.`,
+      );
+    }
+
+    const requestedExternalMatchIds = [
+      ...new Set(
+        request.externalMatchIds.map((value) => value.trim()),
+      ),
+    ];
+
+    if (requestedExternalMatchIds.length === 0) {
+      throw new FootballDataConfigurationError(
+        "Football-Data batch polling requires at least one match id.",
+      );
+    }
+
+    for (const externalMatchId of requestedExternalMatchIds) {
+      if (!/^\d+$/.test(externalMatchId)) {
+        throw new FootballDataConfigurationError(
+          `Invalid Football-Data match id '${externalMatchId}'.`,
+        );
+      }
+    }
+
+    const requestedIdSet =
+      new Set(requestedExternalMatchIds);
+
+    const controller = new AbortController();
+    const timeout =
+      setTimeout(
+        () => controller.abort(),
+        this.timeoutMs,
+      );
+
+    try {
+      const endpoint = buildFootballDataBatchEndpoint(request);
+
+      const response = await this.fetchImpl(
+        `${this.baseUrl}${endpoint}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "X-Auth-Token": this.apiToken,
+          },
+          cache: "no-store",
+          signal: controller.signal,
+        },
+      );
+
+      const responseBody =
+        await readResponseBody(response);
+
+      const rateLimit =
+        readRateLimitMetadata(response.headers);
+
+      if (!response.ok) {
+        throw new FootballDataHttpError({
+          message:
+            `Football-Data request failed with HTTP ${response.status}.`,
+          status: response.status,
+          retryAfterSeconds:
+            parseIntegerHeader(
+              response.headers.get("retry-after"),
+            ) ??
+            rateLimit.requestCounterResetSeconds,
+          responseBody,
+        });
+      }
+
+      if (
+        typeof responseBody !== "object" ||
+        responseBody === null ||
+        Array.isArray(responseBody) ||
+        !Array.isArray(
+          (responseBody as Record<string, unknown>).matches,
+        )
+      ) {
+        throw new FootballDataConfigurationError(
+          "Football-Data batch response must contain a matches array.",
+        );
+      }
+
+      const fetchedAt = new Date().toISOString();
+
+      const rawMatches =
+        (responseBody as {
+          matches: unknown[];
+        }).matches;
+
+      const results: ProviderPollResult[] = [];
+
+      for (const rawMatch of rawMatches) {
+        if (
+          typeof rawMatch !== "object" ||
+          rawMatch === null ||
+          Array.isArray(rawMatch)
+        ) {
+          continue;
+        }
+
+        const id =
+          (rawMatch as Record<string, unknown>).id;
+
+        if (
+          typeof id !== "number" ||
+          !requestedIdSet.has(String(id))
+        ) {
+          continue;
+        }
+
+        const externalMatchId = String(id);
+
+        results.push({
+          providerCode: request.providerCode,
+          externalMatchId,
+          fetchedAt,
+          payload: {
+            match: rawMatch,
+            transport: {
+              provider: "football_data",
+              endpoint,
+              mode: "aggregated",
+              rateLimit,
+            },
+          },
+        });
+      }
+
+      return {
+        providerCode: request.providerCode,
+        fetchedAt,
+        results,
+        requestedExternalMatchIds,
+        returnedExternalMatchIds:
+          results.map(
+            (result) => result.externalMatchId,
+          ),
+        transport: {
+          provider: "football_data",
+          endpoint,
+          mode: "aggregated",
+          requestCount: 1,
+          rateLimit,
+        },
+      };
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (
+          error.name === "AbortError" ||
+          controller.signal.aborted
+        )
+      ) {
+        throw new FootballDataTimeoutError(
+          this.timeoutMs,
+        );
       }
 
       throw error;

@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { launchCertificationReadinessWorkflow } from "./certification-readiness-workflow";
 import { LiveRuntimeError } from "./errors";
+import { materializePostponedMatch } from "./postponed-governance-service";
+import { resolveRefreshRoundSideEffects } from "./refresh-round-side-effects";
 import type { ClaimedLiveRuntimeJob } from "./job-service";
 import { enqueueLeagueRoundRebuildJobs } from "./rebuild-enqueue";
 import {
@@ -164,6 +166,16 @@ export async function handleRefreshRoundJob({
     job.payload,
     "changed_fields",
   );
+  const previousKickoffAt =
+    typeof job.payload.previous_kickoff_at === "string"
+      ? job.payload.previous_kickoff_at
+      : null;
+
+  const currentKickoffAt =
+    typeof job.payload.current_kickoff_at === "string"
+      ? job.payload.current_kickoff_at
+      : null;
+
   const normalizedUpdate = getRequiredObject(
     job.payload,
     "normalized_update",
@@ -183,7 +195,30 @@ export async function handleRefreshRoundJob({
     "refresh_live_match_state_rpc",
   );
 
-  const rebuildJobs = refreshed.applied
+  const sideEffects =
+    resolveRefreshRoundSideEffects({
+      changeType,
+      matchStatus: refreshed.match_status,
+      refreshedApplied: refreshed.applied,
+    });
+
+  const shouldMaterializePostponed =
+    sideEffects.materializePostponed;
+
+  const postponedMaterialization =
+    shouldMaterializePostponed
+      ? await materializePostponedMatch({
+          client,
+          matchId,
+          previousKickoffAt,
+          currentKickoffAt,
+        })
+      : [];
+
+  const shouldEnqueueRebuild =
+    sideEffects.enqueueRebuild;
+
+  const rebuildJobs = shouldEnqueueRebuild
     ? await enqueueLeagueRoundRebuildJobs({
         client,
         leagueRoundIds,
@@ -226,6 +261,14 @@ export async function handleRefreshRoundJob({
     away_score: refreshed.away_score,
     minute: refreshed.minute,
     period: refreshed.period,
+    postponed_governance_materialized:
+      shouldMaterializePostponed,
+    postponed_governance_decision_count:
+      postponedMaterialization.length,
+    postponed_governance_created_count:
+      postponedMaterialization.filter(
+        (row) => row.created,
+      ).length,
     rebuild_job_count: rebuildJobs.length,
     rebuild_job_ids: rebuildJobs.map((rebuildJob) => rebuildJob.jobId),
     certification_readiness_enqueued:

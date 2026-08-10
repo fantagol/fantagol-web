@@ -7,6 +7,7 @@ import {
 } from "./rpc-utils";
 
 export type LiveRuntimeJobType =| "poll_match"
+  | "poll_batch"
   | "refresh_round"
   | "rebuild_league_round"
   | "publish_snapshot"

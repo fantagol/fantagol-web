@@ -107,6 +107,10 @@ async function enqueueMeaningfulChangeJobs(input: {
       change_type: input.change.changeType,
       changed_fields: input.change.changedFields,
       league_round_ids: input.scope.leagueRoundIds,
+      previous_kickoff_at:
+        input.change.previous?.kickoffAt ?? null,
+      current_kickoff_at:
+        input.update.kickoffAt,
       normalized_update: input.update.normalizedPayload,
     },
     correlationId: input.receipt.correlationId,
