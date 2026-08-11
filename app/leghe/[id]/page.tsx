@@ -275,6 +275,83 @@ function getLocalDateKey(value: Date | string) {
   }).format(date);
 }
 
+function compareDashboardMatchKickoff(
+  left: DashboardMatch,
+  right: DashboardMatch,
+) {
+  if (!left.kickoff && !right.kickoff) return left.id.localeCompare(right.id);
+  if (!left.kickoff) return 1;
+  if (!right.kickoff) return -1;
+
+  const delta =
+    new Date(left.kickoff).getTime() - new Date(right.kickoff).getTime();
+
+  return delta !== 0 ? delta : left.id.localeCompare(right.id);
+}
+
+function isDashboardMatchLive(match: DashboardMatch) {
+  const status = match.status.toLowerCase();
+
+  return (
+    status === "live" ||
+    status === "in_play" ||
+    status.startsWith("live_") ||
+    ["halftime", "extra_time", "penalties", "paused"].includes(status)
+  );
+}
+
+function isDashboardMatchTerminal(match: DashboardMatch) {
+  return ["finished", "awarded", "cancelled", "postponed"].includes(
+    match.status.toLowerCase(),
+  );
+}
+
+function buildDashboardMatchGroups(matches: DashboardMatch[]) {
+  const sortedMatches = [...matches].sort(compareDashboardMatchKickoff);
+  const scheduledMatches = sortedMatches.filter((match) => match.kickoff);
+  const unscheduledMatches = sortedMatches.filter((match) => !match.kickoff);
+
+  const matchesByDate = new Map<string, DashboardMatch[]>();
+
+  for (const match of scheduledMatches) {
+    const dateKey = getLocalDateKey(match.kickoff as string);
+    const dateMatches = matchesByDate.get(dateKey) ?? [];
+    dateMatches.push(match);
+    matchesByDate.set(dateKey, dateMatches);
+  }
+
+  const dayGroups = Array.from(matchesByDate.entries())
+    .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+    .map(([, dayMatches]) => dayMatches);
+
+  let groups: DashboardMatch[][];
+
+  if (dayGroups.length <= 3) {
+    groups = dayGroups;
+  } else {
+    groups = [[], [], []];
+
+    dayGroups.forEach((dayMatches, dayIndex) => {
+      const bucket = Math.min(
+        2,
+        Math.floor((dayIndex * 3) / dayGroups.length),
+      );
+
+      groups[bucket].push(...dayMatches);
+    });
+  }
+
+  if (unscheduledMatches.length > 0) {
+    if (groups.length === 0) {
+      groups = [unscheduledMatches];
+    } else {
+      groups[groups.length - 1].push(...unscheduledMatches);
+    }
+  }
+
+  return groups.filter((group) => group.length > 0);
+}
+
 function getProviderScoreLabel(match: DashboardMatch) {
   return `${match.homeScore ?? 0} - ${match.awayScore ?? 0}`;
 }
@@ -339,7 +416,9 @@ function DayMatchRow({ match }: { match: DashboardMatch }) {
       </div>
 
       <div className="min-w-[68px] rounded-xl bg-[#A6E824]/10 px-3 py-2 text-center text-sm font-black text-[#A6E824] max-[429px]:min-w-[60px] max-[429px]:px-2 max-[399px]:min-w-[56px] max-[399px]:px-1.5 max-[381px]:min-w-[52px] max-[381px]:px-1">
-        {getProviderScoreLabel(match)}
+        {isDashboardMatchLive(match)
+          ? getProviderScoreLabel(match)
+          : match.kickoffHour}
       </div>
 
       <div className="flex min-w-0 items-center gap-2">
@@ -1061,7 +1140,7 @@ export default function LeagueDashboardPage() {
             awayCrestReference: row.away_team_crest_reference,
             awayLogoUrl: row.away_team_logo_url,
           };
-        }),
+        }).sort(compareDashboardMatchKickoff),
       );
 
       const [
@@ -1244,11 +1323,27 @@ export default function LeagueDashboardPage() {
     loadDashboard();
   }, [leagueId]);
 
-  const todayMatches = useMemo(() => {
+  const matchGroups = useMemo(
+    () => buildDashboardMatchGroups(matches),
+    [matches],
+  );
+
+  const todayFocusMatch = useMemo(() => {
     const todayKey = getLocalDateKey(new Date());
 
-    return matches.filter(
-      (match) => match.kickoff && getLocalDateKey(match.kickoff) === todayKey,
+    const todayCandidates = matches
+      .filter(
+        (match) =>
+          match.kickoff &&
+          getLocalDateKey(match.kickoff) === todayKey &&
+          !isDashboardMatchTerminal(match),
+      )
+      .sort(compareDashboardMatchKickoff);
+
+    return (
+      todayCandidates.find((match) => isDashboardMatchLive(match)) ??
+      todayCandidates[0] ??
+      null
     );
   }, [matches]);
 
@@ -1289,18 +1384,25 @@ export default function LeagueDashboardPage() {
             </div>
           )}
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {matches.slice(0, 5).map((match) => (
-                <MatchMiniRow key={match.id} match={match} />
-              ))}
-            </div>
-
-            <div className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              {matches.slice(5, 10).map((match) => (
-                <MatchMiniRow key={match.id} match={match} />
-              ))}
-            </div>
+          <div
+            className={`mt-5 grid grid-cols-1 gap-3 ${
+              matchGroups.length === 1
+                ? ""
+                : matchGroups.length === 2
+                  ? "md:grid-cols-2"
+                  : "md:grid-cols-3"
+            }`}
+          >
+            {matchGroups.map((group, groupIndex) => (
+              <div
+                key={`round-match-group-${groupIndex}`}
+                className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+              >
+                {group.map((match) => (
+                  <MatchMiniRow key={match.id} match={match} />
+                ))}
+              </div>
+            ))}
           </div>
 
           <button
@@ -1315,24 +1417,27 @@ export default function LeagueDashboardPage() {
         <DashboardCard className="mt-6">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">
-              Partite del giorno
+              Partita del giorno
             </p>
 
             <Badge>
-              {todayMatches.length === 1
-                ? "1 incontro"
-                : `${todayMatches.length} incontri`}
+              {todayFocusMatch
+                ? isDashboardMatchLive(todayFocusMatch)
+                  ? "Live"
+                  : "Prossima"
+                : "—"}
             </Badge>
           </div>
 
-          <div className="mt-4 space-y-3">
-            {todayMatches.length > 0 ? (
-              todayMatches.map((match) => (
-                <DayMatchRow key={match.id} match={match} />
-              ))
+          <div className="mt-4">
+            {todayFocusMatch ? (
+              <DayMatchRow
+                key={todayFocusMatch.id}
+                match={todayFocusMatch}
+              />
             ) : (
               <div className="rounded-2xl bg-black p-5 text-center text-sm font-semibold text-gray-500">
-                Nessuna partita in programma oggi.
+                Nessuna partita da seguire oggi.
               </div>
             )}
           </div>
