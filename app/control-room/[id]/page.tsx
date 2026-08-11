@@ -46,6 +46,280 @@ type MarketConsensus = {
   };
 };
 
+type MarketExactItem = {
+  score: string;
+  probability: number;
+  prediction_percent: number;
+};
+type ControlRoomMarketRoundMatch = {
+  match_id: string;
+  slot_number: number;
+  snapshot_id: string;
+  match_snapshot_id: string;
+  captured_at: string;
+  snapshot_source: string;
+  sign: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  totals: {
+    over_25: number | null;
+    under_25: number | null;
+  };
+  btts: {
+    goal: number | null;
+    no_goal: number | null;
+  };
+  expected_goals: {
+    home: number | null;
+    away: number | null;
+  };
+  confidence: {
+    market: number | null;
+    final: number | null;
+    model_loss: number | null;
+  };
+  primary_outcome: "1" | "X" | "2";
+  output_payload: Record<string, unknown>;
+};
+
+type ControlRoomMarketRoundPayload = {
+  available: boolean;
+  error_code?: string;
+  fantagol_round_id?: string;
+  match_count?: number;
+  latest_captured_at?: string | null;
+  matches?: ControlRoomMarketRoundMatch[];
+};
+
+type ControlRoomMarketMovement = {
+  movement_id: string;
+  previous_match_snapshot_id: string;
+  current_match_snapshot_id: string;
+  signal_type: string;
+  signal_key: string;
+  previous_probability: number | null;
+  current_probability: number | null;
+  delta_probability: number | null;
+  delta_percentage_points: number | null;
+  previous_rank: number | null;
+  current_rank: number | null;
+  rank_delta: number | null;
+  movement_magnitude: number;
+  direction: "UP" | "DOWN" | "FLAT";
+  created_at: string;
+};
+
+type ControlRoomMarketMatchPayload = {
+  available: boolean;
+  error_code?: string;
+  fantagol_round_id?: string;
+  match_id?: string;
+  snapshot_id?: string;
+  match_snapshot_id?: string;
+  captured_at?: string;
+  snapshot_source?: string;
+  sign?: {
+    home: number;
+    draw: number;
+    away: number;
+  };
+  totals?: {
+    over_25: number | null;
+    under_25: number | null;
+  };
+  btts?: {
+    goal: number | null;
+    no_goal: number | null;
+  };
+  expected_goals?: {
+    home: number | null;
+    away: number | null;
+  };
+  confidence?: {
+    market: number | null;
+    final: number | null;
+    model_loss: number | null;
+  };
+  primary_outcome?: "1" | "X" | "2";
+  output_payload?: Record<string, unknown>;
+  movements?: ControlRoomMarketMovement[];
+};
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function probabilityToFairOdd(value: number | null): number | undefined {
+  if (value === null || value <= 0) return undefined;
+  return 1 / value;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function marketExactRows(
+  outputPayload: Record<string, unknown> | undefined,
+): MarketExactItem[] {
+  const exact = outputPayload?.exact;
+
+  if (!Array.isArray(exact)) {
+    return [];
+  }
+
+  const rows: MarketExactItem[] = [];
+
+  for (const item of exact) {
+    const row = asRecord(item);
+    const score =
+      typeof row.score === "string"
+        ? row.score
+        : null;
+    const probability =
+      numberOrNull(row.probability);
+
+    if (
+      !score ||
+      probability === null
+    ) {
+      continue;
+    }
+
+    rows.push({
+      score,
+      probability,
+      prediction_percent:
+        probability <= 1
+          ? probability * 100
+          : probability,
+    });
+  }
+
+  return rows.sort(
+    (first, second) =>
+      second.prediction_percent -
+      first.prediction_percent,
+  );
+}
+function mergeMarketRoundMatch(
+  match: ControlRoomMatch,
+  market: ControlRoomMarketRoundMatch | undefined,
+): ControlRoomMatch {
+  if (!market) {
+    return {
+      ...match,
+      market_available: false,
+      market_context: null,
+    };
+  }
+
+  const home = numberOrNull(market.sign.home);
+  const draw = numberOrNull(market.sign.draw);
+  const away = numberOrNull(market.sign.away);
+  const over25 = numberOrNull(market.totals.over_25);
+  const under25 = numberOrNull(market.totals.under_25);
+  const goal = numberOrNull(market.btts.goal);
+  const noGoal = numberOrNull(market.btts.no_goal);
+
+  const existingContext =
+    match.market_context ?? {};
+
+  const exact =
+    marketExactRows(market.output_payload);
+
+  return {
+    ...match,
+    market_available: true,
+    market_context: {
+      ...existingContext,
+      market_available: true,
+      market_snapshot_id:
+        market.snapshot_id,
+      odds_market_snapshot_id:
+        existingContext.odds_market_snapshot_id ??
+        null,
+      consensus: {
+        ...(existingContext.consensus ?? {}),
+        probabilities: {
+          home: home ?? 0,
+          draw: draw ?? 0,
+          away: away ?? 0,
+        },
+        fairDecimalOdds: {
+          home:
+            probabilityToFairOdd(home),
+          draw:
+            probabilityToFairOdd(draw),
+          away:
+            probabilityToFairOdd(away),
+        },
+      },
+      quality: {
+        ...(existingContext.quality ?? {}),
+      },
+      bm_interpolated: {
+        snapshotId:
+          market.snapshot_id,
+        matchSnapshotId:
+          market.match_snapshot_id,
+        capturedAt:
+          market.captured_at,
+        snapshotSource:
+          market.snapshot_source,
+        primaryOutcome:
+          market.primary_outcome,
+        totals: {
+          over25,
+          under25,
+        },
+        btts: {
+          goal,
+          noGoal,
+        },
+        expectedGoals: {
+          home:
+            numberOrNull(
+              market.expected_goals.home,
+            ),
+          away:
+            numberOrNull(
+              market.expected_goals.away,
+            ),
+        },
+        confidence: {
+          market:
+            numberOrNull(
+              market.confidence.market,
+            ),
+          final:
+            numberOrNull(
+              market.confidence.final,
+            ),
+          modelLoss:
+            numberOrNull(
+              market.confidence.model_loss,
+            ),
+        },
+        exact,
+        outputPayload:
+          market.output_payload,
+      },
+    } as MarketContext,
+  };
+}
 type MarketContext = {
   market_available?: boolean;
   collected_at?: string | null;
@@ -61,8 +335,33 @@ type MarketContext = {
     hasConsensus?: boolean;
     validBookmakers?: number;
   };
+  bm_interpolated?: {
+    snapshotId: string;
+    matchSnapshotId: string;
+    capturedAt: string;
+    snapshotSource: string;
+    primaryOutcome: "1" | "X" | "2";
+    totals: {
+      over25: number | null;
+      under25: number | null;
+    };
+    btts: {
+      goal: number | null;
+      noGoal: number | null;
+    };
+    expectedGoals: {
+      home: number | null;
+      away: number | null;
+    };
+    confidence: {
+      market: number | null;
+      final: number | null;
+      modelLoss: number | null;
+    };
+    exact: MarketExactItem[];
+    outputPayload: Record<string, unknown>;
+  };
 };
-
 type ControlRoomMatch = {
   match_id: string;
   fantagol_round_id: string;
@@ -148,6 +447,19 @@ type ControlRoomOverview = {
   most_concentrated_exact: Record<string, unknown> | null;
 };
 
+type DailyIntelligenceMetricsPayload = {
+  available: boolean;
+  error_code?: string;
+  fantagol_round_id?: string;
+  required_match_count?: number;
+  eligible_member_count?: number;
+  market_quality_score?: number | null;
+  market_quality_status?: string | null;
+  market_captured_match_count?: number;
+  market_required_match_count?: number;
+  market_captured_at?: string | null;
+};
+
 type OverviewPayload = {
   available: boolean;
   error_code?: string;
@@ -164,6 +476,12 @@ type TrendItem = {
   id?: string;
   match_id?: string;
   metric_code?: string;
+  outcome_code?: string | null;
+  window_code?: string | null;
+  from_value?: number | null;
+  to_value?: number | null;
+  delta_value?: number | null;
+  delta_percent?: number | null;
   metric_value?: number;
   previous_value?: number | null;
   absolute_change?: number | null;
@@ -179,7 +497,7 @@ type MatchPayload = {
   match?: ControlRoomMatch;
   heatmap?: HeatmapItem[];
   trend?: TrendItem[];
-};
+  market?: ControlRoomMarketMatchPayload | null;};
 
 type MatchSort =
   | "slot"
@@ -271,62 +589,12 @@ function qualityLabel(value: string): string {
   }
 }
 
-function insightLabel(value: string): string {
-  switch (value) {
-    case "HIGH_UNCERTAINTY":
-      return "Alta incertezza";
-    case "COMMUNITY_DIVIDED":
-      return "Community divisa";
-    case "COMMUNITY_COMPACT":
-      return "Community compatta";
-    case "EXACT_DISPERSED":
-      return "Exact dispersi";
-    default:
-      return value.replaceAll("_", " ").toLowerCase();
-  }
-}
-
-function insightDescription(insight: InsightItem): string {
-  const parameters = insight.parameters ?? {};
-
-  switch (insight.insight_code) {
-    case "HIGH_UNCERTAINTY":
-      return `Indice caos ${toNumber(parameters.chaos_index).toFixed(0)}/100`;
-    case "COMMUNITY_DIVIDED":
-      return `Fiducia ${toNumber(parameters.confidence_index).toFixed(0)}/100`;
-    case "COMMUNITY_COMPACT":
-      return `Fiducia ${toNumber(parameters.confidence_index).toFixed(0)}/100`;
-    case "EXACT_DISPERSED":
-      return `Dispersione exact ${toNumber(
-        parameters.exact_dispersion_index,
-      ).toFixed(0)}/100`;
-    default:
-      return "Insight calcolato dal motore";
-  }
-}
-
-function outcomeLabel(value: string): string {
-  if (value === "1") return "Casa";
-  if (value === "X") return "Pareggio";
-  if (value === "2") return "Trasferta";
-  return value;
-}
-
 function marketProbability(
   match: ControlRoomMatch,
   outcome: "home" | "draw" | "away",
 ): number | null {
   const value = match.market_context?.consensus?.probabilities?.[outcome];
   return typeof value === "number" ? value * 100 : null;
-}
-
-function communityMarketGap(
-  match: ControlRoomMatch,
-  communityValue: number,
-  outcome: "home" | "draw" | "away",
-): number | null {
-  const market = marketProbability(match, outcome);
-  return market === null ? null : communityValue - market;
 }
 
 function ControlRoomIcon() {
@@ -427,30 +695,188 @@ function formatOdd(value: unknown): string {
   return odd > 1 ? odd.toFixed(2) : "N/D";
 }
 
-function BookmakersPanel({ match }: { match: ControlRoomMatch }) {
-  const consensus = match.market_context?.consensus;
-  const probabilities = consensus?.probabilities;
-  const odds = consensus?.fairDecimalOdds;
-  const bookmakersCount = toNumber(consensus?.bookmakersCount);
-  const collectedAt = match.market_context?.collected_at;
-  const frozenAt = match.market_context?.frozen_at;
+function CommunityBookmakersComparison({
+  match,
+}: {
+  match: ControlRoomMatch;
+}) {
+  const communityExact =
+    match.exact_distribution?.[0] ?? null;
+  const marketExact =
+    topMarketExact(match);
 
-  if (!match.market_available || !probabilities) {
-    return (
-      <section className="rounded-2xl border border-sky-400/20 bg-sky-500/[0.06] p-5">
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">
+  const communitySign =
+    topCommunityOutcome(match);
+  const marketSign =
+    topMarketOutcome(match);
+
+  const communityOver =
+    toNumber(match.over_2_5_percent);
+  const communityUnder =
+    Math.max(0, 100 - communityOver);
+  const communityTotals =
+    communityOver >= communityUnder
+      ? {
+          label: "Over 2.5",
+          probability: communityOver,
+        }
+      : {
+          label: "Under 2.5",
+          probability: communityUnder,
+        };
+
+  const marketTotals =
+    topMarketTotals(match);
+
+  const communityGoal =
+    toNumber(match.goal_percent);
+  const communityNoGoal =
+    Math.max(0, 100 - communityGoal);
+  const communityBtts =
+    communityGoal >= communityNoGoal
+      ? {
+          label: "Goal",
+          probability: communityGoal,
+        }
+      : {
+          label: "No Goal",
+          probability: communityNoGoal,
+        };
+
+  const marketBtts =
+    topMarketBtts(match);
+
+  const rows = [
+    {
+      label: "Exact",
+      communityLabel: communityExact
+        ? `${communityExact.home_prediction}-${communityExact.away_prediction}`
+        : "—",
+      communityPercent: communityExact
+        ? toNumber(communityExact.prediction_percent)
+        : null,
+      marketLabel:
+        marketExact?.score ?? "—",
+      marketPercent:
+        marketExact?.prediction_percent ?? null,
+    },
+    {
+      label: "Segno",
+      communityLabel:
+        communitySign.label,
+      communityPercent:
+        communitySign.percent,
+      marketLabel:
+        marketSign?.label ?? "—",
+      marketPercent:
+        marketSign?.probability ?? null,
+    },
+    {
+      label: "U/O",
+      communityLabel:
+        communityTotals.label,
+      communityPercent:
+        communityTotals.probability,
+      marketLabel:
+        marketTotals?.label ?? "—",
+      marketPercent:
+        marketTotals?.probability ?? null,
+    },
+    {
+      label: "G/NG",
+      communityLabel:
+        communityBtts.label,
+      communityPercent:
+        communityBtts.probability,
+      marketLabel:
+        marketBtts?.label ?? "—",
+      marketPercent:
+        marketBtts?.probability ?? null,
+    },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+      <div className="grid grid-cols-[minmax(76px,0.85fr)_1fr_1fr] border-b border-white/10 bg-black/25 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] max-[381px]:grid-cols-[66px_1fr_1fr] max-[381px]:px-2">
+        <span className="text-gray-600 max-[394px]:text-[9px] max-[374px]:text-[8.5px] max-[350px]:text-[8px] max-[394px]:tracking-[0.04em] max-[350px]:tracking-normal">
+          Parametro
+        </span>
+        <span className="text-right text-[#A6E824] max-[394px]:text-[9px] max-[374px]:text-[8.5px] max-[350px]:text-[8px] max-[394px]:tracking-[0.04em] max-[350px]:tracking-normal">
+          Community
+        </span>
+        <span className="text-right text-sky-300 max-[394px]:text-[9px] max-[374px]:text-[8.5px] max-[350px]:text-[8px] max-[394px]:tracking-[0.04em] max-[350px]:tracking-normal">
           Bookmakers
-        </p>
-        <h4 className="mt-2 text-xl font-black text-white">
-          Dato non disponibile
-        </h4>
-        <p className="mt-2 text-sm leading-6 text-gray-400">
-          Lo snapshot ufficiale dei bookmakers non è ancora disponibile per
-          questa partita.
-        </p>
-      </section>
-    );
-  }
+        </span>
+      </div>
+
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="grid grid-cols-[minmax(76px,0.85fr)_1fr_1fr] items-center gap-2 border-b border-white/[0.06] px-3 py-2.5 last:border-b-0 max-[381px]:grid-cols-[66px_1fr_1fr] max-[381px]:gap-1.5 max-[381px]:px-2"
+        >
+          <span className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-500">
+            {row.label}
+          </span>
+
+          <span className="min-w-0 text-right text-xs font-black text-[#A6E824] max-[381px]:text-[10px]">
+            <span className="block truncate">
+              {row.communityLabel}
+            </span>
+            <span className="tabular-nums text-white">
+              {row.communityPercent === null
+                ? "N/D"
+                : pct(row.communityPercent)}
+            </span>
+          </span>
+
+          <span className="min-w-0 text-right text-xs font-black text-sky-300 max-[381px]:text-[10px]">
+            <span className="block truncate">
+              {row.marketLabel}
+            </span>
+            <span className="tabular-nums text-white">
+              {row.marketPercent === null
+                ? "N/D"
+                : pct(row.marketPercent)}
+            </span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function LoadingPanel({ label }: { label: string }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#0b1419] p-10 text-center shadow-xl shadow-black/30">
+      <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-[#A6E824]" />
+      <p className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-gray-400">
+        {label}
+      </p>
+    </section>
+  );
+}
+
+function countFromPercent(match: ControlRoomMatch, value: number): number {
+  return Math.max(
+    0,
+    Math.round((toNumber(match.prediction_count) * clamp(toNumber(value))) / 100),
+  );
+}
+
+function topCommunityOutcome(match: ControlRoomMatch) {
+  const rows = [
+    { label: "1", percent: match.home_pick_percent },
+    { label: "X", percent: match.draw_pick_percent },
+    { label: "2", percent: match.away_pick_percent },
+  ].sort((a, b) => b.percent - a.percent);
+
+  return rows[0];
+}
+
+function topMarketOutcome(match: ControlRoomMatch) {
+  const probabilities = match.market_context?.consensus?.probabilities;
+  const odds = match.market_context?.consensus?.fairDecimalOdds;
+
+  if (!match.market_available || !probabilities) return null;
 
   const rows = [
     {
@@ -468,205 +894,1321 @@ function BookmakersPanel({ match }: { match: ControlRoomMatch }) {
       probability: toNumber(probabilities.away) * 100,
       odd: odds?.away,
     },
-  ];
+  ].sort((a, b) => b.probability - a.probability);
 
-  return (
-    <section className="rounded-2xl border border-sky-400/35 bg-gradient-to-br from-sky-500/[0.12] to-blue-950/30 p-5 shadow-[0_0_24px_rgba(56,189,248,0.08)]">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">
-            Bookmakers
-          </p>
-          <h4 className="mt-2 text-xl font-black text-white">
-            Probabilità e quote ufficiali
-          </h4>
-        </div>
-
-        <span className="rounded-full border border-sky-300/25 bg-sky-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-200">
-          {bookmakersCount > 0
-            ? `${bookmakersCount} bookmaker`
-            : "Snapshot ufficiale"}
-        </span>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {rows.map((row) => (
-          <div
-            key={row.label}
-            className="rounded-xl border border-sky-300/15 bg-black/25 p-4"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-black text-white">{row.label}</span>
-              <span className="text-xs font-black text-sky-300">
-                Quota {formatOdd(row.odd)}
-              </span>
-            </div>
-            <p className="mt-3 text-3xl font-black text-sky-200">
-              {pct(row.probability)}
-            </p>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">
-              Probabilità bookmakers
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-sky-300/15 pt-4 text-xs text-gray-400">
-        <span>
-          Raccolto:{" "}
-          <strong className="text-white">{formatDateTime(collectedAt)}</strong>
-        </span>
-        {frozenAt && (
-          <span>
-            Congelato:{" "}
-            <strong className="text-white">{formatDateTime(frozenAt)}</strong>
-          </span>
-        )}
-      </div>
-    </section>
-  );
+  return rows[0];
 }
 
-function CommunityBookmakersComparison({
-  match,
+const MARKET_COHERENCE_HARD_THRESHOLD_PERCENT = 55;
+
+function parseMarketExactScore(
+  score: string,
+): { home: number; away: number } | null {
+  const match = /^(\d+)-(\d+)$/.exec(score.trim());
+
+  if (!match) return null;
+
+  const home = Number.parseInt(match[1] ?? "", 10);
+  const away = Number.parseInt(match[2] ?? "", 10);
+
+  if (!Number.isInteger(home) || !Number.isInteger(away)) {
+    return null;
+  }
+
+  return { home, away };
+}
+
+function coherentMarketExactRows(
+  match: ControlRoomMatch,
+): MarketExactItem[] {
+  const exactRows =
+    match.market_context?.bm_interpolated?.exact ?? [];
+
+  if (exactRows.length === 0) return [];
+
+  const sign = topMarketOutcome(match);
+  if (!sign) return [];
+
+  const totals = topMarketTotals(match);
+  const btts = topMarketBtts(match);
+
+  const hardTotals =
+    totals !== null &&
+    totals.probability >=
+      MARKET_COHERENCE_HARD_THRESHOLD_PERCENT;
+
+  const hardBtts =
+    btts !== null &&
+    btts.probability >=
+      MARKET_COHERENCE_HARD_THRESHOLD_PERCENT;
+
+  return exactRows
+    .filter((exact) => {
+      const score =
+        parseMarketExactScore(exact.score);
+
+      if (!score) return false;
+
+      const signCompatible =
+        sign.label === "1"
+          ? score.home > score.away
+          : sign.label === "X"
+            ? score.home === score.away
+            : score.home < score.away;
+
+      if (!signCompatible) {
+        return false;
+      }
+
+      if (hardTotals && totals) {
+        const totalGoals =
+          score.home + score.away;
+
+        const totalsCompatible =
+          totals.label === "Over 2.5"
+            ? totalGoals >= 3
+            : totalGoals <= 2;
+
+        if (!totalsCompatible) {
+          return false;
+        }
+      }
+
+      if (hardBtts && btts) {
+        const bothScored =
+          score.home > 0 &&
+          score.away > 0;
+
+        const bttsCompatible =
+          btts.label === "Goal"
+            ? bothScored
+            : !bothScored;
+
+        if (!bttsCompatible) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .sort(
+      (first, second) =>
+        second.prediction_percent -
+        first.prediction_percent,
+    );
+}
+
+function topMarketExact(
+  match: ControlRoomMatch,
+): MarketExactItem | null {
+  return coherentMarketExactRows(match)[0] ?? null;
+}
+
+function topMarketTotals(match: ControlRoomMatch) {
+  const totals = match.market_context?.bm_interpolated?.totals;
+  if (!totals) return null;
+
+  const over = numberOrNull(totals.over25);
+  const under = numberOrNull(totals.under25);
+  if (over === null || under === null) return null;
+
+  return over >= under
+    ? {
+        label: "Over 2.5",
+        probability: over * 100,
+        odd: probabilityToFairOdd(over),
+      }
+    : {
+        label: "Under 2.5",
+        probability: under * 100,
+        odd: probabilityToFairOdd(under),
+      };
+}
+
+function topMarketBtts(match: ControlRoomMatch) {
+  const btts = match.market_context?.bm_interpolated?.btts;
+  if (!btts) return null;
+
+  const goal = numberOrNull(btts.goal);
+  const noGoal = numberOrNull(btts.noGoal);
+  if (goal === null || noGoal === null) return null;
+
+  return goal >= noGoal
+    ? {
+        label: "Goal",
+        probability: goal * 100,
+        odd: probabilityToFairOdd(goal),
+      }
+    : {
+        label: "No Goal",
+        probability: noGoal * 100,
+        odd: probabilityToFairOdd(noGoal),
+      };
+}
+
+function normalizeMovementKey(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replaceAll("-", "_")
+    .replaceAll(".", "_")
+    .replaceAll(" ", "_");
+}
+
+function marketMovementChange(
+  movements: ControlRoomMarketMovement[] | undefined,
+  signalType: string,
+  signalKeys: string[],
+): number | null {
+  if (!movements?.length) return null;
+
+  const expectedType = normalizeMovementKey(signalType);
+  const expectedKeys = new Set(signalKeys.map(normalizeMovementKey));
+
+  const latest = [...movements]
+    .filter(
+      (movement) =>
+        normalizeMovementKey(movement.signal_type) === expectedType &&
+        expectedKeys.has(normalizeMovementKey(movement.signal_key)),
+    )
+    .sort(
+      (first, second) =>
+        new Date(second.created_at).getTime() -
+        new Date(first.created_at).getTime(),
+    )[0];
+
+  if (!latest) return null;
+  if (latest.delta_percentage_points !== null) {
+    return toNumber(latest.delta_percentage_points);
+  }
+  if (latest.delta_probability !== null) {
+    return toNumber(latest.delta_probability) * 100;
+  }
+  return null;
+}
+
+function marketSynthesis(
+  match: ControlRoomMatch,
+): string {
+  const sign = topMarketOutcome(match);
+  const totals = topMarketTotals(match);
+  const btts = topMarketBtts(match);
+
+  if (!sign) {
+    return "Mercato non disponibile";
+  }
+
+  const signMaterial =
+    sign.probability >=
+      MARKET_COHERENCE_HARD_THRESHOLD_PERCENT;
+
+  const totalsMaterial =
+    totals !== null &&
+    totals.probability >=
+      MARKET_COHERENCE_HARD_THRESHOLD_PERCENT;
+
+  const bttsMaterial =
+    btts !== null &&
+    btts.probability >=
+      MARKET_COHERENCE_HARD_THRESHOLD_PERCENT;
+
+  const materialCount =
+    Number(signMaterial) +
+    Number(totalsMaterial) +
+    Number(bttsMaterial);
+
+  const signLead =
+    sign.label === "1"
+      ? signMaterial
+        ? "Padroni di casa favoriti"
+        : "Leggera prevalenza dei padroni di casa"
+      : sign.label === "2"
+        ? signMaterial
+          ? "Ospiti favoriti"
+          : "Leggera prevalenza degli ospiti"
+        : signMaterial
+          ? "Partita equilibrata"
+          : "Equilibrio senza una direzione netta";
+
+  if (materialCount === 0) {
+    return `${signLead} · quadro complessivamente incerto`;
+  }
+
+  if (
+    totalsMaterial &&
+    bttsMaterial &&
+    totals &&
+    btts
+  ) {
+    if (
+      totals.label === "Over 2.5" &&
+      btts.label === "Goal"
+    ) {
+      return sign.label === "X"
+        ? "Partita equilibrata e ricca di gol"
+        : `${signLead} in una partita aperta e ricca di gol`;
+    }
+
+    if (
+      totals.label === "Under 2.5" &&
+      btts.label === "No Goal"
+    ) {
+      return sign.label === "X"
+        ? "Partita equilibrata, chiusa e con poche reti"
+        : `${signLead} in una partita chiusa e con poche reti`;
+    }
+
+    if (
+      totals.label === "Under 2.5" &&
+      btts.label === "Goal"
+    ) {
+      return sign.label === "X"
+        ? "Partita equilibrata e da punteggio contenuto"
+        : `${signLead} con punteggio probabilmente contenuto`;
+    }
+
+    if (
+      totals.label === "Over 2.5" &&
+      btts.label === "No Goal"
+    ) {
+      return sign.label === "X"
+        ? "Equilibrio incerto con possibile punteggio ampio"
+        : `${signLead} con possibile margine ampio`;
+    }
+  }
+
+  if (totalsMaterial && totals) {
+    return totals.label === "Over 2.5"
+      ? `${signLead} · prevale uno scenario ricco di gol`
+      : `${signLead} · prevale uno scenario da poche reti`;
+  }
+
+  if (bttsMaterial && btts) {
+    return btts.label === "Goal"
+      ? `${signLead} · entrambe le squadre possono trovare il gol`
+      : `${signLead} · prevale lo scenario No Goal`;
+  }
+
+  if (signMaterial) {
+    return `${signLead} · incertezza sul numero di reti`;
+  }
+
+  return `${signLead} · quadro complessivamente incerto`;
+}
+
+function matchVerdict(match: ControlRoomMatch): string {
+  return marketSynthesis(match);
+}
+
+function CompactSignal({
+  label,
+  value,
+  detail,
+  tone,
 }: {
-  match: ControlRoomMatch;
+  label: string;
+  value: string;
+  detail: string;
+  tone: "community" | "market";
 }) {
-  const items = [
-    {
-      label: "1",
-      community: match.home_pick_percent,
-      bookmakers: marketProbability(match, "home"),
-    },
-    {
-      label: "X",
-      community: match.draw_pick_percent,
-      bookmakers: marketProbability(match, "draw"),
-    },
-    {
-      label: "2",
-      community: match.away_pick_percent,
-      bookmakers: marketProbability(match, "away"),
-    },
-  ];
-
-  const validItems = items.filter(
-    (item): item is { label: string; community: number; bookmakers: number } =>
-      item.bookmakers !== null,
-  );
-
-  const averageGap = validItems.length
-    ? validItems.reduce(
-        (sum, item) => sum + Math.abs(item.community - item.bookmakers),
-        0,
-      ) / validItems.length
-    : null;
-
-  const alignment =
-    averageGap === null ? null : Math.max(0, 100 - averageGap * 3);
-
   return (
-    <section className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.07] p-5">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
-            Community vs Bookmakers
-          </p>
-          <h4 className="mt-2 text-xl font-black text-white">
-            Allineamento e divergenze
-          </h4>
-        </div>
-
-        <div className="rounded-xl border border-amber-300/20 bg-black/20 px-4 py-3 text-right">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">
-            Indice di allineamento
-          </p>
-          <p className="mt-1 text-2xl font-black text-amber-200">
-            {alignment === null ? "N/D" : `${alignment.toFixed(0)}/100`}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {items.map((item) => {
-          const gap =
-            item.bookmakers === null
-              ? null
-              : item.community - item.bookmakers;
-
-          return (
-            <div
-              key={item.label}
-              className="rounded-xl border border-amber-300/15 bg-black/25 p-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-black text-white">
-                  {item.label}
-                </span>
-                <span
-                  className={`text-sm font-black ${
-                    gap === null
-                      ? "text-gray-500"
-                      : gap >= 0
-                        ? "text-[#A6E824]"
-                        : "text-amber-300"
-                  }`}
-                >
-                  {gap === null
-                    ? "N/D"
-                    : `${gap > 0 ? "+" : ""}${gap.toFixed(1)} pt`}
-                </span>
-              </div>
-              <div className="mt-3 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="font-black text-[#A6E824]">Community</span>
-                  <span className="font-black text-white">
-                    {pct(item.community)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-black text-sky-300">Bookmakers</span>
-                  <span className="font-black text-white">
-                    {item.bookmakers === null ? "N/D" : pct(item.bookmakers)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function InsightPill({ insight }: { insight: InsightItem }) {
-  const high = insight.severity === "high";
-
-  return (
-    <span
-      title={insightDescription(insight)}
-      className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${
-        high
-          ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
-          : "border-white/10 bg-black/25 text-gray-300"
-      }`}
-    >
-      {insightLabel(insight.insight_code)}
-    </span>
-  );
-}
-
-function LoadingPanel({ label }: { label: string }) {
-  return (
-    <section className="rounded-3xl border border-white/10 bg-[#0b1419] p-10 text-center shadow-xl shadow-black/30">
-      <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-[#A6E824]" />
-      <p className="mt-5 text-sm font-black uppercase tracking-[0.16em] text-gray-400">
+    <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-3.5 sm:px-4">
+      <p
+        className={`text-[9px] font-black uppercase tracking-[0.16em] ${
+          tone === "community" ? "text-[#A6E824]" : "text-sky-300"
+        }`}
+      >
         {label}
       </p>
+      <p className="mt-2 truncate text-xl font-black text-white sm:text-2xl">
+        {value}
+      </p>
+      <p className="mt-1 truncate text-[11px] font-bold text-gray-500">
+        {detail}
+      </p>
+    </div>
+  );
+}
+
+function DailyExactRow({
+  rank,
+  match,
+  result,
+  detail,
+  tone,
+}: {
+  rank: number;
+  match: ControlRoomMatch | null;
+  result: string;
+  detail: string;
+  tone: "community" | "market";
+}) {
+  const homeName = match
+    ? cleanTeamName(
+        match.home_team_short_name ||
+          match.home_team_name,
+      )
+    : "—";
+
+  const awayName = match
+    ? cleanTeamName(
+        match.away_team_short_name ||
+          match.away_team_name,
+      )
+    : "—";
+
+  const accent =
+    tone === "community"
+      ? "text-[#A6E824]"
+      : "text-sky-300";
+
+  return (
+    <div className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3">
+      <span
+        className={`absolute left-2 top-1.5 text-[9px] font-black ${accent}`}
+      >
+        #{rank}
+      </span>
+
+      <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
+        {homeName}
+      </span>
+
+      {match ? (
+        <TeamCrest
+          crestReference={
+            match.home_team_crest_reference
+          }
+          logoUrl={
+            match.home_team_logo_url
+          }
+          alt={`${homeName} stemma`}
+          fallbackLabel={homeName}
+          size="sm"
+          className="h-8 w-8 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9"
+        />
+      ) : (
+        <span className="h-8 w-8 shrink-0 rounded-full border border-sky-300/20 bg-sky-400/5 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9" />
+      )}
+
+      <div className="min-w-[64px] text-center max-[429px]:min-w-[58px] max-[399px]:min-w-[54px] max-[381px]:min-w-[50px]">
+        <div
+          className={`text-xl font-black leading-none max-[429px]:text-lg max-[399px]:text-[17px] max-[381px]:text-base sm:text-2xl ${accent}`}
+        >
+          {result}
+        </div>
+
+        <div className="mt-1 whitespace-nowrap text-[9px] font-semibold leading-[1.15] text-gray-500 max-[381px]:text-[8px] sm:text-[10px]">
+          {detail}
+        </div>
+      </div>
+
+      {match ? (
+        <TeamCrest
+          crestReference={
+            match.away_team_crest_reference
+          }
+          logoUrl={
+            match.away_team_logo_url
+          }
+          alt={`${awayName} stemma`}
+          fallbackLabel={awayName}
+          size="sm"
+          className="h-8 w-8 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9"
+        />
+      ) : (
+        <span className="h-8 w-8 shrink-0 rounded-full border border-sky-300/20 bg-sky-400/5 max-[429px]:h-7 max-[429px]:w-7 max-[399px]:h-[26px] max-[399px]:w-[26px] max-[381px]:h-6 max-[381px]:w-6 sm:h-9 sm:w-9" />
+      )}
+
+      <span className="min-w-0 truncate pl-0.5 text-left text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
+        {awayName}
+      </span>
+    </div>
+  );
+}
+
+
+function DailyIntelligenceCard({
+  matches,
+  expanded,
+  onToggle,
+}: {
+  matches: ControlRoomMatch[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const rankedExact = matches
+    .flatMap((match) =>
+      (match.exact_distribution ?? []).map(
+        (exact) => ({
+          match,
+          exact,
+        }),
+      ),
+    )
+    .sort(
+      (first, second) =>
+        second.exact.prediction_count -
+        first.exact.prediction_count,
+    )
+    .slice(0, 5);
+
+  const rankedMarketExact = matches
+    .map((match) => ({
+      match,
+      exact: topMarketExact(match),
+    }))
+    .filter(
+      (
+        item,
+      ): item is {
+        match: ControlRoomMatch;
+        exact: MarketExactItem;
+      } => item.exact !== null,
+    )
+    .sort(
+      (first, second) =>
+        second.exact.prediction_percent -
+        first.exact.prediction_percent,
+    )
+    .slice(0, 5);
+
+  const marketExactCoverage = matches.filter(
+    (match) => topMarketExact(match) !== null,
+  ).length;
+  const marketTotalsCoverage = matches.filter(
+    (match) => topMarketTotals(match) !== null,
+  ).length;
+  const marketBttsCoverage = matches.filter(
+    (match) => topMarketBtts(match) !== null,
+  ).length;
+
+  const comparisons = matches
+    .map((match) => {
+      const community =
+        topCommunityOutcome(match);
+
+      const market =
+        topMarketOutcome(match);
+
+      return market
+        ? {
+            community,
+            market,
+          }
+        : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        community: ReturnType<
+          typeof topCommunityOutcome
+        >;
+        market: NonNullable<
+          ReturnType<typeof topMarketOutcome>
+        >;
+      } => Boolean(item),
+    );
+
+  const aligned =
+    comparisons.filter(
+      (item) =>
+        item.community.label ===
+        item.market.label,
+    ).length;
+
+  const divergent =
+    comparisons.length - aligned;
+
+  return (
+    <section className="rounded-[30px] border border-[#A6E824]/25 bg-[#0b1419] shadow-[0_24px_70px_rgba(0,0,0,0.55),0_0_0_1px_rgba(166,232,36,0.055)]">
+      <div className="p-5 sm:p-7">
+        <p className="text-xs font-black uppercase tracking-[0.24em] text-[#A6E824]">
+          Intelligence della giornata
+        </p>
+
+        <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">
+          Top 3 Exact
+        </h2>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <section className="rounded-3xl border border-[#A6E824]/20 bg-[#A6E824]/[0.055] p-3 sm:p-4">
+            <p className="px-1 text-xs font-black uppercase tracking-[0.18em] text-[#A6E824]">
+              Community
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {[0, 1, 2].map((index) => {
+                const item =
+                  rankedExact[index];
+
+                return (
+                  <DailyExactRow
+                    key={
+                      item
+                        ? `${item.match.match_id}-${item.exact.home_prediction}-${item.exact.away_prediction}`
+                        : `community-${index}`
+                    }
+                    rank={index + 1}
+                    match={
+                      item?.match ?? null
+                    }
+                    result={
+                      item
+                        ? `${item.exact.home_prediction}-${item.exact.away_prediction}`
+                        : "—"
+                    }
+                    detail={
+                      item
+                        ? `${item.exact.prediction_count} persone`
+                        : "N/D"
+                    }
+                    tone="community"
+                  />
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-sky-400/20 bg-sky-500/[0.055] p-3 sm:p-4">
+            <p className="px-1 text-xs font-black uppercase tracking-[0.18em] text-sky-300">
+              Bookmakers
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {[0, 1, 2].map((index) => {
+                const item = rankedMarketExact[index];
+
+                return (
+                  <DailyExactRow
+                    key={
+                      item
+                        ? `market-${item.match.match_id}-${item.exact.score}`
+                        : `market-${index}`
+                    }
+                    rank={index + 1}
+                    match={item?.match ?? null}
+                    result={item?.exact.score ?? "—"}
+                    detail={
+                      item
+                        ? pct(item.exact.prediction_percent)
+                        : "N/D"
+                    }
+                    tone="market"
+                  />
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mt-4 ml-auto block rounded-xl border border-[#A6E824]/30 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black text-[#A6E824] transition hover:border-[#A6E824]"
+        >
+          {expanded
+            ? "Chiudi analisi"
+            : "Apri analisi"}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-[#A6E824]/20 bg-black/20 p-4 sm:p-6">
+          <div className="grid gap-4">
+            <section className="rounded-3xl border border-[#A6E824]/20 bg-[#A6E824]/[0.045] p-3 sm:p-5">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A6E824]">
+                Community · Trend Top 5 Exact
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {rankedExact.length ? (
+                  rankedExact.map(
+                    (
+                      {
+                        match,
+                        exact,
+                      },
+                      index,
+                    ) => {
+                      const change =
+                        exact.change_from_previous ===
+                        null
+                          ? null
+                          : toNumber(
+                              exact.change_from_previous,
+                            );
+
+                      return (
+                        <div
+                          key={`${match.match_id}-${exact.home_prediction}-${exact.away_prediction}`}
+                          className="grid grid-cols-[24px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2.5 py-2.5 max-[429px]:grid-cols-[20px_minmax(0,1fr)_auto_auto] max-[429px]:gap-1.5 max-[399px]:gap-1 max-[381px]:px-2 sm:px-3"
+                        >
+                          <span className="text-[10px] font-black text-gray-600 max-[381px]:text-[9px]">
+                            #{index + 1}
+                          </span>
+
+                          <span className="min-w-0 truncate text-xs font-black text-gray-300 max-[429px]:text-[11px] max-[399px]:text-[10px] max-[381px]:text-[9px]">
+                            {cleanTeamName(
+                              match.home_team_short_name ||
+                                match.home_team_name,
+                            )}{" "}
+                            –{" "}
+                            {cleanTeamName(
+                              match.away_team_short_name ||
+                                match.away_team_name,
+                            )}
+                          </span>
+
+                          <span className="shrink-0 text-sm font-black text-white max-[399px]:text-xs max-[381px]:text-[11px]">
+                            {exact.home_prediction}-
+                            {exact.away_prediction}
+                          </span>
+
+                          <span className="min-w-[62px] shrink-0 whitespace-nowrap text-right text-[11px] font-black text-[#A6E824] max-[429px]:min-w-[56px] max-[429px]:text-[10px] max-[399px]:min-w-[52px] max-[399px]:text-[9px] max-[381px]:min-w-[48px] max-[381px]:text-[8px]">
+                            {trendDirection(
+                              change,
+                            )}{" "}
+                            {change === null
+                              ? "N/D"
+                              : `${Math.abs(
+                                  change,
+                                ).toFixed(
+                                  1,
+                                )}%`}
+                          </span>
+                        </div>
+                      );
+                    },
+                  )
+                ) : (
+                  <p className="py-4 text-center text-xs font-bold text-gray-600">
+                    N/D
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-sky-400/20 bg-sky-500/[0.045] p-3 sm:p-5">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">
+                Bookmakers · Trend Top 5 Exact
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {rankedMarketExact.length ? (
+                  rankedMarketExact.map(({ match, exact }, index) => (
+                    <div
+                      key={`${match.match_id}-${exact.score}`}
+                      className="grid grid-cols-[24px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2.5 py-2.5 max-[429px]:grid-cols-[20px_minmax(0,1fr)_auto_auto] max-[429px]:gap-1.5 max-[399px]:gap-1 max-[381px]:px-2 sm:px-3"
+                    >
+                      <span className="text-[10px] font-black text-gray-600 max-[381px]:text-[9px]">
+                        #{index + 1}
+                      </span>
+                      <span className="min-w-0 truncate text-xs font-black text-gray-300 max-[429px]:text-[11px] max-[399px]:text-[10px] max-[381px]:text-[9px]">
+                        {cleanTeamName(match.home_team_short_name || match.home_team_name)} –{" "}
+                        {cleanTeamName(match.away_team_short_name || match.away_team_name)}
+                      </span>
+                      <span className="shrink-0 text-sm font-black text-white max-[399px]:text-xs">
+                        {exact.score}
+                      </span>
+                      <span className="min-w-[62px] shrink-0 whitespace-nowrap text-right text-[11px] font-black text-sky-300 max-[429px]:min-w-[56px] max-[429px]:text-[10px] max-[399px]:min-w-[52px] max-[399px]:text-[9px] max-[381px]:min-w-[48px] max-[381px]:text-[8px]">
+                        {pct(exact.prediction_percent)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-4 text-center text-xs font-bold text-gray-600">
+                    N/D
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section
+              className="rounded-3xl border border-amber-400/30 bg-amber-400/[0.05] p-3 sm:p-5"
+              data-r38c6c7-detail-comparison="TOP3_CANONICAL_MATCH_COMPARISON"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">
+                Community vs Bookmakers
+              </p>
+
+              <p className="mt-2 text-xs font-bold text-gray-500">
+                Confronto coerente sulle stesse partite del Top 3
+              </p>
+
+              <div className="mt-4 space-y-4">
+                {rankedExact
+                  .slice(0, 3)
+                  .map(
+                    (
+                      {
+                        match,
+                      },
+                      index,
+                    ) => (
+                      <div
+                        key={`top3-comparison-${match.match_id}`}
+                        className="overflow-hidden rounded-2xl border border-white/10 bg-black/20"
+                      >
+                        <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2.5">
+                          <span className="shrink-0 text-[10px] font-black text-gray-600">
+                            #{index + 1}
+                          </span>
+
+                          <span className="min-w-0 truncate text-xs font-black text-white">
+                            {cleanTeamName(
+                              match.home_team_short_name ||
+                                match.home_team_name,
+                            )}{" "}
+                            –{" "}
+                            {cleanTeamName(
+                              match.away_team_short_name ||
+                                match.away_team_name,
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 sm:p-3">
+                          <CommunityBookmakersComparison
+                            match={match}
+                          />
+                        </div>
+                      </div>
+                    ),
+                  )}
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
+function trendCurrentValue(
+  trend: TrendItem,
+): number {
+  return toNumber(
+    trend.to_value ??
+      trend.metric_value,
+  );
+}
+
+
+function trendChange(
+  trend: TrendItem,
+): number | null {
+  const value =
+    trend.delta_percent ??
+    trend.percentage_change;
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  return toNumber(value);
+}
+
+
+function trendDirection(
+  change: number | null,
+): string {
+  if (
+    change === null ||
+    Math.abs(change) < 0.0001
+  ) {
+    return "–";
+  }
+
+  return change > 0
+    ? "↑"
+    : "↓";
+}
+
+
+function trendLabel(
+  value: string | null | undefined,
+): string {
+  if (!value) return "—";
+
+  const upper =
+    value.toUpperCase();
+
+  if (
+    upper === "HOME" ||
+    upper === "1"
+  ) {
+    return "1";
+  }
+
+  if (
+    upper === "DRAW" ||
+    upper === "X"
+  ) {
+    return "X";
+  }
+
+  if (
+    upper === "AWAY" ||
+    upper === "2"
+  ) {
+    return "2";
+  }
+
+  if (
+    upper.includes("OVER") &&
+    upper.includes("2")
+  ) {
+    return "Over 2.5";
+  }
+
+  if (
+    upper.includes("UNDER") &&
+    upper.includes("2")
+  ) {
+    return "Under 2.5";
+  }
+
+  if (
+    upper === "GOAL" ||
+    upper === "GG"
+  ) {
+    return "Goal";
+  }
+
+  if (
+    upper.includes("NO_GOAL") ||
+    upper === "NG"
+  ) {
+    return "No Goal";
+  }
+
+  return value.replaceAll("_", " ");
+}
+
+
+function latestMetricRows(
+  trends: TrendItem[],
+  metricCode: string,
+): TrendItem[] {
+  const rows =
+    trends
+      .filter(
+        (trend) =>
+          trend.metric_code === metricCode,
+      )
+      .sort(
+        (first, second) =>
+          new Date(
+            second.created_at ?? 0,
+          ).getTime() -
+          new Date(
+            first.created_at ?? 0,
+          ).getTime(),
+      );
+
+  const unique =
+    new Map<string, TrendItem>();
+
+  for (const row of rows) {
+    const key =
+      row.outcome_code ??
+      "__TOTAL__";
+
+    if (!unique.has(key)) {
+      unique.set(key, row);
+    }
+  }
+
+  return [...unique.values()].sort(
+    (first, second) =>
+      trendCurrentValue(second) -
+      trendCurrentValue(first),
+  );
+}
+
+
+function TrendRow({
+  rank,
+  label,
+  value,
+  change,
+  tone,
+}: {
+  rank?: number;
+  label: string;
+  value: string;
+  change: number | null;
+  tone: "community" | "market";
+}) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 max-[429px]:gap-1.5 max-[429px]:px-2.5 max-[399px]:gap-1 max-[381px]:px-2">
+      {rank !== undefined ? (
+        <span className="w-5 shrink-0 text-[10px] font-black text-gray-600 max-[399px]:w-4 max-[381px]:text-[9px]">
+          #{rank}
+        </span>
+      ) : (
+        <span className="hidden" />
+      )}
+
+      <span className="min-w-0 truncate text-sm font-black text-white max-[429px]:text-xs max-[399px]:text-[11px] max-[381px]:text-[10px]">
+        {label}
+      </span>
+
+      <span
+        className={`shrink-0 whitespace-nowrap text-xs font-black max-[399px]:text-[10px] max-[381px]:text-[9px] ${
+          tone === "community"
+            ? "text-[#A6E824]"
+            : "text-sky-300"
+        } ml-auto min-w-[4.5rem] text-right tabular-nums`}
+       data-r38c6c6="R38C6C6_TREND_VALUE_COLUMN">
+        {value}
+      </span>
+
+      <span className="min-w-[62px] shrink-0 whitespace-nowrap text-right text-[11px] font-black text-gray-400 max-[429px]:min-w-[56px] max-[429px]:text-[10px] max-[399px]:min-w-[50px] max-[399px]:text-[9px] max-[381px]:min-w-[46px] max-[381px]:text-[8px]">
+        {trendDirection(change)}{" "}
+        {change === null
+          ? "N/D"
+          : `${Math.abs(
+              change,
+            ).toFixed(1)}%`}
+      </span>
+    </div>
+  );
+}
+
+function CommunityTrendPanel({
+  trends,
+  heatmap,
+}: {
+  trends: TrendItem[];
+  heatmap: HeatmapItem[];
+}) {
+  const exactRows =
+    latestMetricRows(
+      trends,
+      "exact_share",
+    );
+
+  const signRows =
+    latestMetricRows(
+      trends,
+      "sign_share",
+    );
+
+  const overUnderRows =
+    latestMetricRows(
+      trends,
+      "over_under_share",
+    );
+
+  const goalRows =
+    latestMetricRows(
+      trends,
+      "goal_no_goal_share",
+    );
+
+  const exactFallback =
+    heatmap
+      .slice(0, 3)
+      .map((item) => ({
+        label:
+          `${item.home_prediction}-${item.away_prediction}`,
+        value:
+          pct(
+            item.prediction_percent,
+            1,
+          ),
+        change:
+          item.change_from_previous === null
+            ? null
+            : toNumber(
+                item.change_from_previous,
+              ),
+      }));
+
+  return (
+    <section className="rounded-3xl border border-[#A6E824]/20 bg-[#A6E824]/[0.045] p-4 sm:p-5">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A6E824]">
+        Community · Trend settimanale
+      </p>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            Exact · Top 3
+          </p>
+
+          <div className="space-y-2">
+            {(exactRows.length
+              ? exactRows
+                  .slice(0, 3)
+                  .map((row) => ({
+                    label:
+                      trendLabel(
+                        row.outcome_code,
+                      ),
+                    value:
+                      pct(
+                        trendCurrentValue(row),
+                        1,
+                      ),
+                    change:
+                      trendChange(row),
+                  }))
+              : exactFallback
+            ).map((row, index) => (
+              <TrendRow
+                key={`${row.label}-${index}`}
+                rank={index + 1}
+                label={row.label}
+                value={row.value}
+                change={row.change}
+                tone="community"
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            Segno
+          </p>
+
+          <div className="space-y-2">
+            {signRows.length ? (
+              signRows
+                .slice(0, 3)
+                .map((row, index) => (
+                  <TrendRow
+                    key={`${row.outcome_code}-${index}`}
+                    label={
+                      trendLabel(
+                        row.outcome_code,
+                      )
+                    }
+                    value={
+                      pct(
+                        trendCurrentValue(row),
+                        1,
+                      )
+                    }
+                    change={
+                      trendChange(row)
+                    }
+                    tone="community"
+                  />
+                ))
+            ) : (
+              <p className="py-3 text-xs font-bold text-gray-600">
+                N/D
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            U/O
+          </p>
+
+          <div className="space-y-2">
+            {overUnderRows.length ? (
+              overUnderRows
+                .slice(0, 2)
+                .map((row, index) => (
+                  <TrendRow
+                    key={`${row.outcome_code}-${index}`}
+                    label={
+                      trendLabel(
+                        row.outcome_code,
+                      )
+                    }
+                    value={
+                      pct(
+                        trendCurrentValue(row),
+                        1,
+                      )
+                    }
+                    change={
+                      trendChange(row)
+                    }
+                    tone="community"
+                  />
+                ))
+            ) : (
+              <p className="py-3 text-xs font-bold text-gray-600">
+                N/D
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            G/NG
+          </p>
+
+          <div className="space-y-2">
+            {goalRows.length ? (
+              goalRows
+                .slice(0, 2)
+                .map((row, index) => (
+                  <TrendRow
+                    key={`${row.outcome_code}-${index}`}
+                    label={
+                      trendLabel(
+                        row.outcome_code,
+                      )
+                    }
+                    value={
+                      pct(
+                        trendCurrentValue(row),
+                        1,
+                      )
+                    }
+                    change={
+                      trendChange(row)
+                    }
+                    tone="community"
+                  />
+                ))
+            ) : (
+              <p className="py-3 text-xs font-bold text-gray-600">
+                N/D
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+function MarketTrendPanel({
+  match,
+  movements,
+}: {
+  match: ControlRoomMatch;
+  movements?: ControlRoomMarketMovement[];
+}) {
+  const market = topMarketOutcome(match);
+  const exactRows =
+    coherentMarketExactRows(match).slice(0, 3);
+  const totals = topMarketTotals(match);
+  const btts = topMarketBtts(match);
+
+  const signChange = market
+    ? marketMovementChange(movements, "SIGN", [market.label])
+    : null;
+  const totalsChange = totals
+    ? marketMovementChange(
+        movements,
+        "TOTALS",
+        totals.label === "Over 2.5"
+          ? ["OVER_25", "OVER_2_5", "OVER"]
+          : ["UNDER_25", "UNDER_2_5", "UNDER"],
+      )
+    : null;
+  const bttsChange = btts
+    ? marketMovementChange(
+        movements,
+        "BTTS",
+        btts.label === "Goal"
+          ? ["GOAL", "GG"]
+          : ["NO_GOAL", "NOGOAL", "NG"],
+      )
+    : null;
+
+  return (
+    <section className="rounded-3xl border border-sky-400/20 bg-sky-500/[0.045] p-4 sm:p-5">
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">
+        Bookmakers · Trend settimanale
+      </p>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            Exact · Top 3
+          </p>
+          <div className="space-y-2">
+            {exactRows.length ? (
+              exactRows.map((exact, index) => (
+                <TrendRow
+                  key={exact.score}
+                  rank={index + 1}
+                  label={exact.score}
+                  value={pct(exact.prediction_percent)}
+                  change={marketMovementChange(
+                    movements,
+                    "EXACT",
+                    [exact.score],
+                  )}
+                  tone="market"
+                />
+              ))
+            ) : (
+              <p className="py-3 text-xs font-bold text-gray-600">N/D</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            Segno
+          </p>
+          {market ? (
+            <TrendRow
+              label={market.label}
+              value={pct(market.probability)}
+              change={signChange}
+              tone="market"
+            />
+          ) : (
+            <p className="py-3 text-xs font-bold text-gray-600">N/D</p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            U/O
+          </p>
+          {totals ? (
+            <TrendRow
+              label={totals.label}
+              value={pct(totals.probability)}
+              change={totalsChange}
+              tone="market"
+            />
+          ) : (
+            <p className="py-3 text-xs font-bold text-gray-600">N/D</p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+            G/NG
+          </p>
+          {btts ? (
+            <TrendRow
+              label={btts.label}
+              value={pct(btts.probability)}
+              change={bttsChange}
+              tone="market"
+            />
+          ) : (
+            <p className="py-3 text-xs font-bold text-gray-600">N/D</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 function MatchCard({
   match,
   expanded,
@@ -681,191 +2223,265 @@ function MatchCard({
   onToggle: () => void;
 }) {
   const homeName = cleanTeamName(
-    match.home_team_short_name || match.home_team_name,
+    match.home_team_short_name ||
+      match.home_team_name,
   );
+
   const awayName = cleanTeamName(
-    match.away_team_short_name || match.away_team_name,
+    match.away_team_short_name ||
+      match.away_team_name,
   );
-  const topExact = match.exact_distribution?.[0];
-  const heatmap = detail?.heatmap ?? match.exact_distribution ?? [];
-  const trends = detail?.trend ?? [];
+
+  const topExact =
+    match.exact_distribution?.[0];
+
+  const communityOutcome =
+    topCommunityOutcome(match);
+
+  const marketOutcome =
+    topMarketOutcome(match);
+
+  const marketExact =
+    topMarketExact(match);
+
+  const marketOver =
+    topMarketTotals(match);
+
+  const marketGoal =
+    topMarketBtts(match);
+
+  const heatmap =
+    detail?.heatmap ??
+    match.exact_distribution ??
+    [];
+
+  const trends =
+    detail?.trend ??
+    [];
+
+  const communityOver =
+    match.over_2_5_percent >=
+    match.under_2_5_percent
+      ? {
+          value: "Over 2.5",
+          percent:
+            match.over_2_5_percent,
+        }
+      : {
+          value: "Under 2.5",
+          percent:
+            match.under_2_5_percent,
+        };
+
+  const communityGoal =
+    match.goal_percent >=
+    match.no_goal_percent
+      ? {
+          value: "Goal",
+          percent:
+            match.goal_percent,
+        }
+      : {
+          value: "No Goal",
+          percent:
+            match.no_goal_percent,
+        };
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b1419] shadow-xl shadow-black/30">
-      <div className="p-5 sm:p-6">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start lg:grid-cols-[minmax(0,1fr)_112px]">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-4">
-              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">
-                Partita {match.slot_number}
-              </span>
-              <span className="text-xs font-bold text-gray-500">
-                {formatDateTime(match.kickoff)}
-              </span>
-            </div>
+    <article className="overflow-hidden rounded-[30px] border border-white/15 bg-[#0b1419] shadow-[0_28px_80px_rgba(0,0,0,0.62),0_0_0_1px_rgba(255,255,255,0.045),0_0_30px_rgba(166,232,36,0.03)]">
+      <div className="p-5 sm:p-7">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-600">
+            Partita {match.slot_number}
+          </span>
 
-            <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row sm:text-left">
-                <TeamCrest
-                  crestReference={match.home_team_crest_reference}
-                  logoUrl={match.home_team_logo_url}
-                  alt={`${homeName} stemma`}
-                  fallbackLabel={homeName}
-                  size="xs"
-                  className="h-8 w-8 sm:h-10 sm:w-10 lg:h-11 lg:w-11"
-                />
-                <p className="truncate text-sm font-black sm:text-lg">
-                  {homeName}
-                </p>
-              </div>
+          <span className="text-xs font-bold text-gray-500">
+            {formatDateTime(match.kickoff)}
+          </span>
+        </div>
 
-              <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm font-black text-gray-300">
-                VS
-              </div>
+        <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/10 pb-5 sm:gap-5">
+          <div className="flex min-w-0 flex-col items-center gap-2.5 text-center sm:flex-row sm:text-left">
+            <TeamCrest
+              crestReference={
+                match.home_team_crest_reference
+              }
+              logoUrl={
+                match.home_team_logo_url
+              }
+              alt={`${homeName} stemma`}
+              fallbackLabel={homeName}
+              size="xs"
+              className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16"
+            />
 
-              <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:flex-row-reverse sm:text-right">
-                <TeamCrest
-                  crestReference={match.away_team_crest_reference}
-                  logoUrl={match.away_team_logo_url}
-                  alt={`${awayName} stemma`}
-                  fallbackLabel={awayName}
-                  size="xs"
-                  className="h-8 w-8 sm:h-10 sm:w-10 lg:h-11 lg:w-11"
-                />
-                <p className="truncate text-sm font-black sm:text-lg">
-                  {awayName}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-[#A6E824]/25 bg-[#A6E824]/[0.06] p-4">
-              <div className="mb-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#A6E824]">
-                  Community FantaGol
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Distribuzione aggregata e anonima dei pronostici
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-              <PercentBar
-                label="1"
-                value={match.home_pick_percent}
-                highlighted={match.consensus_outcome === "1"}
-              />
-              <PercentBar
-                label="X"
-                value={match.draw_pick_percent}
-                highlighted={match.consensus_outcome === "X"}
-              />
-              <PercentBar
-                label="2"
-                value={match.away_pick_percent}
-                highlighted={match.consensus_outcome === "2"}
-              />
-              </div>
-            </div>
+            <p className="truncate text-lg font-black sm:text-2xl">
+              {homeName}
+            </p>
           </div>
 
-          <div className="grid shrink-0 grid-cols-2 gap-3 lg:w-[330px]">
-            <MetricCard
-              label="Consenso"
-              value={`${match.consensus_outcome} · ${pct(
-                match.consensus_percent,
-              )}`}
-              detail={outcomeLabel(match.consensus_outcome)}
-              emphasis
-            />
-            <MetricCard
-              label="Top exact"
-              value={
-                topExact
-                  ? `${topExact.home_prediction}-${topExact.away_prediction}`
-                  : "—"
+          <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm font-black text-gray-400 sm:px-4">
+            VS
+          </div>
+
+          <div className="flex min-w-0 flex-col items-center gap-2.5 text-center sm:flex-row-reverse sm:text-right">
+            <TeamCrest
+              crestReference={
+                match.away_team_crest_reference
               }
-              detail={
-                topExact
-                  ? `${pct(topExact.prediction_percent)} della community`
-                  : "Nessun dato"
+              logoUrl={
+                match.away_team_logo_url
               }
+              alt={`${awayName} stemma`}
+              fallbackLabel={awayName}
+              size="xs"
+              className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16"
             />
-            <MetricCard
-              label="Fiducia"
-              value={`${toNumber(match.confidence_index).toFixed(0)}/100`}
-              detail="Concentrazione delle scelte"
-            />
-            <MetricCard
-              label="Caos"
-              value={`${toNumber(match.chaos_index).toFixed(0)}/100`}
-              detail="Incertezza della community"
-            />
+
+            <p className="truncate text-lg font-black sm:text-2xl">
+              {awayName}
+            </p>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          {(match.insights ?? []).map((insight) => (
-            <InsightPill
-              key={`${match.match_id}-${insight.insight_code}`}
-              insight={insight}
-            />
-          ))}
-        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <section className="rounded-3xl border border-[#A6E824]/20 bg-[#A6E824]/[0.055] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A6E824]">
+              Community
+            </p>
 
-        <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            label="Over 2.5"
-            value={pct(match.over_2_5_percent)}
-            detail={`Under ${pct(match.under_2_5_percent)}`}
-          />
-          <MetricCard
-            label="Goal"
-            value={pct(match.goal_percent)}
-            detail={`No Goal ${pct(match.no_goal_percent)}`}
-          />
-          <MetricCard
-            label="Media gol"
-            value={toNumber(match.avg_total_goals).toFixed(1)}
-            detail={`${toNumber(match.avg_home_goals).toFixed(
-              1,
-            )} casa · ${toNumber(match.avg_away_goals).toFixed(1)} trasferta`}
-          />
-          <MetricCard
-            label="Campione"
-            value={qualityLabel(match.sample_quality_status)}
-            detail={`${toNumber(match.sample_quality_score).toFixed(
-              0,
-            )}/100 · ${match.prediction_count} pronostici`}
-          />
-        </div>
-
-        <div className="mt-5 grid gap-4">
-          <BookmakersPanel match={match} />
-          <CommunityBookmakersComparison match={match} />
-        </div>
-
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500">
-            <span>
-              Bookmakers:{" "}
-              <strong
-                className={
-                  match.market_available ? "text-[#A6E824]" : "text-gray-400"
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <CompactSignal
+                tone="community"
+                label="Exact"
+                value={
+                  topExact
+                    ? `${topExact.home_prediction}-${topExact.away_prediction}`
+                    : "—"
                 }
-              >
-                {match.market_available ? "disponibile" : "non disponibile"}
-              </strong>
+                detail={
+                  topExact
+                    ? `${topExact.prediction_count} persone`
+                    : "N/D"
+                }
+              />
+
+              <CompactSignal
+                tone="community"
+                label="Segno"
+                value={
+                  communityOutcome.label
+                }
+                detail={`${countFromPercent(
+                  match,
+                  communityOutcome.percent,
+                )} persone`}
+              />
+
+              <CompactSignal
+                tone="community"
+                label="U/O"
+                value={
+                  communityOver.value
+                }
+                detail={`${countFromPercent(
+                  match,
+                  communityOver.percent,
+                )} persone`}
+              />
+
+              <CompactSignal
+                tone="community"
+                label="G/NG"
+                value={
+                  communityGoal.value
+                }
+                detail={`${countFromPercent(
+                  match,
+                  communityGoal.percent,
+                )} persone`}
+              />
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-sky-400/20 bg-sky-500/[0.055] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">
+              Bookmakers
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <CompactSignal
+                tone="market"
+                label="Exact"
+                value={marketExact?.score ?? "—"}
+                detail={
+                  marketExact
+                    ? pct(marketExact.prediction_percent)
+                    : "N/D"
+                }
+              />
+
+              <CompactSignal
+                tone="market"
+                label="Segno"
+                value={marketOutcome?.label ?? "—"}
+                detail={
+                  marketOutcome
+                    ? pct(marketOutcome.probability)
+                    : "N/D"
+                }
+              />
+
+              <CompactSignal
+                tone="market"
+                label="U/O"
+                value={marketOver?.label ?? "—"}
+                detail={
+                  marketOver
+                    ? pct(marketOver.probability)
+                    : "N/D"
+                }
+              />
+
+              <CompactSignal
+                tone="market"
+                label="G/NG"
+                value={marketGoal?.label ?? "—"}
+                detail={
+                  marketGoal
+                    ? pct(marketGoal.probability)
+                    : "N/D"
+                }
+              />
+            </div>
+          </section>
+        </div>
+
+        <section className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[0.07] px-4 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            
+
+            <span className="text-sm font-black text-white">
+              {matchVerdict(match)}
             </span>
-            <span>{match.member_count} utenti</span>
-            <span>{match.league_count} leghe</span>
+          </div>
+        </section>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="text-[11px] font-bold text-gray-600">
+            {match.prediction_count} pronostici
+            {" · "}
+            {match.member_count} utenti
           </div>
 
           <button
             type="button"
             onClick={onToggle}
-            className="rounded-xl border border-[#A6E824]/30 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black text-[#A6E824] transition hover:border-[#A6E824]"
+            className="shrink-0 rounded-xl border border-[#A6E824]/30 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black text-[#A6E824] transition hover:border-[#A6E824]"
           >
-            {expanded ? "Chiudi analisi" : "Apri analisi completa"}
+            {expanded
+              ? "Chiudi analisi"
+              : "Apri analisi"}
           </button>
         </div>
       </div>
@@ -873,152 +2489,22 @@ function MatchCard({
       {expanded && (
         <div className="border-t border-[#A6E824]/20 bg-black/20 p-5 sm:p-6">
           {detailLoading ? (
-            <LoadingPanel label="Caricamento dettaglio partita" />
+            <LoadingPanel label="Caricamento trend partita" />
           ) : (
-            <div className="grid gap-5">
-              <section>
-                <h4 className="text-lg font-black text-white">
-                  Heatmap risultati esatti
-                </h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  Distribuzione ordinata dei risultati esatti scelti dalla
-                  community.
-                </p>
+            <div className="grid gap-4">
+              <CommunityTrendPanel
+                trends={trends}
+                heatmap={heatmap}
+              />
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {heatmap.length ? (
-                    heatmap.slice(0, 8).map((item) => (
-                      <div
-                        key={`${match.match_id}-${item.home_prediction}-${item.away_prediction}`}
-                        className="rounded-2xl border border-white/10 bg-black/30 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-gray-500">
-                            #{item.rank}
-                          </span>
-                          <span className="text-xs font-black text-[#A6E824]">
-                            {pct(item.prediction_percent)}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-3xl font-black">
-                          {item.home_prediction}-{item.away_prediction}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {item.prediction_count} pronostici
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">
-                      Heatmap non ancora disponibile.
-                    </p>
-                  )}
-                </div>
-              </section>
+              <MarketTrendPanel
+                match={match}
+                movements={detail?.market?.movements ?? []}
+              />
 
-              <section className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-                  <h4 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">
-                    Dettaglio divergenza Community / Bookmakers
-                  </h4>
-
-                  <div className="mt-4 space-y-3">
-                    {[
-                      {
-                        label: "1",
-                        gap: communityMarketGap(
-                          match,
-                          match.home_pick_percent,
-                          "home",
-                        ),
-                      },
-                      {
-                        label: "X",
-                        gap: communityMarketGap(
-                          match,
-                          match.draw_pick_percent,
-                          "draw",
-                        ),
-                      },
-                      {
-                        label: "2",
-                        gap: communityMarketGap(
-                          match,
-                          match.away_pick_percent,
-                          "away",
-                        ),
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="flex items-center justify-between rounded-xl border border-white/10 bg-black/25 px-4 py-3"
-                      >
-                        <span className="font-black">{item.label}</span>
-                        <span
-                          className={`font-black ${
-                            item.gap === null
-                              ? "text-gray-500"
-                              : item.gap > 0
-                                ? "text-[#A6E824]"
-                                : "text-amber-300"
-                          }`}
-                        >
-                          {item.gap === null
-                            ? "N/D"
-                            : `${item.gap > 0 ? "+" : ""}${item.gap.toFixed(
-                                1,
-                              )} pt`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="mt-4 text-xs leading-5 text-gray-500">
-                    Il valore descrive la differenza tra quota di scelta della
-                    community e probabilità ufficiale normalizzata dei bookmakers.
-                   
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-                  <h4 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">
-                    Cronologia trend
-                  </h4>
-
-                  {trends.length ? (
-                    <div className="mt-4 space-y-3">
-                      {trends.slice(-8).map((trend, index) => (
-                        <div
-                          key={
-                            trend.id ??
-                            `${trend.metric_code}-${trend.created_at}-${index}`
-                          }
-                          className="rounded-xl border border-white/10 bg-black/25 px-4 py-3"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-black uppercase tracking-[0.12em] text-gray-400">
-                              {String(
-                                trend.metric_code ?? "trend",
-                              ).replaceAll("_", " ")}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {formatDateTime(trend.created_at)}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-lg font-black text-white">
-                            {toNumber(trend.metric_value).toFixed(1)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm leading-6 text-gray-500">
-                      Il primo snapshot non dispone ancora di variazioni
-                      temporali. I trend compariranno con i successivi refresh.
-                    </p>
-                  )}
-                </div>
-              </section>
+              <CommunityBookmakersComparison
+                match={match}
+              />
             </div>
           )}
         </div>
@@ -1032,11 +2518,14 @@ export default function ControlRoomDetailPage() {
   const [leagueInfo, setLeagueInfo] =
     useState<LeagueInfo>(EMPTY_LEAGUE_INFO);
   const [payload, setPayload] = useState<OverviewPayload | null>(null);
+  const [dailyIntelligenceMetrics, setDailyIntelligenceMetrics] =
+    useState<DailyIntelligenceMetricsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [sortBy, setSortBy] = useState<MatchSort>("slot");
-  const [filterBy, setFilterBy] = useState<MatchFilter>("all");
+  const [sortBy] = useState<MatchSort>("kickoff");
+  const [filterBy] = useState<MatchFilter>("all");
+  const [dailyAnalysisOpen, setDailyAnalysisOpen] = useState(false);
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [matchDetails, setMatchDetails] = useState<
     Record<string, MatchPayload>
@@ -1051,6 +2540,22 @@ export default function ControlRoomDetailPage() {
     let syncInFlight = false;
     let accessConfirmed = false;
     let currentRemainingSeconds = 0;
+
+    const isLocalDevelopment =
+      process.env.NODE_ENV === "development" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1");
+
+    if (isLocalDevelopment) {
+      accessConfirmed = true;
+      currentRemainingSeconds = 15 * 60;
+      setRemainingSeconds(currentRemainingSeconds);
+      setPremiumAccessReady(true);
+
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const match = window.location.pathname.match(
       /^\/control-room\/([^/]+)\/?$/,
@@ -1239,6 +2744,34 @@ export default function ControlRoomDetailPage() {
 
       if (!nextPayload?.available) {
         setPayload(nextPayload);
+
+      const resolvedRoundId =
+        nextPayload?.overview?.fantagol_round_id ??
+        nextPayload?.matches?.[0]?.fantagol_round_id ??
+        null;
+
+      if (resolvedRoundId) {
+        const metricsResult = await supabase.rpc(
+          "get_control_room_daily_intelligence_metrics_rpc",
+          {
+            p_fantagol_round_id: resolvedRoundId,
+          },
+        );
+
+        if (metricsResult.error) {
+          console.error(
+            "Daily intelligence metrics load failed:",
+            metricsResult.error,
+          );
+          setDailyIntelligenceMetrics(null);
+        } else {
+          setDailyIntelligenceMetrics(
+            metricsResult.data as DailyIntelligenceMetricsPayload,
+          );
+        }
+      } else {
+        setDailyIntelligenceMetrics(null);
+      }
         setErrorMessage(
           nextPayload?.error_code === "COMMUNITY_ROUND_NOT_FOUND"
             ? "Non è stata trovata una giornata attiva con dati Community Intelligence."
@@ -1247,11 +2780,81 @@ export default function ControlRoomDetailPage() {
         return;
       }
 
+      const communityMatches =
+        Array.isArray(nextPayload.matches)
+          ? nextPayload.matches
+          : [];
+
+      const marketRoundId =
+        communityMatches[0]?.fantagol_round_id ??
+        null;
+
+      let mergedMatches =
+        communityMatches;
+
+      if (marketRoundId) {
+        const marketRoundResult =
+          await supabase.rpc(
+            "get_control_room_market_round_rpc",
+            {
+              p_fantagol_round_id:
+                marketRoundId,
+            },
+          );
+
+        if (marketRoundResult.error) {
+          console.error(
+            "Control Room market round load failed:",
+            marketRoundResult.error,
+          );
+        } else {
+          const marketRound =
+            marketRoundResult.data as
+              | ControlRoomMarketRoundPayload
+              | null;
+
+          if (
+            marketRound?.available &&
+            Array.isArray(
+              marketRound.matches,
+            )
+          ) {
+            const marketByMatchId =
+              new Map(
+                marketRound.matches.map(
+                  (item) => [
+                    item.match_id,
+                    item,
+                  ] as const,
+                ),
+              );
+
+            mergedMatches =
+              communityMatches.map(
+                (match) =>
+                  mergeMarketRoundMatch(
+                    match,
+                    marketByMatchId.get(
+                      match.match_id,
+                    ),
+                  ),
+              );
+          } else {
+            mergedMatches =
+              communityMatches.map(
+                (match) =>
+                  mergeMarketRoundMatch(
+                    match,
+                    undefined,
+                  ),
+              );
+          }
+        }
+      }
+
       setPayload({
         ...nextPayload,
-        matches: Array.isArray(nextPayload.matches)
-          ? nextPayload.matches
-          : [],
+        matches: mergedMatches,
       });
     } catch (error) {
       console.error("Control Room load failed:", error);
@@ -1276,6 +2879,58 @@ export default function ControlRoomDetailPage() {
     () => payload?.matches ?? [],
     [payload?.matches],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDailyIntelligenceMetrics() {
+      const roundId =
+        sourceMatches.find(
+          (match) =>
+            Boolean(match.fantagol_round_id),
+        )?.fantagol_round_id ?? null;
+
+      if (!roundId) {
+        if (!cancelled) {
+          setDailyIntelligenceMetrics(null);
+        }
+        return;
+      }
+
+      const metricsResult = await supabase.rpc(
+        "get_control_room_daily_intelligence_metrics_rpc",
+        {
+          p_fantagol_round_id: roundId,
+        },
+      );
+
+      if (cancelled) return;
+
+      if (metricsResult.error) {
+        console.error(
+          "Daily intelligence metrics load failed:",
+          metricsResult.error,
+        );
+        setDailyIntelligenceMetrics(null);
+        return;
+      }
+
+      const metricsPayload =
+        metricsResult.data as DailyIntelligenceMetricsPayload | null;
+
+      setDailyIntelligenceMetrics(
+        metricsPayload?.available
+          ? metricsPayload
+          : null,
+      );
+    }
+
+    void loadDailyIntelligenceMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceMatches]);
 
   const visibleMatches = useMemo(() => {
     const filtered = sourceMatches.filter((match) => {
@@ -1375,6 +3030,372 @@ export default function ControlRoomDetailPage() {
     };
   }, [sourceMatches]);
 
+  const DAILY_UNCERTAINTY_MINIMUM = 20;
+
+  const communityMaturity = useMemo(() => {
+    if (!overview) return 0;
+
+    const requiredMatches = Math.max(
+      sourceMatches.length,
+      1,
+    );
+    const eligibleBaseline =
+      toNumber(
+        dailyIntelligenceMetrics?.eligible_member_count,
+      );
+
+    if (eligibleBaseline <= 0) {
+      return 0;
+    }
+
+    const participationComponent =
+      Math.min(
+        toNumber(overview.member_count) /
+          eligibleBaseline,
+        1,
+      );
+
+    const volumeComponent =
+      Math.min(
+        toNumber(overview.prediction_count) /
+          (eligibleBaseline * requiredMatches),
+        1,
+      );
+
+    const leagueComponent =
+      Math.min(
+        toNumber(overview.league_count) / 5,
+        1,
+      );
+
+    const coverageComponent =
+      Math.min(
+        sourceMatches.length /
+          requiredMatches,
+        1,
+      );
+
+    return (
+      0.45 * participationComponent +
+      0.25 * volumeComponent +
+      0.20 * leagueComponent +
+      0.10 * coverageComponent
+    );
+  }, [
+    dailyIntelligenceMetrics?.eligible_member_count,
+    overview,
+    sourceMatches.length,
+  ]);
+
+  const communityWeight = useMemo(
+    () =>
+      Math.min(
+        0.5,
+        Math.max(
+          0.1,
+          0.1 + 0.4 * communityMaturity,
+        ),
+      ),
+    [communityMaturity],
+  );
+
+  const weightedUncertainMatch = useMemo(() => {
+    const candidates = sourceMatches
+      .map((match) => {
+        const marketFinalConfidence =
+          numberOrNull(
+            match.market_context
+              ?.bm_interpolated
+              ?.confidence
+              ?.final,
+          );
+
+        if (marketFinalConfidence === null) {
+          return null;
+        }
+
+        const normalizedMarketConfidence =
+          marketFinalConfidence <= 1
+            ? marketFinalConfidence * 100
+            : marketFinalConfidence;
+
+        const bmUncertainty =
+          Math.max(
+            0,
+            Math.min(
+              100,
+              100 - normalizedMarketConfidence,
+            ),
+          );
+
+        const mergedUncertainty =
+          communityWeight *
+            toNumber(match.chaos_index) +
+          (1 - communityWeight) *
+            bmUncertainty;
+
+        return {
+          match,
+          mergedUncertainty,
+        };
+      })
+      .filter(
+        (
+          candidate,
+        ): candidate is {
+          match: ControlRoomMatch;
+          mergedUncertainty: number;
+        } => candidate !== null,
+      )
+      .sort(
+        (first, second) =>
+          second.mergedUncertainty -
+            first.mergedUncertainty ||
+          first.match.slot_number -
+            second.match.slot_number,
+      );
+
+    const strongestCandidate =
+      candidates[0] ?? null;
+
+    if (
+      !strongestCandidate ||
+      strongestCandidate.mergedUncertainty <
+        DAILY_UNCERTAINTY_MINIMUM
+    ) {
+      return null;
+    }
+
+    return strongestCandidate;
+  }, [communityWeight, sourceMatches]);
+
+  const dailyAnalysisCoverage = useMemo(() => {
+    if (!dailyIntelligenceMetrics?.available) {
+      return {
+        requiredMatches: Math.max(
+          sourceMatches.length,
+          1,
+        ),
+        jointCovered: 0,
+        percent: null as number | null,
+      };
+    }
+
+    const requiredMatches = Math.max(
+      toNumber(
+        dailyIntelligenceMetrics.required_match_count,
+      ),
+      sourceMatches.length,
+      1,
+    );
+
+    const marketCaptured = Math.max(
+      0,
+      toNumber(
+        dailyIntelligenceMetrics
+          .market_captured_match_count,
+      ),
+    );
+
+    const jointCovered = Math.min(
+      sourceMatches.length,
+      marketCaptured,
+      requiredMatches,
+    );
+
+    return {
+      requiredMatches,
+      jointCovered,
+      percent:
+        (jointCovered / requiredMatches) * 100,
+    };
+  }, [
+    dailyIntelligenceMetrics,
+    sourceMatches.length,
+  ]);
+
+  const dailySolidity = useMemo(() => {
+    if (!overview) return null;
+
+    const communityQuality =
+      Math.max(
+        0,
+        Math.min(
+          100,
+          toNumber(overview.quality_score),
+        ),
+      ) / 100;
+
+    const marketQualityRaw =
+      numberOrNull(
+        dailyIntelligenceMetrics?.market_quality_score,
+      );
+
+    if (marketQualityRaw === null) {
+      return null;
+    }
+
+    const marketQuality =
+      Math.max(
+        0,
+        Math.min(
+          1,
+          marketQualityRaw <= 1
+            ? marketQualityRaw
+            : marketQualityRaw / 100,
+        ),
+      );
+
+    const communityEvidenceReliability =
+      0.6 * communityMaturity +
+      0.4 * communityQuality;
+
+    if (
+      dailyAnalysisCoverage.percent === null
+    ) {
+      return null;
+    }
+
+    const coverage =
+      dailyAnalysisCoverage.percent / 100;
+
+    return (
+      coverage *
+      (
+        communityWeight *
+          communityEvidenceReliability +
+        (1 - communityWeight) *
+          marketQuality
+      ) *
+      100
+    );
+  }, [
+    communityMaturity,
+    communityWeight,
+    dailyAnalysisCoverage.percent,
+    dailyIntelligenceMetrics?.market_quality_score,
+    overview,
+  ]);
+
+  const dailyConvergence = useMemo(() => {
+    if (!dailyIntelligenceMetrics?.available) {
+      return null;
+    }
+
+    let agreements = 0;
+    let considered = 0;
+
+    for (const match of sourceMatches) {
+      const marketOutcome =
+        topMarketOutcome(match);
+
+      const marketTotals =
+        topMarketTotals(match);
+
+      const marketBtts =
+        topMarketBtts(match);
+
+      const communitySign =
+        topCommunityOutcome(match);
+
+      if (marketOutcome) {
+        considered += 1;
+
+        if (
+          communitySign.label ===
+          marketOutcome.label
+        ) {
+          agreements += 1;
+        }
+      }
+
+      const communityOver =
+        toNumber(match.over_2_5_percent);
+
+      const communityUnder =
+        toNumber(match.under_2_5_percent);
+
+      const communityUo =
+        communityOver >= communityUnder
+          ? {
+              label: "Over 2.5",
+              probability: communityOver,
+            }
+          : {
+              label: "Under 2.5",
+              probability: communityUnder,
+            };
+
+      if (
+        marketTotals &&
+        communityUo.probability >=
+          MARKET_COHERENCE_HARD_THRESHOLD_PERCENT &&
+        marketTotals.probability >=
+          MARKET_COHERENCE_HARD_THRESHOLD_PERCENT
+      ) {
+        considered += 1;
+
+        if (
+          communityUo.label ===
+          marketTotals.label
+        ) {
+          agreements += 1;
+        }
+      }
+
+      const communityGoal =
+        toNumber(match.goal_percent);
+
+      const communityNoGoal =
+        toNumber(match.no_goal_percent);
+
+      const communityBtts =
+        communityGoal >= communityNoGoal
+          ? {
+              label: "Goal",
+              probability: communityGoal,
+            }
+          : {
+              label: "No Goal",
+              probability: communityNoGoal,
+            };
+
+      if (
+        marketBtts &&
+        communityBtts.probability >=
+          MARKET_COHERENCE_HARD_THRESHOLD_PERCENT &&
+        marketBtts.probability >=
+          MARKET_COHERENCE_HARD_THRESHOLD_PERCENT
+      ) {
+        considered += 1;
+
+        if (
+          communityBtts.label ===
+          marketBtts.label
+        ) {
+          agreements += 1;
+        }
+      }
+    }
+
+    if (considered === 0) {
+      return null;
+    }
+
+    const rawConvergence =
+      (agreements / considered) * 100;
+
+    return (
+      50 +
+      communityMaturity *
+        (rawConvergence - 50)
+    );
+  }, [
+    communityMaturity,
+    dailyIntelligenceMetrics?.available,
+    sourceMatches,
+  ]);
+
   const globalDistribution = useMemo(() => {
     if (!sourceMatches.length) {
       return { home: 0, draw: 0, away: 0, over: 0, goal: 0 };
@@ -1449,21 +3470,64 @@ export default function ControlRoomDetailPage() {
       setDetailLoadingId(match.match_id);
 
       try {
-        const { data, error } = await supabase.rpc(
-          "get_control_room_match_rpc",
-          {
-            p_fantagol_round_id: match.fantagol_round_id,
-            p_match_id: match.match_id,
-          },
-        );
+        const [communityDetailResult, marketDetailResult] =
+          await Promise.all([
+            supabase.rpc(
+              "get_control_room_match_rpc",
+              {
+                p_fantagol_round_id:
+                  match.fantagol_round_id,
+                p_match_id:
+                  match.match_id,
+              },
+            ),
+            supabase.rpc(
+              "get_control_room_market_match_rpc",
+              {
+                p_fantagol_round_id:
+                  match.fantagol_round_id,
+                p_match_id:
+                  match.match_id,
+              },
+            ),
+          ]);
 
-        if (error) throw error;
+        if (communityDetailResult.error) {
+          throw communityDetailResult.error;
+        }
 
-        const nextDetail = data as MatchPayload;
+        if (marketDetailResult.error) {
+          console.error(
+            "Control Room market match detail failed:",
+            marketDetailResult.error,
+          );
+        }
+
+        const nextDetail =
+          communityDetailResult.data as MatchPayload;
+
+        const marketDetail =
+          marketDetailResult.error
+            ? null
+            : (
+                marketDetailResult.data as
+                  | ControlRoomMarketMatchPayload
+                  | null
+              );
 
         setMatchDetails((current) => ({
           ...current,
-          [match.match_id]: nextDetail,
+          [match.match_id]: {
+            ...nextDetail,
+            market:
+              marketDetail?.available
+                ? marketDetail
+                : null,
+          } as MatchPayload & {
+            market:
+              | ControlRoomMarketMatchPayload
+              | null;
+          },
         }));
       } catch (error) {
         console.error("Control Room match detail failed:", error);
@@ -1536,8 +3600,8 @@ export default function ControlRoomDetailPage() {
             </p>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-start">
-            <div className="flex flex-col gap-5 pr-20 sm:flex-row sm:items-center sm:pr-24 lg:pr-0">
+          <div>
+            <div className="flex flex-col gap-5 pr-20 sm:flex-row sm:items-center sm:pr-24">
               <ControlRoomIcon />
 
               <div className="min-w-0">
@@ -1557,28 +3621,16 @@ export default function ControlRoomDetailPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-end justify-start gap-3 self-start">
-              <button
-                type="button"
-                onClick={() => void loadControlRoom(true)}
-                disabled={refreshing}
-                className="rounded-2xl border border-[#A6E824]/35 bg-[#A6E824]/10 px-5 py-3 text-sm font-black text-[#A6E824] transition hover:border-[#A6E824] disabled:cursor-wait disabled:opacity-60"
-              >
-                {refreshing ? "Aggiornamento…" : "Aggiorna snapshot"}
-              </button>
-            </div>
           </div>
 
           {overview && (
+
             <div className="mt-7 flex flex-wrap gap-2">
               <span className="rounded-full border border-[#A6E824]/30 bg-[#A6E824]/10 px-3 py-2 text-xs font-black text-[#A6E824]">
                 {overview.round_name}
               </span>
-              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-gray-300">
-                {phaseLabel(overview.phase)}
-              </span>
-              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-gray-300">
-                Snapshot v{overview.snapshot_version}
+              <span className="rounded-full border border-white/10 bg-black/25 px-5 py-2 text-xs font-black text-gray-300">
+                {phaseLabel(overview.phase)} · Kick off {formatDateTime(overview.starts_at)}
               </span>
               <span className="rounded-full border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-gray-300">
                 Aggiornato {formatDateTime(overview.built_at)}
@@ -1608,207 +3660,15 @@ export default function ControlRoomDetailPage() {
             </section>
           ) : (
             <>
-              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                  label="Pronostici"
-                  value={overview.prediction_count.toLocaleString("it-IT")}
-                  detail={`${overview.member_count} utenti · ${overview.league_count} leghe`}
-                  emphasis
-                />
-                <MetricCard
-                  label="Copertura mercato"
-                  value={`${overview.market_snapshot_count}/${overview.match_count}`}
-                  detail="Partite con snapshot quote"
-                />
-                <MetricCard
-                  label="Qualità campione"
-                  value={`${toNumber(overview.quality_score).toFixed(0)}/100`}
-                  detail={qualityLabel(overview.quality_status)}
-                />
-                <MetricCard
-                  label="Media consenso"
-                  value={pct(summary.avgConsensus)}
-                  detail={`Caos medio ${toNumber(summary.avgChaos).toFixed(
-                    0,
-                  )}/100`}
-                />
-              </section>
+              <DailyIntelligenceCard
+                matches={sourceMatches}
+                expanded={dailyAnalysisOpen}
+                onToggle={() =>
+                  setDailyAnalysisOpen((current) => !current)
+                }
+              />
 
-              <section className="mt-6 grid gap-4 lg:grid-cols-3">
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">
-                    Segnale più forte
-                  </p>
-                  {summary.strongest ? (
-                    <>
-                      <p className="mt-3 text-xl font-black">
-                        {cleanTeamName(
-                          summary.strongest.home_team_short_name ||
-                            summary.strongest.home_team_name,
-                        )}{" "}
-                        –{" "}
-                        {cleanTeamName(
-                          summary.strongest.away_team_short_name ||
-                            summary.strongest.away_team_name,
-                        )}
-                      </p>
-                      <p className="mt-2 text-sm text-gray-400">
-                        Consenso{" "}
-                        <strong className="text-[#A6E824]">
-                          {summary.strongest.consensus_outcome} ·{" "}
-                          {pct(summary.strongest.consensus_percent)}
-                        </strong>
-                      </p>
-                    </>
-                  ) : null}
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">
-                    Massima incertezza
-                  </p>
-                  {summary.uncertain ? (
-                    <>
-                      <p className="mt-3 text-xl font-black">
-                        {cleanTeamName(
-                          summary.uncertain.home_team_short_name ||
-                            summary.uncertain.home_team_name,
-                        )}{" "}
-                        –{" "}
-                        {cleanTeamName(
-                          summary.uncertain.away_team_short_name ||
-                            summary.uncertain.away_team_name,
-                        )}
-                      </p>
-                      <p className="mt-2 text-sm text-gray-400">
-                        Indice caos{" "}
-                        <strong className="text-amber-300">
-                          {toNumber(summary.uncertain.chaos_index).toFixed(0)}
-                          /100
-                        </strong>
-                      </p>
-                    </>
-                  ) : null}
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">
-                    Profilo giornata
-                  </p>
-                  <p className="mt-3 text-xl font-black">
-                    {summary.compactCount} compatte · {summary.dividedCount}{" "}
-                    incerte
-                  </p>
-                  <p className="mt-2 text-sm text-gray-400">
-                    Media gol prevista{" "}
-                    <strong className="text-white">
-                      {toNumber(summary.avgGoals).toFixed(1)}
-                    </strong>
-                  </p>
-                </div>
-              </section>
-
-              <section className="mt-6 grid gap-4 lg:grid-cols-3">
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
-                  <h2 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">
-                    Orientamento 1-X-2
-                  </h2>
-                  <div className="mt-4 space-y-3">
-                    <PercentBar label="1" value={globalDistribution.home} />
-                    <PercentBar label="X" value={globalDistribution.draw} />
-                    <PercentBar label="2" value={globalDistribution.away} />
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
-                  <h2 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">
-                    Profilo gol
-                  </h2>
-                  <div className="mt-4 space-y-3">
-                    <PercentBar
-                      label="Over 2.5"
-                      value={globalDistribution.over}
-                    />
-                    <PercentBar
-                      label="Under 2.5"
-                      value={100 - globalDistribution.over}
-                    />
-                    <PercentBar
-                      label="Goal"
-                      value={globalDistribution.goal}
-                    />
-                    <PercentBar
-                      label="No Goal"
-                      value={100 - globalDistribution.goal}
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
-                  <h2 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">
-                    Stato snapshot
-                  </h2>
-                  <div className="mt-4 grid gap-3">
-                    <MetricCard
-                      label="Fase"
-                      value={phaseLabel(overview.phase)}
-                      detail={overview.snapshot_status}
-                    />
-                    <MetricCard
-                      label="Prima partita"
-                      value={formatDateTime(overview.starts_at)}
-                      detail={`${overview.match_count} partite monitorate`}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="mt-6 rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30 sm:p-6">
-                <div>
-                  <h2 className="text-2xl font-black text-white">
-                    Exact più concentrati
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    I risultati esatti con la quota di scelta più alta nella
-                    giornata.
-                  </p>
-                </div>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  {topExactAcrossRound.map(({ match, exact }, index) => (
-                    <div
-                      key={match.match_id}
-                      className="rounded-2xl border border-white/10 bg-black/30 p-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#A6E824]/10 text-sm font-black text-[#A6E824]">
-                          {index + 1}
-                        </span>
-                        <span className="text-xs font-black text-[#A6E824]">
-                          {pct(exact.prediction_percent)}
-                        </span>
-                      </div>
-                      <p className="mt-4 text-4xl font-black">
-                        {exact.home_prediction}-{exact.away_prediction}
-                      </p>
-                      <p className="mt-2 truncate text-sm font-semibold text-gray-400">
-                        {cleanTeamName(
-                          match.home_team_short_name || match.home_team_name,
-                        )}{" "}
-                        –{" "}
-                        {cleanTeamName(
-                          match.away_team_short_name || match.away_team_name,
-                        )}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-600">
-                        {exact.prediction_count} pronostici
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="mt-8">
+              <section className="mt-10">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                   <div>
                     <p className="text-sm font-black uppercase tracking-[0.22em] text-[#A6E824]">
@@ -1818,50 +3678,14 @@ export default function ControlRoomDetailPage() {
                       Intelligence partita per partita
                     </h2>
                     <p className="mt-2 text-sm text-gray-500">
-                      {visibleMatches.length} di {sourceMatches.length} partite
-                      visibili
+                      {visibleMatches.length} di {sourceMatches.length} partite visibili
                     </p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="text-xs font-black uppercase tracking-[0.12em] text-gray-500">
-                      Filtro
-                      <select
-                        value={filterBy}
-                        onChange={(event) =>
-                          setFilterBy(event.target.value as MatchFilter)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#111417] px-4 py-3 text-sm font-black normal-case tracking-normal text-white outline-none focus:border-[#A6E824]"
-                      >
-                        <option value="all">Tutte le partite</option>
-                        <option value="compact">Community compatta</option>
-                        <option value="divided">Community divisa</option>
-                        <option value="market">Mercato disponibile</option>
-                      </select>
-                    </label>
 
-                    <label className="text-xs font-black uppercase tracking-[0.12em] text-gray-500">
-                      Ordina
-                      <select
-                        value={sortBy}
-                        onChange={(event) =>
-                          setSortBy(event.target.value as MatchSort)
-                        }
-                        className="mt-2 w-full rounded-xl border border-white/10 bg-[#111417] px-4 py-3 text-sm font-black normal-case tracking-normal text-white outline-none focus:border-[#A6E824]"
-                      >
-                        <option value="slot">Ordine giornata</option>
-                        <option value="consensus">Consenso più alto</option>
-                        <option value="uncertainty">
-                          Incertezza più alta
-                        </option>
-                        <option value="confidence">Fiducia più alta</option>
-                        <option value="kickoff">Orario</option>
-                      </select>
-                    </label>
-                  </div>
                 </div>
 
-                <div className="mt-5 grid gap-4">
+                <div className="mt-6 grid gap-7 sm:gap-8">
                   {visibleMatches.map((match) => (
                     <MatchCard
                       key={match.match_id}
@@ -1872,6 +3696,169 @@ export default function ControlRoomDetailPage() {
                       onToggle={() => void loadMatchDetail(match)}
                     />
                   ))}
+                </div>
+              </section>
+
+              <section className="mt-12 border-t border-white/10 pt-9">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.22em] text-gray-500">
+                    Approfondimento giornata
+                  </p>
+                  <h2 className="mt-1 text-3xl font-black text-white">
+                    Analisi avanzata
+                  </h2>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <MetricCard
+                    label="Pronostici"
+                    value={overview.prediction_count.toLocaleString("it-IT")}
+                    detail={`${overview.member_count} utenti · ${overview.league_count} leghe`}
+                    emphasis
+                  />
+                  <MetricCard
+                    label="Copertura analisi"
+                    value={
+                      dailyAnalysisCoverage.percent === null
+                        ? "—"
+                        : `${dailyAnalysisCoverage.percent.toFixed(0)}%`
+                    }
+                    detail={
+                      dailyAnalysisCoverage.percent === null
+                        ? "Dati di analisi in caricamento"
+                        : `${dailyAnalysisCoverage.jointCovered}/${dailyAnalysisCoverage.requiredMatches} partite · Community + BM`
+                    }
+                  />
+                  <MetricCard
+                    label="Solidità del quadro"
+                    value={
+                      dailySolidity === null
+                        ? "—"
+                        : `${dailySolidity.toFixed(0)}/100`
+                    }
+                    detail={
+                      dailySolidity === null
+                        ? "Dati di analisi in caricamento"
+                        : communityMaturity < 0.25
+                        ? "Community embrionale · BM prevalente"
+                        : communityMaturity < 0.45
+                          ? "Community in crescita · quadro combinato"
+                          : communityMaturity < 0.7
+                            ? "Community consistente · quadro combinato"
+                            : "Community matura · quadro combinato"
+                    }
+                  />
+                  <MetricCard
+                    label="Convergenza Community–Mercato"
+                    value={
+                      dailyConvergence === null
+                        ? "—"
+                        : `${dailyConvergence.toFixed(0)}%`
+                    }
+                    detail={
+                      dailyConvergence === null
+                        ? "Dati insufficienti"
+                        : dailyConvergence >= 65
+                          ? "Letture fortemente allineate"
+                          : dailyConvergence >= 55
+                            ? "Letture abbastanza allineate"
+                            : dailyConvergence >= 45
+                              ? "Quadro ancora misto"
+                              : "Letture divergenti"
+                    }
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Segnale più forte</p>
+                    {summary.strongest && (
+                      <>
+                        <p className="mt-3 text-xl font-black">
+                          {cleanTeamName(summary.strongest.home_team_short_name || summary.strongest.home_team_name)} – {cleanTeamName(summary.strongest.away_team_short_name || summary.strongest.away_team_name)}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-400">
+                          Consenso <strong className="text-[#A6E824]">{summary.strongest.consensus_outcome} · {pct(summary.strongest.consensus_percent)}</strong>
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">
+                    Massima incertezza
+                  </p>
+                  {weightedUncertainMatch ? (
+                    <>
+                      <p className="mt-3 text-xl font-black">
+                        {cleanTeamName(
+                          weightedUncertainMatch.match
+                            .home_team_short_name ||
+                            weightedUncertainMatch.match
+                              .home_team_name,
+                        )}{" "}
+                        –{" "}
+                        {cleanTeamName(
+                          weightedUncertainMatch.match
+                            .away_team_short_name ||
+                            weightedUncertainMatch.match
+                              .away_team_name,
+                        )}
+                      </p>
+                      <p className="mt-2 text-sm text-gray-400">
+                        Pronostico particolarmente aperto
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-3 text-xl font-black">
+                        —
+                      </p>
+                      <p className="mt-2 text-sm text-gray-400">
+                        Non emergono partite particolarmente aperte
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Profilo giornata</p>
+                    <p className="mt-3 text-xl font-black">
+                      {summary.compactCount} compatte · {summary.dividedCount} incerte
+                    </p>
+                    <p className="mt-2 text-sm text-gray-400">
+                      Media gol prevista <strong className="text-white">{toNumber(summary.avgGoals).toFixed(1)}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">Orientamento 1-X-2</h3>
+                    <div className="mt-4 space-y-3">
+                      <PercentBar label="1" value={globalDistribution.home} />
+                      <PercentBar label="X" value={globalDistribution.draw} />
+                      <PercentBar label="2" value={globalDistribution.away} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">Profilo gol</h3>
+                    <div className="mt-4 space-y-3">
+                      <PercentBar label="Over 2.5" value={globalDistribution.over} />
+                      <PercentBar label="Under 2.5" value={100 - globalDistribution.over} />
+                      <PercentBar label="Goal" value={globalDistribution.goal} />
+                      <PercentBar label="No Goal" value={100 - globalDistribution.goal} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
+                    <h3 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">Stato snapshot</h3>
+                    <div className="mt-4 grid gap-3">
+                      <MetricCard label="Fase" value={phaseLabel(overview.phase)} detail={overview.snapshot_status} />
+                      <MetricCard label="Prima partita" value={formatDateTime(overview.starts_at)} detail={`${overview.match_count} partite monitorate`} />
+                    </div>
+                  </div>
                 </div>
               </section>
 

@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
-  LiveProviderAdapter,
+  LiveProviderBatchAdapter,
+  ProviderBatchPollRequest,
+  ProviderBatchPollResult,
   ProviderPollRequest,
   ProviderPollResult,
 } from "./provider-runtime";
@@ -81,8 +83,12 @@ function readQuotaMetadata(headers: Headers): TheOddsApiQuotaMetadata {
     requestsRemaining: parseIntegerHeader(
       headers.get("x-requests-remaining"),
     ),
-    requestsUsed: parseIntegerHeader(headers.get("x-requests-used")),
-    requestsLast: parseIntegerHeader(headers.get("x-requests-last")),
+    requestsUsed: parseIntegerHeader(
+      headers.get("x-requests-used"),
+    ),
+    requestsLast: parseIntegerHeader(
+      headers.get("x-requests-last"),
+    ),
   };
 }
 
@@ -129,7 +135,33 @@ function requireNonEmptyValues(
   return normalized;
 }
 
-export class TheOddsApiLiveAdapter implements LiveProviderAdapter {
+function isRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function eventIdFromPayload(
+  value: unknown,
+): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = value.id;
+
+  return typeof id === "string" &&
+    id.trim() !== ""
+    ? id.trim()
+    : null;
+}
+
+export class TheOddsApiLiveAdapter
+  implements LiveProviderBatchAdapter {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -168,24 +200,7 @@ export class TheOddsApiLiveAdapter implements LiveProviderAdapter {
     }
   }
 
-  async pollMatch(
-    _client: SupabaseClient,
-    request: ProviderPollRequest,
-  ): Promise<ProviderPollResult> {
-    if (request.providerCode !== "the_odds_api") {
-      throw new TheOddsApiConfigurationError(
-        `TheOddsApiLiveAdapter cannot handle '${request.providerCode}'.`,
-      );
-    }
-
-    const eventId = request.externalMatchId.trim();
-
-    if (!eventId) {
-      throw new TheOddsApiConfigurationError(
-        "The Odds API event id cannot be empty.",
-      );
-    }
-
+  private buildSharedQuery(): URLSearchParams {
     const query = new URLSearchParams({
       apiKey: this.apiKey,
       regions: this.regions.join(","),
@@ -195,15 +210,27 @@ export class TheOddsApiLiveAdapter implements LiveProviderAdapter {
     });
 
     if (this.bookmakers.length > 0) {
-      query.set("bookmakers", this.bookmakers.join(","));
+      query.set(
+        "bookmakers",
+        this.bookmakers.join(","),
+      );
     }
 
-    const endpoint =
-      `/sports/${encodeURIComponent(this.sportKey)}` +
-      `/events/${encodeURIComponent(eventId)}/odds`;
+    return query;
+  }
 
+  private async fetchOdds(
+    endpoint: string,
+    query: URLSearchParams,
+  ): Promise<{
+    body: unknown;
+    quota: TheOddsApiQuotaMetadata;
+  }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.timeoutMs,
+    );
 
     try {
       const response = await this.fetchImpl(
@@ -218,7 +245,7 @@ export class TheOddsApiLiveAdapter implements LiveProviderAdapter {
         },
       );
 
-      const responseBody = await readResponseBody(response);
+      const body = await readResponseBody(response);
       const quota = readQuotaMetadata(response.headers);
 
       if (!response.ok) {
@@ -229,41 +256,214 @@ export class TheOddsApiLiveAdapter implements LiveProviderAdapter {
           retryAfterSeconds: parseIntegerHeader(
             response.headers.get("retry-after"),
           ),
-          responseBody,
+          responseBody: body,
           quota,
         });
       }
 
       return {
-        providerCode: request.providerCode,
-        externalMatchId: eventId,
-        fetchedAt: new Date().toISOString(),
-        payload: {
-          eventOdds: responseBody,
-          transport: {
-            provider: "the_odds_api",
-            endpoint,
-            sportKey: this.sportKey,
-            regions: this.regions,
-            markets: this.markets,
-            bookmakers: this.bookmakers,
-            oddsFormat: this.oddsFormat,
-            dateFormat: this.dateFormat,
-            quota,
-          },
-        },
+        body,
+        quota,
       };
     } catch (error) {
       if (
         error instanceof Error &&
-        (error.name === "AbortError" || controller.signal.aborted)
+        (
+          error.name === "AbortError" ||
+          controller.signal.aborted
+        )
       ) {
-        throw new TheOddsApiTimeoutError(this.timeoutMs);
+        throw new TheOddsApiTimeoutError(
+          this.timeoutMs,
+        );
       }
 
       throw error;
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async pollMatch(
+    _client: SupabaseClient,
+    request: ProviderPollRequest,
+  ): Promise<ProviderPollResult> {
+    if (request.providerCode !== "the_odds_api") {
+      throw new TheOddsApiConfigurationError(
+        `TheOddsApiLiveAdapter cannot handle '${request.providerCode}'.`,
+      );
+    }
+
+    const eventId =
+      request.externalMatchId.trim();
+
+    if (!eventId) {
+      throw new TheOddsApiConfigurationError(
+        "The Odds API event id cannot be empty.",
+      );
+    }
+
+    const query = this.buildSharedQuery();
+
+    const endpoint =
+      `/sports/${encodeURIComponent(this.sportKey)}` +
+      `/events/${encodeURIComponent(eventId)}/odds`;
+
+    const { body, quota } =
+      await this.fetchOdds(
+        endpoint,
+        query,
+      );
+
+    return {
+      providerCode: request.providerCode,
+      externalMatchId: eventId,
+      fetchedAt: new Date().toISOString(),
+      payload: {
+        eventOdds: body,
+        transport: {
+          provider: "the_odds_api",
+          endpoint,
+          sportKey: this.sportKey,
+          regions: this.regions,
+          markets: this.markets,
+          bookmakers: this.bookmakers,
+          oddsFormat: this.oddsFormat,
+          dateFormat: this.dateFormat,
+          quota,
+          batch: false,
+        },
+      },
+    };
+  }
+
+  async pollMatches(
+    _client: SupabaseClient,
+    request: ProviderBatchPollRequest,
+  ): Promise<ProviderBatchPollResult> {
+    if (request.providerCode !== "the_odds_api") {
+      throw new TheOddsApiConfigurationError(
+        `TheOddsApiLiveAdapter cannot handle '${request.providerCode}'.`,
+      );
+    }
+
+    const requestedExternalMatchIds =
+      requireNonEmptyValues(
+        "externalMatchIds",
+        request.externalMatchIds,
+      );
+
+    const query = this.buildSharedQuery();
+
+    query.set(
+      "eventIds",
+      requestedExternalMatchIds.join(","),
+    );
+
+    const endpoint =
+      `/sports/${encodeURIComponent(this.sportKey)}/odds`;
+
+    const { body, quota } =
+      await this.fetchOdds(
+        endpoint,
+        query,
+      );
+
+    if (!Array.isArray(body)) {
+      throw new TheOddsApiConfigurationError(
+        "The Odds API package response must be an array.",
+      );
+    }
+
+    const allowed =
+      new Set(requestedExternalMatchIds);
+
+    const events = body.filter(
+      (event) => {
+        const id =
+          eventIdFromPayload(event);
+
+        return (
+          id !== null &&
+          allowed.has(id)
+        );
+      },
+    );
+
+    const fetchedAt =
+      new Date().toISOString();
+
+    const results: ProviderPollResult[] =
+      events.map((event) => {
+        const externalMatchId =
+          eventIdFromPayload(event);
+
+        if (!externalMatchId) {
+          throw new TheOddsApiConfigurationError(
+            "The Odds API package event is missing id.",
+          );
+        }
+
+        return {
+          providerCode:
+            request.providerCode,
+          externalMatchId,
+          fetchedAt,
+          payload: {
+            eventOdds: event,
+            transport: {
+              provider:
+                "the_odds_api",
+              endpoint,
+              sportKey:
+                this.sportKey,
+              regions:
+                this.regions,
+              markets:
+                this.markets,
+              bookmakers:
+                this.bookmakers,
+              oddsFormat:
+                this.oddsFormat,
+              dateFormat:
+                this.dateFormat,
+              quota,
+              batch: true,
+            },
+          },
+        };
+      });
+
+    return {
+      providerCode:
+        request.providerCode,
+      fetchedAt,
+      results,
+      requestedExternalMatchIds,
+      returnedExternalMatchIds:
+        results.map(
+          (result) =>
+            result.externalMatchId,
+        ),
+      transport: {
+        provider:
+          "the_odds_api",
+        endpoint,
+        sportKey:
+          this.sportKey,
+        regions:
+          this.regions,
+        markets:
+          this.markets,
+        bookmakers:
+          this.bookmakers,
+        oddsFormat:
+          this.oddsFormat,
+        dateFormat:
+          this.dateFormat,
+        quota,
+        batch: true,
+      },
+    };
   }
 }

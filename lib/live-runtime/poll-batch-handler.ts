@@ -3,19 +3,26 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ingestFootballDataPollResult } from "./football-data-poll-ingestion";
 import type { ClaimedLiveRuntimeJob } from "./job-service";
 import {
+  persistMarketBatchIntelligence,
+  type MarketBatchCanonicalMatch,
+} from "./market-intelligence-round-orchestrator";
+import { persistCanonicalOddsSnapshot } from "./odds-snapshot-service";
+import {
   executeProviderBatchPoll,
 } from "./provider-runtime-runner";
 import { createDefaultProviderRuntimeRegistry } from "./provider-runtime-registry";
 import type {
   ProviderBatchPollMode,
 } from "./provider-runtime";
-
-
+import {
+  normalizeTheOddsApiSnapshot,
+} from "./the-odds-api-snapshot-normalizer";
 
 type BatchMatchTarget = {
   matchId: string;
   externalMatchId: string;
   fantagolRoundId: string | null;
+  slotNumber: number | null;
   leagueRoundIds: string[];
 };
 
@@ -94,6 +101,23 @@ function getBatchMatchTargets(
       );
     }
 
+    const slotNumber =
+      record.slot_number;
+
+    if (
+      slotNumber !== undefined &&
+      slotNumber !== null &&
+      (
+        typeof slotNumber !== "number" ||
+        !Number.isInteger(slotNumber) ||
+        slotNumber <= 0
+      )
+    ) {
+      throw new Error(
+        `poll_batch match_targets[${index}] has invalid slot_number`,
+      );
+    }
+
     return {
       matchId: matchId.trim(),
       externalMatchId:
@@ -101,6 +125,10 @@ function getBatchMatchTargets(
       fantagolRoundId:
         typeof fantagolRoundId === "string"
           ? fantagolRoundId.trim()
+          : null,
+      slotNumber:
+        typeof slotNumber === "number"
+          ? slotNumber
           : null,
       leagueRoundIds:
         Array.isArray(leagueRoundIds)
@@ -112,14 +140,20 @@ function getBatchMatchTargets(
     };
   });
 }
+
 function getRequiredString(
   payload: Record<string, unknown>,
   field: string,
 ): string {
   const value = payload[field];
 
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`Missing required field '${field}'.`);
+  if (
+    typeof value !== "string" ||
+    value.trim() === ""
+  ) {
+    throw new Error(
+      `Missing required field '${field}'.`,
+    );
   }
 
   return value;
@@ -208,69 +242,251 @@ export async function handlePollBatchJob(input: {
         ] as const),
     );
 
-  const ingestions = [];
+  if (providerCode === "football_data") {
+    const ingestions = [];
 
-  for (const poll of result.results) {
-    const target =
-      targetByExternalId.get(
-        poll.externalMatchId,
-      );
+    for (const poll of result.results) {
+      const target =
+        targetByExternalId.get(
+          poll.externalMatchId,
+        );
 
-    if (!target) {
-      throw new Error(
-        `Batch result '${poll.externalMatchId}' has no canonical Match target`,
+      if (!target) {
+        throw new Error(
+          `Batch result '${poll.externalMatchId}' has no canonical Match target`,
+        );
+      }
+
+      ingestions.push(
+        await ingestFootballDataPollResult({
+          client: input.client,
+          poll,
+          scope: {
+            matchId: target.matchId,
+            fantagolRoundId:
+              target.fantagolRoundId,
+            leagueRoundIds:
+              target.leagueRoundIds,
+          },
+        }),
       );
     }
 
-    ingestions.push(
-      await ingestFootballDataPollResult({
-        client: input.client,
-        poll,
-        scope: {
-          matchId: target.matchId,
-          fantagolRoundId:
-            target.fantagolRoundId,
-          leagueRoundIds:
-            target.leagueRoundIds,
-        },
-      }),
-    );
+    return {
+      branch:
+        "football_data_batch",
+      provider_code:
+        result.providerCode,
+      mode,
+      requested_match_count:
+        result.requestedExternalMatchIds.length,
+      returned_match_count:
+        result.returnedExternalMatchIds.length,
+      returned_external_match_ids:
+        result.returnedExternalMatchIds,
+      ingested_match_count:
+        ingestions.length,
+      meaningful_change_count:
+        ingestions.filter(
+          (item) =>
+            item.meaningful_change,
+        ).length,
+      enqueued_job_count:
+        ingestions.reduce(
+          (count, item) =>
+            count +
+            item.enqueued_job_ids.length,
+          0,
+        ),
+      ingestions,
+      fetched_at:
+        result.fetchedAt,
+      date_from:
+        getOptionalString(
+          input.job.payload,
+          "date_from",
+        ) ?? null,
+      date_to:
+        getOptionalString(
+          input.job.payload,
+          "date_to",
+        ) ?? null,
+    };
   }
 
-  return {
-    provider_code: result.providerCode,
-    mode,
-    requested_match_count:
-      result.requestedExternalMatchIds.length,
-    returned_match_count:
-      result.returnedExternalMatchIds.length,
-    returned_external_match_ids:
-      result.returnedExternalMatchIds,
-    ingested_match_count:
-      ingestions.length,
-    meaningful_change_count:
-      ingestions.filter(
-        (item) =>
-          item.meaningful_change,
-      ).length,
-    enqueued_job_count:
-      ingestions.reduce(
-        (count, item) =>
-          count +
-          item.enqueued_job_ids.length,
-        0,
-      ),
-    ingestions,
-    fetched_at: result.fetchedAt,
-    date_from:
+  if (providerCode === "the_odds_api") {
+    const canonicalMatches:
+      MarketBatchCanonicalMatch[] = [];
+
+    for (const poll of result.results) {
+      const target =
+        targetByExternalId.get(
+          poll.externalMatchId,
+        );
+
+      if (!target) {
+        throw new Error(
+          `Batch result '${poll.externalMatchId}' has no canonical Match target`,
+        );
+      }
+
+      if (
+        !target.fantagolRoundId ||
+        target.slotNumber === null
+      ) {
+        throw new Error(
+          "MARKET_BATCH_TARGET_ROUND_SLOT_REQUIRED",
+        );
+      }
+
+      const snapshot =
+        normalizeTheOddsApiSnapshot({
+          providerCode:
+            poll.providerCode,
+          externalMatchId:
+            poll.externalMatchId,
+          fetchedAt:
+            poll.fetchedAt,
+          payload:
+            poll.payload,
+        });
+
+      const persisted =
+        await persistCanonicalOddsSnapshot(
+          input.client,
+          {
+            matchId:
+              target.matchId,
+            providerPayload:
+              poll.payload,
+            snapshot,
+          },
+        );
+
+      canonicalMatches.push({
+        matchId:
+          target.matchId,
+        externalMatchId:
+          poll.externalMatchId,
+        oddsMarketSnapshotId:
+          persisted.oddsMarketSnapshotId,
+        slotNumber:
+          target.slotNumber,
+        fetchedAt:
+          poll.fetchedAt,
+        providerPayload:
+          poll.payload,
+      });
+    }
+
+    const roundIds =
+      new Set(
+        matchTargets.map(
+          (target) =>
+            target.fantagolRoundId,
+        ),
+      );
+
+    if (
+      roundIds.size !== 1 ||
+      roundIds.has(null)
+    ) {
+      throw new Error(
+        "MARKET_BATCH_SINGLE_ROUND_REQUIRED",
+      );
+    }
+
+    if (
+      canonicalMatches.length !==
+      matchTargets.length
+    ) {
+      throw new Error(
+        "MARKET_BATCH_INCOMPLETE_PROVIDER_RESULT",
+      );
+    }
+
+    const fantagolRoundId =
+      matchTargets[0]
+        ?.fantagolRoundId;
+
+    if (!fantagolRoundId) {
+      throw new Error(
+        "MARKET_BATCH_ROUND_REQUIRED",
+      );
+    }
+
+    const source =
       getOptionalString(
         input.job.payload,
-        "date_from",
-      ) ?? null,
-    date_to:
-      getOptionalString(
-        input.job.payload,
-        "date_to",
-      ) ?? null,
-  };
+        "market_snapshot_source",
+      ) ?? "PACKAGE";
+
+    if (
+      source !== "PACKAGE" &&
+      source !== "ADVANCED"
+    ) {
+      throw new Error(
+        "MARKET_BATCH_SOURCE_INVALID",
+      );
+    }
+
+    const market =
+      await persistMarketBatchIntelligence({
+        client:
+          input.client,
+        fantagolRoundId,
+        source,
+        capturedAt:
+          result.fetchedAt,
+        matches:
+          canonicalMatches,
+        metadata: {
+          source_job_id:
+            input.job.jobId,
+          provider_code:
+            result.providerCode,
+          provider_transport:
+            result.transport,
+          market_operating_mode:
+            getOptionalString(
+              input.job.payload,
+              "market_operating_mode",
+            ) ?? null,
+          market_policy_reason:
+            getOptionalString(
+              input.job.payload,
+              "market_policy_reason",
+            ) ?? null,
+        },
+      });
+
+    return {
+      branch:
+        "official_odds_market_intelligence_batch",
+      provider_code:
+        result.providerCode,
+      mode,
+      requested_match_count:
+        result.requestedExternalMatchIds.length,
+      returned_match_count:
+        result.returnedExternalMatchIds.length,
+      persisted_match_count:
+        canonicalMatches.length,
+      complete_batch:
+        canonicalMatches.length ===
+        matchTargets.length,
+      market_modeled_match_count:
+        market.modeledMatchCount,
+      market_snapshot:
+        market.persistence,
+      fetched_at:
+        result.fetchedAt,
+      transport:
+        result.transport,
+    };
+  }
+
+  throw new Error(
+    `Unsupported poll_batch provider '${providerCode}'.`,
+  );
 }

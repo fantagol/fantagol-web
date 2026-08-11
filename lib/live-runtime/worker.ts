@@ -9,6 +9,7 @@ import { handlePollBatchJob } from "./poll-batch-handler";
 import { handlePollMatchJob } from "./poll-match-handler";
 import {
   claimLiveRuntimeJob,
+  claimLiveRuntimeJobById,
   completeLiveRuntimeJob,
   failLiveRuntimeJob,
   type ClaimedLiveRuntimeJob,
@@ -44,11 +45,11 @@ export type LiveRuntimeWorkerHandlers = Partial<
 export type RunLiveRuntimeWorkerOnceInput = {
   client: SupabaseClient;
   workerId: string;
+  jobId?: string | null;
   jobTypes?: LiveRuntimeJobType[] | null;
   handlers?: LiveRuntimeWorkerHandlers;
   retryDelaySeconds?: number;
 };
-
 export type RunLiveRuntimeWorkerOnceResult =
   | {
       claimed: false;
@@ -277,11 +278,18 @@ const DEFAULT_HANDLERS: LiveRuntimeWorkerHandlers = {
 export async function runLiveRuntimeWorkerOnce(
   input: RunLiveRuntimeWorkerOnceInput,
 ): Promise<RunLiveRuntimeWorkerOnceResult> {
-  const job = await claimLiveRuntimeJob(
-    input.client,
-    input.workerId,
-    input.jobTypes,
-  );
+  const job =
+    input.jobId
+      ? await claimLiveRuntimeJobById(
+          input.client,
+          input.jobId,
+          input.workerId,
+        )
+      : await claimLiveRuntimeJob(
+          input.client,
+          input.workerId,
+          input.jobTypes,
+        );
 
   if (!job) {
     return {

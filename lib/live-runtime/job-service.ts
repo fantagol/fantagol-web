@@ -197,6 +197,64 @@ export async function claimLiveRuntimeJob(
   };
 }
 
+export async function claimLiveRuntimeJobById(
+  client: SupabaseClient,
+  jobId: string,
+  workerId: string,
+): Promise<ClaimedLiveRuntimeJob | null> {
+  const functionName =
+    "claim_live_runtime_job_by_id_internal";
+
+  const rows =
+    await callRuntimeRpc(
+      client,
+      functionName,
+      {
+        p_job_id: jobId,
+        p_worker_id: workerId,
+      },
+    );
+
+  const row =
+    optionalSingleRpcRow(
+      rows,
+      functionName,
+    );
+
+  if (!row) {
+    return null;
+  }
+
+  const typedRow =
+    row as ClaimRpcRow;
+
+  return {
+    jobId:
+      typedRow.job_id,
+    jobType:
+      typedRow.job_type,
+    jobStatus:
+      typedRow.job_status,
+    priority:
+      typedRow.priority,
+    scopeType:
+      typedRow.scope_type,
+    scopeId:
+      typedRow.scope_id,
+    scheduledAt:
+      typedRow.scheduled_at,
+    attemptCount:
+      typedRow.attempt_count,
+    maxAttempts:
+      typedRow.max_attempts,
+    correlationId:
+      typedRow.correlation_id,
+    causationId:
+      typedRow.causation_id,
+    payload:
+      typedRow.payload,
+  };
+}
 export async function completeLiveRuntimeJob(
   client: SupabaseClient,
   input: {
