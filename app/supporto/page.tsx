@@ -598,7 +598,7 @@ export default function SupportoPage() {
           </p>
 
           <h2 className="mt-2 text-3xl font-black">
-            Invia una segnalazione
+            Invia una segnalazione o un suggerimento
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">

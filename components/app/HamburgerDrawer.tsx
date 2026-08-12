@@ -729,6 +729,8 @@ export default function HamburgerDrawer({
     useState<LeagueActionModal>(null);
   const [leagueActionLoading, setLeagueActionLoading] = useState(false);
   const [rewardUnseenPasses, setRewardUnseenPasses] = useState(0);
+  const [supportConsoleAuthorized, setSupportConsoleAuthorized] =
+    useState(false);
   const isNativeApp = useNativeAppMode();
 
   function getCurrentLeagueIdFromPath() {
@@ -767,6 +769,34 @@ export default function HamburgerDrawer({
     }
 
     void loadRewardSignal();
+
+    async function loadSupportConsoleAccess() {
+      setSupportConsoleAuthorized(false);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/support-console/access", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          cache: "no-store",
+        });
+
+        setSupportConsoleAuthorized(response.ok);
+      } catch {
+        setSupportConsoleAuthorized(false);
+      }
+    }
+
+    void loadSupportConsoleAccess();
 
     async function loadCurrentLeague() {
       const leagueId = getCurrentLeagueIdFromPath();
@@ -1503,6 +1533,15 @@ export default function HamburgerDrawer({
             subtitle="Aiutaci con gestione e sviluppo"
             onClick={() => goTo("/donazioni")}
           />
+
+          {supportConsoleAuthorized && (
+            <DrawerMenuItem
+              icon="help"
+              title="Support Console"
+              subtitle="Gestisci segnalazioni e suggerimenti"
+              onClick={() => goTo("/support-console")}
+            />
+          )}
 
           <DrawerMenuItem
             icon="logout"
