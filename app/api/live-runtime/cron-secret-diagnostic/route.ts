@@ -41,18 +41,33 @@ function diagnostic(
     authorization?.startsWith(
       bearerPrefix,
     )
-      ? authorization
-          .slice(
-            bearerPrefix.length,
-          )
+      ? authorization.slice(
+          bearerPrefix.length,
+        )
       : null;
+
+  const serviceRoleRaw =
+    process.env
+      .SUPABASE_SERVICE_ROLE_KEY ??
+    "";
+
+  const serviceRole =
+    serviceRoleRaw.trim();
+
+  const supabaseUrl =
+    (
+      process.env.SUPABASE_URL ??
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL ??
+      ""
+    ).trim();
 
   return NextResponse.json(
     {
-      configured:
-        secret.length > 0,
+      cronSecret: {
+        configured:
+          secret.length > 0,
 
-      runtime: {
         rawLength:
           secretRaw.length,
 
@@ -65,6 +80,30 @@ function diagnostic(
                 secret,
               )
             : null,
+      },
+
+      supabaseServerRuntime: {
+        serviceRoleConfigured:
+          serviceRole.length > 0,
+
+        serviceRoleRawLength:
+          serviceRoleRaw.length,
+
+        serviceRoleTrimmedLength:
+          serviceRole.length,
+
+        urlConfigured:
+          supabaseUrl.length > 0,
+
+        urlSource:
+          process.env.SUPABASE_URL
+            ?.trim()
+            ? "SUPABASE_URL"
+            : process.env
+                .NEXT_PUBLIC_SUPABASE_URL
+                ?.trim()
+              ? "NEXT_PUBLIC_SUPABASE_URL"
+              : null,
       },
 
       request: {
