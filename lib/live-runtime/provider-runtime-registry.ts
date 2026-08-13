@@ -6,6 +6,7 @@ export type CreateDefaultProviderRuntimeRegistryOptions = {
   footballDataApiToken?: string;
   theOddsApiKey?: string;
   theOddsApiSportKey?: string;
+  theOddsApiMarkets?: string[];
 };
 
 export function createDefaultProviderRuntimeRegistry(
@@ -26,6 +27,7 @@ export function createDefaultProviderRuntimeRegistry(
       new TheOddsApiLiveAdapter({
         apiKey: options.theOddsApiKey,
         sportKey: options.theOddsApiSportKey,
+        markets: options.theOddsApiMarkets,
       }),
     );
   }

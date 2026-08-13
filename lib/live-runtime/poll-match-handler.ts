@@ -6,6 +6,9 @@ import {
   sha256ProviderPayload,
 } from "./football-data-poll-ingestion";
 import type { ClaimedLiveRuntimeJob } from "./job-service";
+import {
+  persistMarketBatchIntelligence,
+} from "./market-intelligence-round-orchestrator";
 import { persistCanonicalOddsSnapshot } from "./odds-snapshot-service";
 import { createDefaultProviderRuntimeRegistry } from "./provider-runtime-registry";
 import { executeProviderPoll } from "./provider-runtime-runner";
@@ -78,6 +81,67 @@ function getStringArray(
 }
 
 
+
+function getRequiredPositiveInteger(
+  payload: Record<string, unknown>,
+  key: string,
+): number {
+  const value = payload[key];
+
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value <= 0
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        `poll_match requires positive integer '${key}'`,
+      details: {
+        key,
+        value,
+      },
+    });
+  }
+
+  return value;
+}
+
+
+function getPollTransport(
+  payload: unknown,
+): Record<string, unknown> {
+  if (
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        "The Odds API poll_match payload must be an object",
+    });
+  }
+
+  const transport =
+    (payload as Record<string, unknown>)
+      .transport;
+
+  if (
+    transport === null ||
+    typeof transport !== "object" ||
+    Array.isArray(transport)
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        "The Odds API poll_match payload requires transport metadata",
+    });
+  }
+
+  return transport as Record<string, unknown>;
+}
+
 export async function handlePollMatchJob(input: {
   client: SupabaseClient;
   job: ClaimedLiveRuntimeJob;
@@ -105,6 +169,62 @@ export async function handlePollMatchJob(input: {
     job.payload,
     "external_match_id",
   );
+  const marketSnapshotSource =
+    getOptionalString(
+      job.payload,
+      "market_snapshot_source",
+    );
+
+  const requestedMarkets =
+    getStringArray(
+      job.payload,
+      "markets",
+    );
+
+  if (
+    marketSnapshotSource !== null &&
+    marketSnapshotSource !== "ADVANCED"
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        "poll_match market_snapshot_source must be ADVANCED when provided",
+      details: {
+        jobId: job.jobId,
+        marketSnapshotSource,
+      },
+    });
+  }
+
+  if (
+    marketSnapshotSource === "ADVANCED" &&
+    providerCode !== "the_odds_api"
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_UNSUPPORTED_JOB",
+      message:
+        "ADVANCED poll_match requires the_odds_api",
+      details: {
+        jobId: job.jobId,
+        providerCode,
+      },
+    });
+  }
+
+  if (
+    marketSnapshotSource === "ADVANCED" &&
+    requestedMarkets.length === 0
+  ) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+      message:
+        "ADVANCED poll_match requires explicit markets",
+      details: {
+        jobId: job.jobId,
+      },
+    });
+  }
+
 
   if (matchId !== job.scopeId) {
     throw new LiveRuntimeError({
@@ -137,7 +257,14 @@ export async function handlePollMatchJob(input: {
     });
   }
 
-  const registry = createDefaultProviderRuntimeRegistry();
+  const registry =
+    createDefaultProviderRuntimeRegistry({
+      theOddsApiMarkets:
+        marketSnapshotSource ===
+        "ADVANCED"
+          ? requestedMarkets
+          : undefined,
+    });
   const poll = await executeProviderPoll(
     client,
     registry,
@@ -158,6 +285,109 @@ export async function handlePollMatchJob(input: {
       providerPayload: poll.payload,
       snapshot,
     });
+
+    if (
+      marketSnapshotSource ===
+      "ADVANCED"
+    ) {
+      const fantagolRoundId =
+        getRequiredString(
+          job.payload,
+          "fantagol_round_id",
+        );
+
+      const slotNumber =
+        getRequiredPositiveInteger(
+          job.payload,
+          "slot_number",
+        );
+
+      const market =
+        await persistMarketBatchIntelligence({
+          client,
+          fantagolRoundId,
+          source:
+            "ADVANCED",
+          capturedAt:
+            poll.fetchedAt,
+          matches: [
+            {
+              matchId,
+              externalMatchId:
+                poll.externalMatchId,
+              oddsMarketSnapshotId:
+                persisted.oddsMarketSnapshotId,
+              slotNumber,
+              fetchedAt:
+                poll.fetchedAt,
+              providerPayload:
+                poll.payload,
+            },
+          ],
+          metadata: {
+            source_job_id:
+              job.jobId,
+            provider_code:
+              poll.providerCode,
+            provider_transport:
+              "event",
+            market_operating_mode:
+              getOptionalString(
+                job.payload,
+                "market_operating_mode",
+              ),
+            advanced_window:
+              getOptionalString(
+                job.payload,
+                "advanced_window",
+              ),
+            requested_markets:
+              requestedMarkets,
+          },
+        });
+
+      return {
+        branch:
+          "official_odds_market_intelligence_event",
+        provider_code:
+          poll.providerCode,
+        transport:
+          getPollTransport(
+            poll.payload,
+          ),
+        external_match_id:
+          poll.externalMatchId,
+        match_id:
+          persisted.matchId,
+        fetched_at:
+          poll.fetchedAt,
+        provider_payload_hash:
+          sha256ProviderPayload(
+            poll.payload,
+          ),
+        odds_market_snapshot_id:
+          persisted.oddsMarketSnapshotId,
+        snapshot_hash:
+          persisted.snapshotHash,
+        collected_at:
+          persisted.collectedAt,
+        inserted:
+          persisted.inserted,
+        valid_bookmakers:
+          snapshot.quality.validBookmakers,
+        has_consensus:
+          snapshot.quality.hasConsensus,
+        consensus_method:
+          snapshot.consensus?.method ??
+          null,
+        market_modeled_match_count:
+          market.modeledMatchCount,
+        market_snapshot:
+          market.persistence,
+        market_snapshot_source:
+          "ADVANCED",
+      };
+    }
 
     return {
       branch: "official_odds",
