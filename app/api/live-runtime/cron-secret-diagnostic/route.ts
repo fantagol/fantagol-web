@@ -7,6 +7,10 @@ import {
   NextResponse,
 } from "next/server";
 
+import {
+  getSupabaseServiceClient,
+} from "@/lib/supabase/service";
+
 function sha256(
   value: string,
 ): string {
@@ -18,33 +22,12 @@ function sha256(
     .digest("hex");
 }
 
-function diagnostic(
-  request?: NextRequest,
-) {
-  const secretRaw =
+function readRuntimeEnvironment() {
+  const cronSecretRaw =
     process.env.CRON_SECRET ?? "";
 
-  const secret =
-    secretRaw.trim();
-
-  const authorization =
-    request
-      ?.headers
-      .get(
-        "authorization",
-      ) ?? null;
-
-  const bearerPrefix =
-    "Bearer ";
-
-  const bearer =
-    authorization?.startsWith(
-      bearerPrefix,
-    )
-      ? authorization.slice(
-          bearerPrefix.length,
-        )
-      : null;
+  const cronSecret =
+    cronSecretRaw.trim();
 
   const serviceRoleRaw =
     process.env
@@ -62,38 +45,51 @@ function diagnostic(
       ""
     ).trim();
 
+  return {
+    cronSecretRaw,
+    cronSecret,
+    serviceRoleRaw,
+    serviceRole,
+    supabaseUrl,
+  };
+}
+
+export async function GET() {
+  const runtime =
+    readRuntimeEnvironment();
+
   return NextResponse.json(
     {
       cronSecret: {
         configured:
-          secret.length > 0,
+          runtime.cronSecret.length > 0,
 
         rawLength:
-          secretRaw.length,
+          runtime.cronSecretRaw.length,
 
         trimmedLength:
-          secret.length,
+          runtime.cronSecret.length,
 
         sha256:
-          secret.length > 0
+          runtime.cronSecret.length > 0
             ? sha256(
-                secret,
+                runtime.cronSecret,
               )
             : null,
       },
 
       supabaseServerRuntime: {
         serviceRoleConfigured:
-          serviceRole.length > 0,
+          runtime.serviceRole.length > 0,
 
         serviceRoleRawLength:
-          serviceRoleRaw.length,
+          runtime.serviceRoleRaw.length,
 
         serviceRoleTrimmedLength:
-          serviceRole.length,
+          runtime.serviceRole.length,
 
         urlConfigured:
-          supabaseUrl.length > 0,
+          runtime.supabaseUrl.length > 0,
 
         urlSource:
           process.env.SUPABASE_URL
@@ -104,34 +100,6 @@ function diagnostic(
                 ?.trim()
               ? "NEXT_PUBLIC_SUPABASE_URL"
               : null,
-      },
-
-      request: {
-        authorizationPresent:
-          authorization !== null,
-
-        authorizationLength:
-          authorization?.length ??
-          null,
-
-        bearerSchemeValid:
-          bearer !== null,
-
-        bearerLength:
-          bearer?.length ??
-          null,
-
-        bearerSha256:
-          bearer !== null
-            ? sha256(
-                bearer,
-              )
-            : null,
-
-        bearerMatchesRuntime:
-          bearer !== null &&
-          secret.length > 0 &&
-          bearer === secret,
       },
     },
     {
@@ -145,18 +113,116 @@ function diagnostic(
   );
 }
 
-export async function GET(
-  request: NextRequest,
-) {
-  return diagnostic(
-    request,
-  );
-}
-
 export async function POST(
   request: NextRequest,
 ) {
-  return diagnostic(
-    request,
-  );
+  const runtime =
+    readRuntimeEnvironment();
+
+  if (!runtime.cronSecret) {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "configuration",
+      },
+      {
+        status: 503,
+      },
+    );
+  }
+
+  const authorization =
+    request.headers.get(
+      "authorization",
+    );
+
+  if (
+    authorization !==
+    `Bearer ${runtime.cronSecret}`
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage: "authorization",
+      },
+      {
+        status: 401,
+      },
+    );
+  }
+
+  let clientCreated = false;
+
+  try {
+    const supabase =
+      getSupabaseServiceClient();
+
+    clientCreated = true;
+
+    const {
+      data,
+      error,
+    } =
+      await supabase
+        .from(
+          "live_runtime_jobs",
+        )
+        .select(
+          "id",
+        )
+        .limit(
+          1,
+        );
+
+    if (error) {
+      return NextResponse.json(
+        {
+          ok: false,
+          stage: "database_read",
+          clientCreated,
+          readOk: false,
+          errorCode:
+            error.code ?? null,
+        },
+        {
+          status: 500,
+        },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        stage: "complete",
+        clientCreated,
+        readOk: true,
+        returnedRows:
+          data?.length ?? 0,
+      },
+      {
+        status: 200,
+
+        headers: {
+          "Cache-Control":
+            "no-store, max-age=0",
+        },
+      },
+    );
+  }
+  catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        stage:
+          clientCreated
+            ? "database_exception"
+            : "client_creation",
+        clientCreated,
+        readOk: false,
+      },
+      {
+        status: 500,
+      },
+    );
+  }
 }
