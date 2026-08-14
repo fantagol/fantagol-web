@@ -33,6 +33,8 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
 
     private ConsentInformation consentInformation;
     private RewardedAd rewardedAd;
+    private String pendingSsvUserId;
+    private String pendingSsvCustomData;
     private boolean mobileAdsInitialized = false;
 
     @Override
@@ -44,7 +46,50 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
         if (activity != null) {
             consentInformation =
                     UserMessagingPlatform.getConsentInformation(activity);
+
+            bootstrapConsentAtAppLaunch(
+                    activity
+            );
         }
+    }
+
+    private void bootstrapConsentAtAppLaunch(
+            @NonNull Activity activity
+    ) {
+        if (consentInformation == null) {
+            consentInformation =
+                    UserMessagingPlatform.getConsentInformation(activity);
+        }
+
+        ConsentRequestParameters params =
+                new ConsentRequestParameters.Builder()
+                        .build();
+
+        consentInformation.requestConsentInfoUpdate(
+                activity,
+                params,
+                () -> UserMessagingPlatform
+                        .loadAndShowConsentFormIfRequired(
+                                activity,
+                                formError -> {
+                                    if (formError != null) {
+                                        return;
+                                    }
+
+                                    initializeMobileAdsIfAllowed(
+                                            activity
+                                    );
+                                }
+                        ),
+                requestConsentError -> {
+                    /*
+                     * Fail closed.
+                     *
+                     * loadRewarded() still checks canRequestAds()
+                     * and refuses the ad if the session is not ready.
+                     */
+                }
+        );
     }
 
     private void initializeMobileAdsIfAllowed(
@@ -192,6 +237,32 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
         call.resolve(result);
     }
 
+    private void applyPendingSsv(
+            @NonNull RewardedAd ad
+    ) {
+        if (
+                pendingSsvUserId == null ||
+                pendingSsvCustomData == null
+        ) {
+            return;
+        }
+
+        ServerSideVerificationOptions options =
+                new ServerSideVerificationOptions(
+                        pendingSsvUserId,
+                        pendingSsvCustomData
+                );
+
+        ad.setServerSideVerificationOptions(
+                options
+        );
+    }
+
+    private void clearPendingSsv() {
+        pendingSsvUserId = null;
+        pendingSsvCustomData = null;
+    }
+
     @PluginMethod
     public void loadRewarded(PluginCall call) {
 
@@ -225,6 +296,8 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                     public void onAdLoaded(
                             @NonNull RewardedAd ad
                     ) {
+                        applyPendingSsv(ad);
+
                         rewardedAd = ad;
 
                         rewardedAd.setAdEventCallback(
@@ -249,6 +322,7 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                                     @Override
                                     public void onAdDismissedFullScreenContent() {
                                         rewardedAd = null;
+                                        clearPendingSsv();
 
                                         JSObject event =
                                                 new JSObject();
@@ -269,6 +343,7 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                                             FullScreenContentError error
                                     ) {
                                         rewardedAd = null;
+                                        clearPendingSsv();
 
                                         JSObject event =
                                                 new JSObject();
@@ -407,11 +482,6 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
             PluginCall call
     ) {
 
-        if (rewardedAd == null) {
-            call.reject("REWARDED_NOT_LOADED");
-            return;
-        }
-
         String userId =
                 call.getString("userId");
 
@@ -438,15 +508,23 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
             return;
         }
 
-        ServerSideVerificationOptions options =
-                new ServerSideVerificationOptions(
-                        normalizedUserId,
-                        normalizedCustomData
-                );
+        pendingSsvUserId =
+                normalizedUserId;
 
-        rewardedAd.setServerSideVerificationOptions(
-                options
-        );
+        pendingSsvCustomData =
+                normalizedCustomData;
+
+        /*
+         * Defensive support for an already-loaded ad.
+         * The canonical lifecycle remains:
+         *
+         * claim -> configure SSV -> load -> show
+         */
+        if (rewardedAd != null) {
+            applyPendingSsv(
+                    rewardedAd
+            );
+        }
 
         JSObject result =
                 new JSObject();

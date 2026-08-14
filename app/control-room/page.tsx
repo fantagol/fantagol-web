@@ -7,6 +7,9 @@ import { supabase } from "../../lib/supabaseClient";
 import {
   startRewardedAdLifecycle,
 } from "../../lib/android-commercial/rewarded-lifecycle";
+import {
+  getRewardedAdsStatus,
+} from "../../lib/android-commercial/rewarded-ads";
 
 type LeagueInfo = {
   leagueName: string;
@@ -311,6 +314,15 @@ export default function ControlRoomPage() {
     setRewardedVideoStarting(true);
 
     try {
+      const rewardedStatus =
+        await getRewardedAdsStatus();
+
+      if (rewardedStatus.canRequestAds !== true) {
+        throw new Error(
+          "REWARDED_CONSENT_SESSION_NOT_READY",
+        );
+      }
+
       await startRewardedAdLifecycle();
       setPassPopupOpen(false);
     } catch (error) {
