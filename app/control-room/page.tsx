@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import FantaGolLogo from "../../components/FantaGolLogo";
 import HamburgerDrawer from "../../components/app/HamburgerDrawer";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  startRewardedAdLifecycle,
+} from "../../lib/android-commercial/rewarded-lifecycle";
 
 type LeagueInfo = {
   leagueName: string;
@@ -98,6 +101,8 @@ export default function ControlRoomPage() {
   const [premiumAccessStarting, setPremiumAccessStarting] = useState(false);
   const [activePremiumSessionId, setActivePremiumSessionId] = useState<string | null>(null);
   const [passPopupOpen, setPassPopupOpen] = useState(false);
+  const [rewardedVideoStarting, setRewardedVideoStarting] =
+    useState(false);
   const [rewardSummary, setRewardSummary] =
     useState<RewardSummaryRow[]>([]);
 
@@ -297,6 +302,26 @@ export default function ControlRoomPage() {
 
     loadLeagueInfo();
   }, []);
+
+  async function handleRewardedVideo() {
+    if (rewardedVideoStarting) {
+      return;
+    }
+
+    setRewardedVideoStarting(true);
+
+    try {
+      await startRewardedAdLifecycle();
+      setPassPopupOpen(false);
+    } catch (error) {
+      console.error(
+        "[Control Room] Rewarded video lifecycle failed.",
+        error,
+      );
+    } finally {
+      setRewardedVideoStarting(false);
+    }
+  }
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#061014] pt-14 text-white">
@@ -556,11 +581,17 @@ export default function ControlRoomPage() {
         <section className="mt-6 grid gap-4 md:grid-cols-2">
           <button
             type="button"
-            className="rounded-3xl border border-white/10 bg-[#111417] p-6 text-left shadow-lg shadow-black/30 transition hover:-translate-y-0.5 hover:border-[#A6E824]/70 hover:brightness-110"
+            onClick={() => void handleRewardedVideo()}
+            disabled={rewardedVideoStarting}
+            className="rounded-3xl border border-white/10 bg-[#111417] p-6 text-left shadow-lg shadow-black/30 transition hover:-translate-y-0.5 hover:border-[#A6E824]/70 hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
           >
             <VideoIcon />
 
-            <h3 className="mt-5 text-2xl font-black">Guarda un video</h3>
+            <h3 className="mt-5 text-2xl font-black">
+              {rewardedVideoStarting
+                ? "Preparazione video..."
+                : "Guarda un video"}
+            </h3>
           </button>
 
           <button
@@ -598,10 +629,13 @@ export default function ControlRoomPage() {
             <div className="mt-6 grid gap-3">
               <button
                 type="button"
-                onClick={() => setPassPopupOpen(false)}
-                className="rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-left font-black transition hover:border-[#A6E824]/60"
+                onClick={() => void handleRewardedVideo()}
+                disabled={rewardedVideoStarting}
+                className="rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-left font-black transition hover:border-[#A6E824]/60 disabled:cursor-wait disabled:opacity-60"
               >
-                Guarda un video
+                {rewardedVideoStarting
+                  ? "Preparazione video..."
+                  : "Guarda un video"}
               </button>
 
               <button
