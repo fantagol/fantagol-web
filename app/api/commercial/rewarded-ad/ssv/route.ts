@@ -57,6 +57,24 @@ const defaultDependencies:
       settleVerifiedAdMobRewardClaim,
   };
 
+export const ADMOB_SSV_VERIFICATION_PROBE_MARKER =
+  "FANTAGOL_ADMOB_SSV_VERIFY";
+
+function isAdMobVerificationProbe(
+  verified: Awaited<
+    ReturnType<
+      typeof verifyAdMobRewardedSsv
+    >
+  >,
+): boolean {
+  return (
+    verified.providerUserId ===
+      ADMOB_SSV_VERIFICATION_PROBE_MARKER &&
+    verified.externalClaimReference ===
+      ADMOB_SSV_VERIFICATION_PROBE_MARKER
+  );
+}
+
 function noStoreHeaders() {
   return {
     "cache-control":
@@ -77,6 +95,41 @@ export function createAdMobSsvGetHandler(
         await dependencies.verify(
           request.url,
         );
+
+      /*
+       * AdMob Console callback verification.
+       *
+       * The request must first pass the normal Google SSV
+       * cryptographic verification above. Only the exact
+       * FantaGol verification markers may bypass economic
+       * processing.
+       *
+       * The probe must never:
+       * - register a provider event;
+       * - bind a reward claim;
+       * - settle a claim;
+       * - mutate a wallet or ledger.
+       */
+      if (
+        isAdMobVerificationProbe(
+          verified,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            received: true,
+            verified: true,
+            verificationProbe: true,
+            economicallyAuthoritative:
+              false,
+          },
+          {
+            status: 200,
+            headers:
+              noStoreHeaders(),
+          },
+        );
+      }
 
       const registration =
         await dependencies.register(

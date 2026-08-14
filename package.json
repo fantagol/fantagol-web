@@ -18,7 +18,8 @@
     "@supabase/supabase-js": "^2.108.2",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
