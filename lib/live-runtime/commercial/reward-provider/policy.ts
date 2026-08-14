@@ -4,6 +4,11 @@ import {
   PASSIVE_TEST_PROVIDER_CODE,
   PassiveTestRewardProviderAdapter,
 } from "./passive-test-adapter";
+import {
+  ADMOB_REWARDED_ADAPTER_CODE,
+  ADMOB_REWARDED_ADAPTER_VERSION,
+  ADMOB_REWARDED_PROVIDER_CODE,
+} from "./admob-ssv-contract";
 import type {
   RewardProviderBootstrapEnvironment,
 } from "./bootstrap";
@@ -92,6 +97,21 @@ const POLICY_DEFINITIONS:
       createAdapter:
         () =>
           new PassiveTestRewardProviderAdapter(),
+    }),
+    freezePolicyDefinition({
+      providerCode:
+        ADMOB_REWARDED_PROVIDER_CODE,
+      adapterCode:
+        ADMOB_REWARDED_ADAPTER_CODE,
+      adapterVersion:
+        ADMOB_REWARDED_ADAPTER_VERSION,
+      allowedEnvironments:
+        ["test", "live"],
+      priority: 20,
+      enabled: false,
+      synthetic: false,
+      passive: true,
+      status: "DECLARED",
     }),
   ]);
 

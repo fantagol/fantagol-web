@@ -11,6 +11,11 @@ import {
   PassiveTestRewardProviderAdapter,
 } from "./passive-test-adapter";
 import {
+  ADMOB_REWARDED_ADAPTER_CODE,
+  ADMOB_REWARDED_ADAPTER_VERSION,
+  ADMOB_REWARDED_PROVIDER_CODE,
+} from "./admob-ssv-contract";
+import {
   REWARD_PROVIDER_POLICY,
   resolveRewardProviderPolicy,
 } from "./policy";
@@ -42,6 +47,21 @@ describe(
           synthetic: true,
           passive: true,
           status: "AVAILABLE",
+        },
+        {
+          providerCode:
+            ADMOB_REWARDED_PROVIDER_CODE,
+          adapterCode:
+            ADMOB_REWARDED_ADAPTER_CODE,
+          adapterVersion:
+            ADMOB_REWARDED_ADAPTER_VERSION,
+          allowedEnvironments:
+            ["test", "live"],
+          priority: 20,
+          enabled: false,
+          synthetic: false,
+          passive: true,
+          status: "DECLARED",
         },
       ]);
 
@@ -91,6 +111,30 @@ describe(
       ).toBeInstanceOf(
         PassiveTestRewardProviderAdapter,
       );
+    });
+
+    it("keeps AdMob declared but unavailable before runtime activation", () => {
+      const admob =
+        REWARD_PROVIDER_POLICY.find(
+          (descriptor) =>
+            descriptor.providerCode ===
+            ADMOB_REWARDED_PROVIDER_CODE,
+        );
+
+      expect(admob).toMatchObject({
+        providerCode:
+          ADMOB_REWARDED_PROVIDER_CODE,
+        adapterCode:
+          ADMOB_REWARDED_ADAPTER_CODE,
+        adapterVersion:
+          ADMOB_REWARDED_ADAPTER_VERSION,
+        allowedEnvironments:
+          ["test", "live"],
+        enabled: false,
+        synthetic: false,
+        passive: true,
+        status: "DECLARED",
+      });
     });
 
     it("resolves no adapters for live environment", () => {

@@ -32,6 +32,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        registerPlugin(FantaGolRewardedAdsPlugin.class);
         super.onCreate(savedInstanceState);
         hideStatusBar();
     }
