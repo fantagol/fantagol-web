@@ -9,6 +9,9 @@ import {
   type AggregatedPollingPlan,
 } from "./aggregated-polling-scheduler";
 import {
+  enqueueFootballDataPendingIntent,
+} from "./football-data-pending-intent";
+import {
   resolveFootballDataPollingDecision,
   type FootballDataPollingDecision,
 } from "./football-data-polling-policy";
@@ -376,15 +379,16 @@ export async function scheduleFootballDataAggregatedPolling(
         );
 
       const job =
-        await enqueueLiveRuntimeJob(
+        await enqueueFootballDataPendingIntent(
           input.client,
           {
-            jobType:
-              "poll_batch",
-            scopeType:
-              "fantagol_round",
-            scopeId:
-              fantagolRoundId,
+            fantagolRoundId,
+            mode:
+              plan.mode,
+            pollingBand:
+              decision.band,
+            pollingReason:
+              decision.reason,
             idempotencyKey:
               buildAggregatePollIdempotencyKey({
                 fantagolRoundId,
@@ -445,11 +449,15 @@ export async function scheduleFootballDataAggregatedPolling(
           },
         );
 
+      const effectiveNextPollAt =
+        job.scheduledAt;
+
       scheduled.push({
         fantagolRoundId,
         plan,
         decision,
-        nextPollAt,
+        nextPollAt:
+          effectiveNextPollAt,
         job,
       });
     }
