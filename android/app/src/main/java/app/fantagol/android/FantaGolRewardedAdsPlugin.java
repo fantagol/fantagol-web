@@ -1,6 +1,8 @@
 package app.fantagol.android;
 
 import android.app.Activity;
+import android.content.pm.ApplicationInfo;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -18,7 +20,10 @@ import com.google.android.libraries.ads.mobile.sdk.common.FullScreenContentError
 import com.google.android.libraries.ads.mobile.sdk.common.AdLoadCallback;
 import com.google.android.libraries.ads.mobile.sdk.rewarded.ServerSideVerificationOptions;
 import com.google.android.libraries.ads.mobile.sdk.common.AdRequest;
+import com.google.android.libraries.ads.mobile.sdk.common.RequestConfiguration;
 import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError;
+
+import java.util.Collections;
 
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
@@ -28,8 +33,14 @@ import com.google.android.ump.UserMessagingPlatform;
 @CapacitorPlugin(name = "FantaGolRewardedAds")
 public class FantaGolRewardedAdsPlugin extends Plugin {
 
-    private static final String TEST_REWARDED_AD_UNIT_ID =
-            "ca-app-pub-3940256099942544/5224354917";
+    private static final String LOG_TAG =
+            "FantaGolRewardedAds";
+
+    private static final String REWARDED_AD_UNIT_ID =
+            "ca-app-pub-9854419372662665/8637423907";
+
+    private static final String DEBUG_TEST_DEVICE_ID =
+            "7857E577E6C3CCCDD5EB3A1D82D75FCC";
 
     private ConsentInformation consentInformation;
     private RewardedAd rewardedAd;
@@ -73,8 +84,25 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                                 activity,
                                 formError -> {
                                     if (formError != null) {
+                                        Log.e(
+                                                LOG_TAG,
+                                                "FANTAGOL_UMP_FORM_ERROR" +
+                                                        " code=" +
+                                                        formError.getErrorCode() +
+                                                        " message=" +
+                                                        formError.getMessage()
+                                        );
+
+                                        logConsentState(
+                                                "form_error"
+                                        );
+
                                         return;
                                     }
+
+                                    logConsentState(
+                                            "consent_resolved"
+                                    );
 
                                     initializeMobileAdsIfAllowed(
                                             activity
@@ -82,6 +110,19 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                                 }
                         ),
                 requestConsentError -> {
+                    Log.e(
+                            LOG_TAG,
+                            "FANTAGOL_UMP_UPDATE_ERROR" +
+                                    " code=" +
+                                    requestConsentError.getErrorCode() +
+                                    " message=" +
+                                    requestConsentError.getMessage()
+                    );
+
+                    logConsentState(
+                            "update_error"
+                    );
+
                     /*
                      * Fail closed.
                      *
@@ -89,6 +130,39 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
                      * and refuses the ad if the session is not ready.
                      */
                 }
+        );
+    }
+
+    private void logConsentState(
+            @NonNull String stage
+    ) {
+        boolean canRequestAds =
+                consentInformation != null &&
+                consentInformation.canRequestAds();
+
+        String privacyOptionsRequired =
+                consentInformation == null
+                        ? "UNKNOWN"
+                        : consentInformation
+                                .getPrivacyOptionsRequirementStatus()
+                                .name();
+
+        int consentStatus =
+                consentInformation == null
+                        ? -1
+                        : consentInformation
+                                .getConsentStatus();
+
+        Log.i(
+                LOG_TAG,
+                "FANTAGOL_UMP_STATUS" +
+                        " stage=" + stage +
+                        " consentStatus=" + consentStatus +
+                        " canRequestAds=" + canRequestAds +
+                        " privacyOptionsRequired=" +
+                        privacyOptionsRequired +
+                        " mobileAdsInitialized=" +
+                        mobileAdsInitialized
         );
     }
 
@@ -107,15 +181,57 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
         }
 
         new Thread(
-                () -> MobileAds.initialize(
-                        activity,
-                        new InitializationConfig.Builder(
-                                "ca-app-pub-3940256099942544~3347511713"
-                        ).build(),
-                        initializationStatus -> {
-                            mobileAdsInitialized = true;
-                        }
-                )
+                () -> {
+                    InitializationConfig.Builder
+                            initializationBuilder =
+                            new InitializationConfig.Builder(
+                                    "ca-app-pub-9854419372662665~5503356074"
+                            );
+
+                    boolean debugBuild =
+                            (
+                                    activity
+                                            .getApplicationInfo()
+                                            .flags &
+                                    ApplicationInfo.FLAG_DEBUGGABLE
+                            ) != 0;
+
+                    if (debugBuild) {
+                        RequestConfiguration
+                                requestConfiguration =
+                                new RequestConfiguration.Builder()
+                                        .setTestDeviceIds(
+                                                Collections.singletonList(
+                                                        DEBUG_TEST_DEVICE_ID
+                                                )
+                                        )
+                                        .build();
+
+                        initializationBuilder
+                                .setRequestConfiguration(
+                                        requestConfiguration
+                                );
+
+                        Log.i(
+                                LOG_TAG,
+                                "FANTAGOL_ADMOB_TEST_DEVICE_CONFIGURED" +
+                                        " deviceId=" +
+                                        DEBUG_TEST_DEVICE_ID
+                        );
+                    }
+
+                    MobileAds.initialize(
+                            activity,
+                            initializationBuilder.build(),
+                            initializationStatus -> {
+                                mobileAdsInitialized = true;
+
+                                logConsentState(
+                                        "mobile_ads_initialized"
+                                );
+                            }
+                    );
+                }
         ).start();
     }
 
@@ -198,6 +314,10 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
     @PluginMethod
     public void getStatus(PluginCall call) {
 
+        logConsentState(
+                "get_status"
+        );
+
         JSObject result =
                 new JSObject();
 
@@ -218,7 +338,7 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
 
         result.put(
                 "adUnitId",
-                TEST_REWARDED_AD_UNIT_ID
+                REWARDED_AD_UNIT_ID
         );
 
         if (consentInformation != null) {
@@ -285,7 +405,7 @@ public class FantaGolRewardedAdsPlugin extends Plugin {
 
         AdRequest request =
                 new AdRequest.Builder(
-                        TEST_REWARDED_AD_UNIT_ID
+                        REWARDED_AD_UNIT_ID
                 ).build();
 
         RewardedAd.load(

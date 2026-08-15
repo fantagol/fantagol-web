@@ -12,7 +12,7 @@
         <!-- Google official sample App ID. TEST ONLY. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="ca-app-pub-9854419372662665~5503356074" />
         <!-- FANTAGOL_COMMERCIAL_REWARDED_ADS_END -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
