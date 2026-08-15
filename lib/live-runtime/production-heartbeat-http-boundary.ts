@@ -93,16 +93,19 @@ export function createProductionHeartbeatPostHandler(
               "production-heartbeat",
 
             /*
-             * Worker execution remains disabled
-             * at the HTTP activation boundary.
+             * Governed worker activation boundary.
              *
-             * pg_cron may invoke the heartbeat
-             * later, but it cannot drain jobs
-             * through this boundary while this
-             * value remains zero.
+             * Each heartbeat may attempt at most
+             * one eligible poll_batch job. Other
+             * runtime job types remain excluded
+             * from automatic execution here.
              */
             maxWorkerJobs:
-              0,
+              1,
+            workerJobTypes:
+              [
+                "poll_batch",
+              ],
           });
 
       return NextResponse.json(
@@ -110,7 +113,7 @@ export function createProductionHeartbeatPostHandler(
           ok: true,
 
           workerExecutionEnabled:
-            false,
+            true,
 
           result,
         },
