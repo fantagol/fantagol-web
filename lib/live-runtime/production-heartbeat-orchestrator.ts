@@ -225,7 +225,7 @@ async function refreshCommunityDefault(input: {
     "refresh_community_snapshot_rpc",
     {
       p_fantagol_round_id: input.fantagolRoundId,
-      p_engine_version: "community-intelligence-v1",
+      p_engine_version: "community-intelligence-v2",
       p_correlation_id: input.correlationId,
     },
   );
@@ -248,7 +248,7 @@ async function freezeCommunityDefault(input: {
     "freeze_community_lock_snapshot_rpc",
     {
       p_fantagol_round_id: input.fantagolRoundId,
-      p_engine_version: "community-intelligence-v1",
+      p_engine_version: "community-intelligence-v2",
       p_correlation_id: input.correlationId,
     },
   );
