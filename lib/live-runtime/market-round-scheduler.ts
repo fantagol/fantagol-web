@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  enqueueLiveRuntimeJob,
-  type EnqueuedLiveRuntimeJob,
+import type {
+  EnqueuedLiveRuntimeJob,
 } from "./job-service";
+import {
+  enqueueTheOddsPackagePendingIntent,
+} from "./the-odds-package-pending-intent";
 import {
   decideMarketRoundPollingWithCommissioning,
   type MarketCommissioningPolicyDecision,
@@ -159,13 +161,17 @@ export async function scheduleMarketRoundPolling(
     );
 
   const job =
-    await enqueueLiveRuntimeJob(
+    await enqueueTheOddsPackagePendingIntent(
       input.client,
       {
-        jobType: "poll_batch",
-        scopeType: "fantagol_round",
-        scopeId:
+        fantagolRoundId:
           input.fantagolRoundId,
+        mode:
+          "prematch",
+        marketOperatingMode:
+          decision.operatingMode,
+        marketPolicyReason:
+          decision.reason,
         idempotencyKey:
           buildMarketBatchIdempotencyKey({
             fantagolRoundId:
@@ -227,7 +233,8 @@ export async function scheduleMarketRoundPolling(
   return {
     decision,
     snapshotSource: "PACKAGE",
-    scheduledAt,
+    scheduledAt:
+      job.scheduledAt,
     job,
     reason: decision.reason,
   };
