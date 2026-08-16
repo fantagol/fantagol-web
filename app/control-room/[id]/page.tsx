@@ -1330,26 +1330,55 @@ function DailyExactRow({
 
 function DailyIntelligenceCard({
   matches,
+  matchDetails,
   expanded,
   onToggle,
 }: {
   matches: ControlRoomMatch[];
+  matchDetails: Record<string, MatchPayload>;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const rankedExact = matches
-    .flatMap((match) =>
-      (match.exact_distribution ?? []).map(
-        (exact) => ({
-          match,
-          exact,
-        }),
-      ),
+    .map((match) => {
+      const exact =
+        [...(match.exact_distribution ?? [])]
+          .sort(
+            (first, second) =>
+              first.rank - second.rank ||
+              second.prediction_count -
+                first.prediction_count ||
+              first.home_prediction -
+                second.home_prediction ||
+              first.away_prediction -
+                second.away_prediction,
+          )[0] ?? null;
+
+      return exact
+        ? {
+            match,
+            exact,
+          }
+        : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        match: ControlRoomMatch;
+        exact: NonNullable<
+          ControlRoomMatch["exact_distribution"]
+        >[number];
+      } => item !== null,
     )
     .sort(
       (first, second) =>
         second.exact.prediction_count -
-        first.exact.prediction_count,
+          first.exact.prediction_count ||
+        second.exact.prediction_percent -
+          first.exact.prediction_percent ||
+        first.match.slot_number -
+          second.match.slot_number,
     )
     .slice(0, 5);
 
@@ -1597,7 +1626,17 @@ function DailyIntelligenceCard({
 
               <div className="mt-4 space-y-2">
                 {rankedMarketExact.length ? (
-                  rankedMarketExact.map(({ match, exact }, index) => (
+                  rankedMarketExact.map(({ match, exact }, index) => {
+                    const movements =
+                      matchDetails[match.match_id]?.market?.movements ?? [];
+
+                    const change = marketMovementChange(
+                      movements,
+                      "EXACT",
+                      [exact.score],
+                    );
+
+                    return (
                     <div
                       key={`${match.match_id}-${exact.score}`}
                       className="grid grid-cols-[24px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2.5 py-2.5 max-[429px]:grid-cols-[20px_minmax(0,1fr)_auto_auto] max-[429px]:gap-1.5 max-[399px]:gap-1 max-[381px]:px-2 sm:px-3"
@@ -1613,10 +1652,17 @@ function DailyIntelligenceCard({
                         {exact.score}
                       </span>
                       <span className="min-w-[62px] shrink-0 whitespace-nowrap text-right text-[11px] font-black text-sky-300 max-[429px]:min-w-[56px] max-[429px]:text-[10px] max-[399px]:min-w-[52px] max-[399px]:text-[9px] max-[381px]:min-w-[48px] max-[381px]:text-[8px]">
-                        {pct(exact.prediction_percent)}
+                        {pct(exact.prediction_percent)}{" "}
+                        <span className="text-gray-500">
+                          {trendDirection(change)}{" "}
+                          {change === null
+                            ? "N/D"
+                            : `${Math.abs(change).toFixed(1)}%`}
+                        </span>
                       </span>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="py-4 text-center text-xs font-bold text-gray-600">
                     N/D
@@ -1680,6 +1726,15 @@ function DailyIntelligenceCard({
               </div>
             </section>
           </div>
+
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-5 ml-auto block rounded-xl border border-[#A6E824]/30 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black text-[#A6E824] transition hover:border-[#A6E824]"
+            data-r39-r4-l-final-daily-bottom-close="true"
+          >
+            Chiudi analisi
+          </button>
         </div>
       )}
     </section>
@@ -2507,6 +2562,15 @@ function MatchCard({
               />
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-5 ml-auto block rounded-xl border border-[#A6E824]/30 bg-[#A6E824]/10 px-4 py-2.5 text-xs font-black text-[#A6E824] transition hover:border-[#A6E824]"
+            data-r39-r4-l-r4-bottom-close="true"
+          >
+            Chiudi analisi
+          </button>
         </div>
       )}
     </article>
@@ -3456,15 +3520,8 @@ export default function ControlRoomDetailPage() {
     [sourceMatches],
   );
 
-  const loadMatchDetail = useCallback(
+  const ensureMatchDetailLoaded = useCallback(
     async (match: ControlRoomMatch) => {
-      if (expandedMatchId === match.match_id) {
-        setExpandedMatchId(null);
-        return;
-      }
-
-      setExpandedMatchId(match.match_id);
-
       if (matchDetails[match.match_id]) return;
 
       setDetailLoadingId(match.match_id);
@@ -3530,7 +3587,10 @@ export default function ControlRoomDetailPage() {
           },
         }));
       } catch (error) {
-        console.error("Control Room match detail failed:", error);
+        console.error(
+          "Control Room match detail failed:",
+          error,
+        );
 
         setMatchDetails((current) => ({
           ...current,
@@ -3546,7 +3606,24 @@ export default function ControlRoomDetailPage() {
         setDetailLoadingId(null);
       }
     },
-    [expandedMatchId, matchDetails],
+    [matchDetails],
+  );
+
+  const loadMatchDetail = useCallback(
+    async (match: ControlRoomMatch) => {
+      if (expandedMatchId === match.match_id) {
+        setExpandedMatchId(null);
+        return;
+      }
+
+      setExpandedMatchId(match.match_id);
+
+      await ensureMatchDetailLoaded(match);
+    },
+    [
+      ensureMatchDetailLoaded,
+      expandedMatchId,
+    ],
   );
 
   return (
@@ -3663,9 +3740,38 @@ export default function ControlRoomDetailPage() {
               <DailyIntelligenceCard
                 matches={sourceMatches}
                 expanded={dailyAnalysisOpen}
-                onToggle={() =>
-                  setDailyAnalysisOpen((current) => !current)
-                }
+                matchDetails={matchDetails}
+                onToggle={() => {
+                  const opening = !dailyAnalysisOpen;
+
+                  setDailyAnalysisOpen(opening);
+
+                  if (opening) {
+                    const topMarketMatches = sourceMatches
+                      .map((match) => ({
+                        match,
+                        exact: topMarketExact(match),
+                      }))
+                      .filter(
+                        (
+                          item,
+                        ): item is {
+                          match: ControlRoomMatch;
+                          exact: MarketExactItem;
+                        } => Boolean(item.exact),
+                      )
+                      .sort(
+                        (first, second) =>
+                          second.exact.prediction_percent -
+                          first.exact.prediction_percent,
+                      )
+                      .slice(0, 5);
+
+                    for (const { match } of topMarketMatches) {
+                      void ensureMatchDetailLoaded(match);
+                    }
+                  }
+                }}
               />
 
               <section className="mt-10">
