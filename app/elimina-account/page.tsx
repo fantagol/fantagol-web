@@ -384,7 +384,7 @@ export default function DeleteAccountPage() {
           {[
             ["Eliminati", "Profilo, avatar, sessioni, token e dati personali diretti."],
             ["Anonimizzati", "Club, membership e identità nello storico competitivo."],
-            ["Conservati in forma ristretta", "Ledger, pagamenti e prove necessarie per integrità e obblighi applicabili."],
+            ["Conservati in forma ristretta", "Ledger, pagamenti e prove necessarie per integrità e obblighi legali, fiscali o di conformità. La necessità di conservazione viene riesaminata dopo 5 anni e, in condizioni ordinarie, non supera 10 anni, salvo obblighi legali o regolatori che richiedano un periodo più lungo."],
             ["Irreversibile", "Dopo l’inizio dell’erasure l’account non potrà essere recuperato."],
           ].map(([title, description]) => (
             <article
