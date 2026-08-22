@@ -164,6 +164,11 @@ export type ProductionHeartbeatDependencies = {
     fantagolRoundId: string;
   }) => Promise<unknown>;
 
+  expireDuePredictionRecoveries: (input: {
+    client: SupabaseClient;
+    at: string;
+  }) => Promise<unknown>;
+
   refreshCommunity: (input: {
     client: SupabaseClient;
     fantagolRoundId: string;
@@ -297,6 +302,27 @@ async function advanceRoundLiveDefault(input: {
   return data;
 }
 
+async function expireDuePredictionRecoveriesDefault(input: {
+  client: SupabaseClient;
+  at: string;
+}): Promise<unknown> {
+  const { data, error } =
+    await input.client.rpc(
+      "expire_due_prediction_recoveries_internal",
+      {
+        p_at: input.at,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `PREDICTION_RECOVERY_EXPIRY_FAILED:${error.message}`,
+    );
+  }
+
+  return data;
+}
+
 async function refreshCommunityDefault(input: {
   client: SupabaseClient;
   fantagolRoundId: string;
@@ -401,6 +427,10 @@ function resolveDependencies(
     advanceRoundLive:
       overrides.advanceRoundLive ??
       advanceRoundLiveDefault,
+
+    expireDuePredictionRecoveries:
+      overrides.expireDuePredictionRecoveries ??
+      expireDuePredictionRecoveriesDefault,
 
     refreshCommunity:
       overrides.refreshCommunity ??
@@ -740,6 +770,7 @@ export async function runProductionHeartbeat(
    * first_official_score_at is resolved independently from accepted
    * MATCH_SCORE_CHANGED evidence, so live 0-0 remains valid.
    */
+
   try {
     await deps.advanceRoundLive({
       client: input.client,
@@ -750,6 +781,23 @@ export async function runProductionHeartbeat(
     /*
      * A lifecycle-authority failure must not stop provider polling or
      * worker drainage. The next heartbeat retries the idempotent authority.
+     */
+  }
+
+  /*
+   * Recovery expiry is terminal cleanup only.
+   * It must not mutate canonical round lifecycle state.
+   * Failure is retried by the next heartbeat.
+   */
+  try {
+    await deps.expireDuePredictionRecoveries({
+      client: input.client,
+      at: startedAt,
+    });
+  } catch {
+    /*
+     * Recovery expiry failure must not stop provider polling or
+     * worker drainage. The next heartbeat retries the idempotent sweep.
      */
   }
 
