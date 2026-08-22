@@ -154,6 +154,11 @@ export type ProductionHeartbeatDependencies = {
     fantagolRoundId: string;
   }) => Promise<unknown>;
 
+  advancePredictionLock: (input: {
+    client: SupabaseClient;
+    fantagolRoundId: string;
+  }) => Promise<unknown>;
+
   refreshCommunity: (input: {
     client: SupabaseClient;
     fantagolRoundId: string;
@@ -237,6 +242,28 @@ async function advancePredictionOpeningDefault(input: {
   if (error) {
     throw new Error(
       `PREDICTION_OPENING_ADVANCE_FAILED:${error.message}`,
+    );
+  }
+
+  return data;
+}
+
+async function advancePredictionLockDefault(input: {
+  client: SupabaseClient;
+  fantagolRoundId: string;
+}): Promise<unknown> {
+  const { data, error } =
+    await input.client.rpc(
+      "advance_prediction_lock_internal",
+      {
+        p_fantagol_round_id:
+          input.fantagolRoundId,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `PREDICTION_LOCK_ADVANCE_FAILED:${error.message}`,
     );
   }
 
@@ -339,6 +366,10 @@ function resolveDependencies(
     advancePredictionOpening:
       overrides.advancePredictionOpening ??
       advancePredictionOpeningDefault,
+
+    advancePredictionLock:
+      overrides.advancePredictionLock ??
+      advancePredictionLockDefault,
 
     refreshCommunity:
       overrides.refreshCommunity ??
@@ -645,6 +676,26 @@ export async function runProductionHeartbeat(
     /*
      * Opening advancement failure must not reclassify Market or
      * ADVANCED execution. The next heartbeat retries.
+     */
+  }
+
+  /*
+   * Canonical prediction-lock advancement.
+   *
+   * Heartbeat owns no lock semantics. The DB authority delegates
+   * every League Round to lock_round_predictions_rpc and is
+   * idempotent / fail-closed before lock_at.
+   */
+  try {
+    await deps.advancePredictionLock({
+      client: input.client,
+      fantagolRoundId:
+        round.fantagolRoundId,
+    });
+  } catch {
+    /*
+     * A lock-authority failure must not stop provider polling.
+     * The next heartbeat retries the idempotent authority.
      */
   }
 

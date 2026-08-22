@@ -95,16 +95,18 @@ export function createProductionHeartbeatPostHandler(
             /*
              * Governed worker activation boundary.
              *
-             * Each heartbeat may attempt at most
-             * one eligible poll_batch job. Other
-             * runtime job types remain excluded
-             * from automatic execution here.
+             * Each heartbeat may drain a bounded set of
+             * canonical live-chain jobs: poll_batch,
+             * refresh_round and rebuild_league_round.
+             * Certification/publication remain excluded.
              */
             maxWorkerJobs:
-              1,
+              8,
             workerJobTypes:
               [
                 "poll_batch",
+                "refresh_round",
+                "rebuild_league_round",
               ],
           });
 
