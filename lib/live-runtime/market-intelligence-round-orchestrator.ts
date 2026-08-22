@@ -22,6 +22,9 @@ import {
   type MarketPersistenceMovement,
   type PersistMarketRoundResult,
 } from "./market-intelligence-persistence-service";
+import {
+  materializeSurpriseReferenceFromPersistedOdds,
+} from "./surprise-reference-runtime";
 
 export type MarketBatchCanonicalMatch = {
   matchId: string;
@@ -576,6 +579,29 @@ export async function persistMarketBatchIntelligence(input: {
         },
       },
     );
+
+  /*
+   * Surprise Reference activation is a downstream
+   * consumer of already-persisted PACKAGE odds.
+   *
+   * IMPORTANT:
+   * - no provider call;
+   * - no additional market credit;
+   * - no runtime job enqueue;
+   * - ADVANCED snapshots never redefine the immutable
+   *   pre-opening Surprise reference.
+   */
+  if (input.source === "PACKAGE") {
+    await materializeSurpriseReferenceFromPersistedOdds(
+      input.client,
+      {
+        fantagolRoundId:
+          input.fantagolRoundId,
+        runtimeSource:
+          input.source,
+      },
+    );
+  }
 
   return {
     modeledMatchCount:

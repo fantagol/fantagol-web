@@ -9,6 +9,9 @@ import type {
 import type {
   ProductionRoundContext,
 } from "./production-target-loader";
+import {
+  loadSurpriseReferenceReady,
+} from "./surprise-reference-runtime";
 
 export const COMMUNITY_PRELIVE_REFRESH_INTERVAL_MS =
   24 * 60 * 60 * 1000;
@@ -317,26 +320,17 @@ export async function loadCanonicalMarketPolicyInput(input: {
     );
 
   /*
-   * Prediction opening is the published cross-domain gate.
-   * The Surprise engine owns the transition into predictions_open;
-   * this resolver does not duplicate Surprise internals.
+   * Surprise readiness is owned by the immutable
+   * Surprise Reference foundation.
+   *
+   * Round lifecycle status is NOT an authority for
+   * bookmaker-reference readiness.
    */
   const surpriseReferenceReady =
-    currentRound.status ===
-      "predictions_open" ||
-    currentRound.status ===
-      "predictions_locked" ||
-    currentRound.status === "live" ||
-    currentRound.status ===
-      "partial_finished" ||
-    currentRound.status ===
-      "waiting_postponed" ||
-    currentRound.status ===
-      "final_calculable" ||
-    currentRound.status ===
-      "final_official" ||
-    currentRound.status ===
-      "recalculated";
+    await loadSurpriseReferenceReady(
+      input.client,
+      input.round.fantagolRoundId,
+    );
 
   return {
     now: input.now,

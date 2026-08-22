@@ -15,6 +15,8 @@ import { leaguePath } from "../../../../lib/navigation/league-paths";
 
 type Prediction = { home: string; away: string };
 
+type PredictionSign = "1" | "X" | "2";
+
 type PredictionSaveState = "idle" | "saving" | "saved" | "error";
 
 type LeagueInfo = {
@@ -142,6 +144,14 @@ type RoundPredictionRow = {
   official_home_prediction: number | null;
   official_away_prediction: number | null;
   official_submitted_at: string | null;
+};
+
+type SurpriseCandidateRow = {
+  match_id: string;
+  candidate_signs: string[] | null;
+  reference_at: string | null;
+  threshold: number;
+  ready: boolean;
 };
 
 type RoundView = {
@@ -315,6 +325,29 @@ function formatKickoff(kickoff: string | null) {
   };
 }
 
+function isPredictionSign(value: string): value is PredictionSign {
+  return value === "1" || value === "X" || value === "2";
+}
+
+function derivePredictionSign(
+  prediction: Prediction,
+): PredictionSign | null {
+  if (prediction.home === "" || prediction.away === "") {
+    return null;
+  }
+
+  const home = Number(prediction.home);
+  const away = Number(prediction.away);
+
+  if (!Number.isInteger(home) || !Number.isInteger(away)) {
+    return null;
+  }
+
+  if (home > away) return "1";
+  if (home < away) return "2";
+  return "X";
+}
+
 function buildRoundView(row: RoundPredictionRow): RoundView {
   const isLocked = ["closed", "disabled", "cancelled"].includes(
     row.prediction_window_state,
@@ -369,28 +402,44 @@ function buildRoundView(row: RoundPredictionRow): RoundView {
 function RuleIcon({
   item,
   active = false,
+  preview = false,
   compact = false,
 }: {
   item: RuleItem;
   active?: boolean;
+  preview?: boolean;
   compact?: boolean;
 }) {
-  const toneClass = active
+  const frameClass = active
     ? item.tone === "red"
-      ? "border-red-500/70 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
+      ? "border-red-500/70 shadow-[0_0_10px_rgba(239,68,68,0.24)]"
       : item.tone === "orange"
-        ? "border-orange-400/80 text-orange-300 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
+        ? "border-orange-400/80 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
         : item.tone === "violet"
-          ? "border-violet-400/80 text-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.24)]"
-          : "border-[#A6E824]/80 text-[#A6E824] shadow-[0_0_10px_rgba(166,232,36,0.24)]"
-    : "border-white/10 text-gray-600";
+          ? "border-violet-400/80 shadow-[0_0_10px_rgba(167,139,250,0.24)]"
+          : "border-[#A6E824]/80 shadow-[0_0_10px_rgba(166,232,36,0.24)]"
+    : preview
+      ? "border-orange-400/80 shadow-[0_0_10px_rgba(251,146,60,0.24)]"
+      : "border-white/10";
+
+  const glyphClass = active
+    ? item.tone === "red"
+      ? "text-red-400"
+      : item.tone === "orange"
+        ? "text-orange-300"
+        : item.tone === "violet"
+          ? "text-violet-300"
+          : "text-[#A6E824]"
+    : "text-gray-600";
 
   return (
     <span
-      className={`${compact ? "h-[18px] w-[18px] text-[11px] sm:h-6 sm:w-6 sm:text-sm" : "h-7 w-7 text-base sm:h-8 sm:w-8 sm:text-lg"} flex items-center justify-center rounded-full border bg-black/30 font-black ${toneClass}`}
+      className={`${compact ? "h-[18px] w-[18px] text-[11px] sm:h-6 sm:w-6 sm:text-sm" : "h-7 w-7 text-base sm:h-8 sm:w-8 sm:text-lg"} flex items-center justify-center rounded-full border bg-black/30 font-black ${frameClass}`}
       title={item.label}
     >
-      {item.icon}
+      <span className={glyphClass}>
+        {item.icon}
+      </span>
     </span>
   );
 }
@@ -470,6 +519,9 @@ export default function GiornataPage() {
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [surpriseCandidates, setSurpriseCandidates] = useState<
+    Record<string, PredictionSign[]>
+  >({});
   const [round, setRound] = useState<RoundView | null>(null);
   const [roundLoading, setRoundLoading] = useState(true);
   const [roundError, setRoundError] = useState<string | null>(null);
@@ -633,6 +685,41 @@ export default function GiornataPage() {
         setRoundError("Il calendario della giornata non contiene partite.");
         setRoundLoading(false);
         return;
+      }
+
+      const {
+        data: surpriseCandidateData,
+        error: surpriseCandidateError,
+      } = await supabase.rpc(
+        "get_my_round_surprise_candidates_rpc",
+        {
+          p_league_round_id:
+            currentRound.league_round_id,
+        },
+      );
+
+      if (cancelled) return;
+
+      if (surpriseCandidateError) {
+        setSurpriseCandidates({});
+      } else {
+        const surpriseRows =
+          (surpriseCandidateData ?? []) as unknown as
+            SurpriseCandidateRow[];
+
+        const nextSurpriseCandidates:
+          Record<string, PredictionSign[]> = {};
+
+        for (const row of surpriseRows) {
+          nextSurpriseCandidates[row.match_id] =
+            (row.candidate_signs ?? []).filter(
+              isPredictionSign,
+            );
+        }
+
+        setSurpriseCandidates(
+          nextSurpriseCandidates,
+        );
       }
 
       const nextRound = buildRoundView(rows[0]);
@@ -1399,12 +1486,21 @@ export default function GiornataPage() {
             !roundError &&
             matches.map((match, index) => {
               const prediction = displayedPredictions[index];
+              const showLiveScore =
+                round?.isLive === true ||
+                round?.isFinished === true;
+              const predictedSign =
+                derivePredictionSign(prediction);
+              const surprisePreviewActive =
+                !showLiveScore &&
+                predictedSign !== null &&
+                (
+                  surpriseCandidates[match.id] ?? []
+                ).includes(predictedSign);
               const activeKeys = new Set([
                 ...(match.bonusActive ?? []),
                 ...(match.malusActive ?? []),
               ]);
-              const showLiveScore =
-                round?.isLive === true || round?.isFinished === true;
 
               return (
                 <article
@@ -1532,6 +1628,10 @@ export default function GiornataPage() {
                           key={item.key}
                           item={item}
                           active={activeKeys.has(item.key)}
+                        preview={
+                          item.key === "surprise" &&
+                          surprisePreviewActive
+                        }
                           compact
                         />
                       ))}

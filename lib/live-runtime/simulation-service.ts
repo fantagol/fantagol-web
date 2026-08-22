@@ -120,11 +120,73 @@ async function loadSimulationDigitalTwin(
   return digitalTwin as Record<string, unknown>;
 }
 
+async function loadCanonicalSurpriseCandidates(
+  client: SupabaseClient,
+  leagueRoundId: string,
+): Promise<Record<string, unknown>> {
+  const {
+    data: leagueRoundData,
+    error: leagueRoundError,
+  } = await client
+    .from("league_rounds")
+    .select("fantagol_round_id")
+    .eq("id", leagueRoundId)
+    .single();
+
+  if (leagueRoundError) {
+    throw new Error(
+      `SURPRISE_LEAGUE_ROUND_LOOKUP_FAILED:${leagueRoundError.message}`,
+    );
+  }
+
+  const leagueRound =
+    leagueRoundData as unknown as {
+      fantagol_round_id: string | null;
+    };
+
+  if (!leagueRound.fantagol_round_id) {
+    throw new Error(
+      "SURPRISE_FANTAGOL_ROUND_ID_REQUIRED",
+    );
+  }
+
+  const {
+    data: surpriseCandidateData,
+    error: surpriseCandidateError,
+  } = await client.rpc(
+    "build_surprise_candidates_internal",
+    {
+      p_fantagol_round_id:
+        leagueRound.fantagol_round_id,
+    },
+  );
+
+  if (surpriseCandidateError) {
+    throw new Error(
+      `SURPRISE_CANDIDATE_BUILD_FAILED:${surpriseCandidateError.message}`,
+    );
+  }
+
+  if (
+    typeof surpriseCandidateData !== "object" ||
+    surpriseCandidateData === null ||
+    Array.isArray(surpriseCandidateData)
+  ) {
+    throw new Error(
+      "SURPRISE_CANDIDATE_PAYLOAD_INVALID",
+    );
+  }
+
+  return surpriseCandidateData as Record<
+    string,
+    unknown
+  >;
+}
+
 export async function rebuildLeagueRoundSimulation(
   client: SupabaseClient,
   input: {
     leagueRoundId: string;
-    surpriseCandidates?: Record<string, unknown>;
     createdByMemberId?: string | null;
     correlationId?: string | null;
     versions?: Partial<SimulationPipelineVersions>;
@@ -135,12 +197,18 @@ export async function rebuildLeagueRoundSimulation(
     ...input.versions,
   };
 
+  const surpriseCandidates =
+    await loadCanonicalSurpriseCandidates(
+      client,
+      input.leagueRoundId,
+    );
+
   const calculationRows = await callRuntimeRpc<CalculationRunRpcRow>(
     client,
     "build_points_pure_calculation_run_rpc",
     {
       p_league_round_id: input.leagueRoundId,
-      p_surprise_candidates: input.surpriseCandidates ?? {},
+      p_surprise_candidates: surpriseCandidates,
       p_engine_version: versions.resolution,
       p_created_by_member_id: input.createdByMemberId ?? null,
     },

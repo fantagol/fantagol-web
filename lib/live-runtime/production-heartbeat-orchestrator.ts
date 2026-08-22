@@ -149,6 +149,11 @@ export type ProductionHeartbeatDependencies = {
   scheduleFootballData: typeof scheduleFootballDataAggregatedPolling;
   scheduleMarket: typeof scheduleMarketRoundPolling;
 
+  advancePredictionOpening: (input: {
+    client: SupabaseClient;
+    fantagolRoundId: string;
+  }) => Promise<unknown>;
+
   refreshCommunity: (input: {
     client: SupabaseClient;
     fantagolRoundId: string;
@@ -214,6 +219,28 @@ function failed<T>(
     value: null,
     error: serializeError(error),
   };
+}
+
+async function advancePredictionOpeningDefault(input: {
+  client: SupabaseClient;
+  fantagolRoundId: string;
+}): Promise<unknown> {
+  const { data, error } =
+    await input.client.rpc(
+      "advance_prediction_opening_internal",
+      {
+        p_fantagol_round_id:
+          input.fantagolRoundId,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `PREDICTION_OPENING_ADVANCE_FAILED:${error.message}`,
+    );
+  }
+
+  return data;
 }
 
 async function refreshCommunityDefault(input: {
@@ -308,6 +335,10 @@ function resolveDependencies(
     scheduleMarket:
       overrides.scheduleMarket ??
       scheduleMarketRoundPolling,
+
+    advancePredictionOpening:
+      overrides.advancePredictionOpening ??
+      advancePredictionOpeningDefault,
 
     refreshCommunity:
       overrides.refreshCommunity ??
@@ -592,6 +623,29 @@ export async function runProductionHeartbeat(
 
     marketAdvancedStep =
       skipped();
+  }
+
+  /*
+   * Canonical prediction-opening advancement.
+   *
+   * Heartbeat owns no opening semantics.
+   * The DB authority is idempotent and fail-closed.
+   *
+   * A PACKAGE scheduled during this heartbeat may only be
+   * persisted by the worker later. A subsequent heartbeat
+   * retries after Surprise Reference becomes READY.
+   */
+  try {
+    await deps.advancePredictionOpening({
+      client: input.client,
+      fantagolRoundId:
+        round.fantagolRoundId,
+    });
+  } catch {
+    /*
+     * Opening advancement failure must not reclassify Market or
+     * ADVANCED execution. The next heartbeat retries.
+     */
   }
 
   let communityStep:

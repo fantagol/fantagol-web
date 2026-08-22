@@ -138,10 +138,6 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
 
   const rebuilt = await rebuildLeagueRoundSimulation(client, {
     leagueRoundId: job.scopeId,
-    surpriseCandidates: getObject(
-      job.payload,
-      "surprise_candidates",
-    ),
     createdByMemberId: getString(
       job.payload,
       "created_by_member_id",
