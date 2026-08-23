@@ -177,6 +177,199 @@ type DuelMatch = {
   rightActive: string[];
 };
 
+type R40LivePredictionResult = {
+  league_member_id: string;
+  match_id: string;
+  home_prediction: number | null;
+  away_prediction: number | null;
+  missing?: boolean | null;
+  is_exact?: boolean | null;
+  is_sign?: boolean | null;
+  is_over_under?: boolean | null;
+  is_goal_no_goal?: boolean | null;
+  is_surprise?: boolean | null;
+  is_goal_show?: boolean | null;
+  is_grand_slam?: boolean | null;
+  is_cantonata?: boolean | null;
+  is_opposite_sign?: boolean | null;
+};
+
+type R40LivePointsMember = {
+  league_member_id: string;
+  pure_points?: number | string | null;
+};
+
+type R40LiveStrategy = {
+  strategy_id: string;
+  league_member_id: string;
+  league_fixture_id: string;
+  mode: "fantacalcio" | "one_to_one";
+  payload?: {
+    allocations?: Array<{
+      match_id: string;
+      department: "attack" | "defense";
+    }>;
+    pairings?: Array<{
+      position: number;
+      own_match_id: string;
+      opponent_match_id: string;
+    }>;
+  } | null;
+};
+
+type R40FantacalcioFixtureSide = {
+  member_id: string;
+  display_name?: string | null;
+  strategy_id?: string | null;
+  strategy_valid?: boolean | null;
+  strategy_version?: number | null;
+  points?: number | string | null;
+  goals?: number | string | null;
+};
+
+type R40FantacalcioFixture = {
+  fixture_id: string;
+  fixture_phase?: string | null;
+  status?: string | null;
+  is_bye?: boolean | null;
+  home: R40FantacalcioFixtureSide;
+  away: R40FantacalcioFixtureSide | null;
+};
+
+type R40OneToOneMiniChallenge = {
+  position: number;
+  own_match_id: string;
+  opponent_match_id: string;
+  result?: string | null;
+};
+
+type R40OneToOneMatrix = {
+  owner_member_id: string;
+  strategy_id?: string | null;
+  strategy_version?: number | null;
+  home_wins?: number | null;
+  away_wins?: number | null;
+  draws?: number | null;
+  mini_challenges?: R40OneToOneMiniChallenge[];
+};
+
+type R40OneToOneFixture = {
+  fixture_id: string;
+  fixture_phase?: string | null;
+  status?: string | null;
+  is_bye?: boolean | null;
+  home_member_id: string;
+  away_member_id: string | null;
+  home?: {
+    member_id: string;
+    display_name?: string | null;
+  } | null;
+  away?: {
+    member_id: string;
+    display_name?: string | null;
+  } | null;
+  aggregate?: {
+    home_wins?: number | null;
+    away_wins?: number | null;
+    draws?: number | null;
+    winner?: string | null;
+  } | null;
+  matrix_home?: R40OneToOneMatrix | null;
+  matrix_away?: R40OneToOneMatrix | null;
+};
+
+type R40LeagueLiveFrontendProjection = {
+  simulation_id: string;
+  simulation_version: number;
+  simulation_status: string;
+
+  points_preview?: {
+    members?: R40LivePointsMember[];
+    prediction_results?: R40LivePredictionResult[];
+  } | null;
+
+  fantacalcio_preview?: {
+    fixtures?: R40FantacalcioFixture[];
+  } | null;
+
+  one_to_one_preview?: {
+    fixtures?: R40OneToOneFixture[];
+  } | null;
+
+  ui_snapshot?: {
+    strategies_live?: R40LiveStrategy[];
+  } | null;
+};
+
+function r40LivePrediction(
+  row: R40LivePredictionResult | null | undefined,
+) {
+  if (
+    !row ||
+    row.home_prediction === null ||
+    row.away_prediction === null
+  ) {
+    return "—";
+  }
+
+  return `${row.home_prediction}-${row.away_prediction}`;
+}
+
+function r40LiveRuleKeys(
+  row: R40LivePredictionResult | null | undefined,
+) {
+  if (!row) return [] as string[];
+
+  const active: string[] = [];
+
+  if (row.is_exact) active.push("exact");
+  if (row.is_sign) active.push("sign");
+  if (row.is_over_under) active.push("uo");
+  if (row.is_goal_no_goal) active.push("gg");
+  if (row.is_surprise) active.push("surprise");
+  if (row.is_goal_show) active.push("show");
+  if (row.is_grand_slam) active.push("slam");
+  if (row.is_cantonata) active.push("bad");
+  if (row.is_opposite_sign) active.push("opposite");
+
+  return active;
+}
+
+function r40LiveNumber(
+  value: number | string | null | undefined,
+) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
+function r40IsRecoveryMember(
+  memberId: string | null | undefined,
+  results: R40LivePredictionResult[],
+) {
+  if (!memberId) return false;
+
+  const memberResults = results.filter(
+    (result) =>
+      result.league_member_id === memberId,
+  );
+
+  return (
+    memberResults.length === 10 &&
+    memberResults.every(
+      (result) => result.missing === true,
+    )
+  );
+}
+
+
 type PredictionSlot = {
   matchId: string;
   homeBadge: string;
@@ -727,6 +920,12 @@ export default function OneToOneLivePage() {
     role: "member",
   });
   const [liveRows, setLiveRows] = useState<DuelMatch[]>([]);
+  const [
+    leagueLiveProjection,
+    setLeagueLiveProjection,
+  ] = useState<R40LeagueLiveFrontendProjection | null>(
+    null,
+  );
   const [leftSlots, setLeftSlots] = useState<(PredictionSlot | null)[]>([]);
   const [storedSlots, setStoredSlots] = useState<PredictionSlot[]>([]);
   const [leftPoints, setLeftPoints] = useState(0);
@@ -1331,10 +1530,253 @@ export default function OneToOneLivePage() {
     activeProfile?.rightClub || null;
 
   const canViewProfileContent = isViewingSelf || isLiveForSwipe;
-  const displayedLeftPoints = canViewProfileContent ? leftPoints : 0;
-  const displayedRightPoints = canViewProfileContent ? rightPoints : 0;
-  const displayedLeftGoals = canViewProfileContent ? leftGoals : 0;
-  const displayedRightGoals = canViewProfileContent ? rightGoals : 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLeagueLiveProjection() {
+      if (!leagueRoundId || !isLiveForSwipe) {
+        setLeagueLiveProjection(null);
+        return;
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.rpc(
+        "get_league_live_frontend_projection_rpc",
+        {
+          p_league_round_id: leagueRoundId,
+        },
+      );
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error(
+          "LIVE_FRONTEND_PROJECTION_ERROR",
+          error,
+        );
+
+        setLeagueLiveProjection(null);
+        return;
+      }
+
+      const projection =
+        (((data || [])[0] || null) as unknown as
+          R40LeagueLiveFrontendProjection | null);
+
+      setLeagueLiveProjection(projection);
+    }
+
+    void loadLeagueLiveProjection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueRoundId, isLiveForSwipe]);
+
+
+  const r40OneToOneView = (() => {
+    if (
+      !isLiveForSwipe ||
+      !activeProfile ||
+      !leagueLiveProjection
+    ) {
+      return null;
+    }
+
+    const screen = activeProfile.fixture;
+
+    /*
+     * currentMemberId is the authenticated league member and is
+     * intentionally shared by every fixture screen.
+     *
+     * LIVE projection needs the member rendered on the LEFT side
+     * of this particular swipe screen.
+     *
+     * Canonical UI orientation:
+     * - own fixture: authenticated member is kept on the left;
+     * - every other fixture: home member is on the left.
+     *
+     * Ownership continues to use currentMemberId elsewhere.
+     */
+    const viewedMemberId =
+      screen.isCurrentUser &&
+      screen.currentMemberId &&
+      screen.awayMemberId === screen.currentMemberId
+        ? screen.awayMemberId
+        : screen.homeMemberId;
+
+    if (!viewedMemberId) return null;
+
+    const fixture =
+      leagueLiveProjection
+        .one_to_one_preview
+        ?.fixtures
+        ?.find(
+          (candidate) =>
+            candidate.fixture_id === screen.fixtureId,
+        ) ?? null;
+
+    if (!fixture) return null;
+
+    const viewedIsHome =
+      fixture.home_member_id === viewedMemberId;
+
+    const opponentMemberId = viewedIsHome
+      ? fixture.away_member_id
+      : fixture.home_member_id;
+
+    const matrix =
+      fixture.matrix_home?.owner_member_id ===
+        viewedMemberId
+        ? fixture.matrix_home
+        : fixture.matrix_away?.owner_member_id ===
+            viewedMemberId
+          ? fixture.matrix_away
+          : null;
+
+    const opponentMatrix =
+      opponentMemberId &&
+      fixture.matrix_home?.owner_member_id ===
+        opponentMemberId
+        ? fixture.matrix_home
+        : opponentMemberId &&
+            fixture.matrix_away?.owner_member_id ===
+              opponentMemberId
+          ? fixture.matrix_away
+          : null;
+
+    const strategies =
+      leagueLiveProjection
+        .ui_snapshot
+        ?.strategies_live ?? [];
+
+    const viewedOfficialStrategy =
+      strategies.find(
+        (candidate) =>
+          candidate.mode === "one_to_one" &&
+          candidate.league_member_id ===
+            viewedMemberId &&
+          candidate.league_fixture_id ===
+            screen.fixtureId,
+      ) ?? null;
+
+    const opponentOfficialStrategy =
+      opponentMemberId
+        ? strategies.find(
+            (candidate) =>
+              candidate.mode === "one_to_one" &&
+              candidate.league_member_id ===
+                opponentMemberId &&
+              candidate.league_fixture_id ===
+                screen.fixtureId,
+          ) ?? null
+        : null;
+
+    const viewedHasOfficialStrategy =
+      Boolean(
+        matrix ||
+        (
+          viewedOfficialStrategy?.payload
+            ?.pairings?.length === 10
+        ),
+      );
+
+    const opponentHasOfficialStrategy =
+      Boolean(
+        opponentMatrix ||
+        (
+          opponentOfficialStrategy?.payload
+            ?.pairings?.length === 10
+        ),
+      );
+
+    return {
+      fixture,
+      viewedMemberId,
+      opponentMemberId,
+      viewedIsHome,
+      matrix,
+      opponentMatrix,
+      viewedOfficialStrategy,
+      opponentOfficialStrategy,
+      viewedHasOfficialStrategy,
+      opponentHasOfficialStrategy,
+    };
+  })();
+  const r40PointsByMember =
+    new Map(
+      (
+        leagueLiveProjection
+          ?.points_preview
+          ?.members ?? []
+      ).map(
+        (member) => [
+          member.league_member_id,
+          r40LiveNumber(member.pure_points),
+        ],
+      ),
+    );
+
+  const displayedLeftPoints = canViewProfileContent
+    ? r40OneToOneView
+      ? r40OneToOneView.viewedHasOfficialStrategy
+        ? r40PointsByMember.get(
+            r40OneToOneView.viewedMemberId,
+          ) ?? 0
+        : "—"
+      : isViewingSelf && !isLiveForSwipe
+        ? leftPoints
+        : "—"
+    : "—";
+
+  const displayedRightPoints = canViewProfileContent
+    ? r40OneToOneView?.opponentMemberId
+      ? r40OneToOneView.opponentHasOfficialStrategy
+        ? r40PointsByMember.get(
+            r40OneToOneView.opponentMemberId,
+          ) ?? 0
+        : "—"
+      : isViewingSelf && !isLiveForSwipe
+        ? rightPoints
+        : "—"
+    : "—";
+
+  const displayedLeftGoals = canViewProfileContent
+    ? r40OneToOneView
+      ? r40OneToOneView.viewedHasOfficialStrategy &&
+        r40OneToOneView.fixture.aggregate
+        ? r40LiveNumber(
+            r40OneToOneView.viewedIsHome
+              ? r40OneToOneView.fixture.aggregate
+                  .home_wins
+              : r40OneToOneView.fixture.aggregate
+                  .away_wins,
+          )
+        : "—"
+      : isViewingSelf && !isLiveForSwipe
+        ? leftGoals
+        : "—"
+    : "—";
+
+  const displayedRightGoals = canViewProfileContent
+    ? r40OneToOneView
+      ? r40OneToOneView.opponentHasOfficialStrategy &&
+        r40OneToOneView.fixture.aggregate
+        ? r40LiveNumber(
+            r40OneToOneView.viewedIsHome
+              ? r40OneToOneView.fixture.aggregate
+                  .away_wins
+              : r40OneToOneView.fixture.aggregate
+                  .home_wins,
+          )
+        : "—"
+      : isViewingSelf && !isLiveForSwipe
+        ? rightGoals
+        : "—"
+    : "—";
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
     closeMemoryPopup();
@@ -1487,9 +1929,235 @@ export default function OneToOneLivePage() {
         ? swipeProfiles[activeSwipeIndex - 1]
         : null;
 
-  const displayedLeftSlots = canViewProfileContent
-    ? leftSlots
-    : leftSlots.map(() => null);
+  const r40OneToOneDisplay = (() => {
+    const hiddenSlots =
+      leftSlots.map(() => null);
+
+    if (!canViewProfileContent) {
+      return {
+        rows: liveRows.map((match) => ({
+          ...match,
+          rightPrediction: "—",
+          rightActive: [],
+        })),
+        slots: hiddenSlots,
+      };
+    }
+
+    if (!isLiveForSwipe) {
+      return {
+        rows: liveRows,
+        slots: leftSlots,
+      };
+    }
+
+    if (
+      !leagueLiveProjection ||
+      !r40OneToOneView
+    ) {
+      return {
+        rows: isViewingSelf
+          ? liveRows
+          : liveRows.map((match) => ({
+              ...match,
+              rightPrediction: "—",
+              rightActive: [],
+            })),
+        slots: isViewingSelf
+          ? leftSlots
+          : hiddenSlots,
+      };
+    }
+
+    const {
+      viewedMemberId,
+      opponentMemberId,
+      matrix,
+    } = r40OneToOneView;
+
+    const results =
+      leagueLiveProjection
+        .points_preview
+        ?.prediction_results ?? [];
+
+    const byMemberAndMatch =
+      new Map<string, R40LivePredictionResult>();
+
+    for (const result of results) {
+      byMemberAndMatch.set(
+        `${result.league_member_id}:${result.match_id}`,
+        result,
+      );
+    }
+
+    const viewedMemberIsRecovery =
+      r40IsRecoveryMember(
+        viewedMemberId,
+        results,
+      );
+
+    if (viewedMemberIsRecovery) {
+      return {
+        rows: liveRows.map((match) => ({
+          ...match,
+          leftPrediction: "—",
+          rightPrediction: "—",
+          leftActive: [],
+          rightActive: [],
+        })),
+        slots: leftSlots.map(() => null),
+      };
+    }
+
+    const strategies =
+      leagueLiveProjection
+        .ui_snapshot
+        ?.strategies_live ?? [];
+
+    const strategy =
+      strategies.find(
+        (candidate) =>
+          candidate.mode === "one_to_one" &&
+          candidate.league_member_id ===
+            viewedMemberId &&
+          candidate.league_fixture_id ===
+            activeProfile?.fixture.fixtureId,
+      ) ?? null;
+
+    /*
+     * Materialized matrix already contains the exact LIVE pairing.
+     * If the fixture is strategy_incomplete because the opponent is
+     * Recovery, the viewed user's submitted pairings remain usable.
+     */
+    const officialPairings =
+      strategy?.payload?.pairings ?? [];
+
+    const hasMaterializedOwnMatrix =
+      Boolean(
+        matrix?.owner_member_id ===
+          viewedMemberId &&
+        matrix?.mini_challenges?.length === 10,
+      );
+
+    const hasOfficialPairings =
+      strategy !== null &&
+      officialPairings.length === 10;
+
+    /*
+     * RECOVERY ROUND CONTRACT:
+     *
+     * no matrix + no official submitted Strategy
+     * means Strategy participation is blocked for
+     * the entire round.
+     */
+    const challenges =
+      hasMaterializedOwnMatrix
+        ? matrix?.mini_challenges ?? []
+        : hasOfficialPairings
+          ? officialPairings
+          : [];
+
+    const hasOfficialOneToOneStrategy =
+      hasMaterializedOwnMatrix ||
+      hasOfficialPairings;
+
+    const challengeByTarget =
+      new Map(
+        challenges.map(
+          (challenge) => [
+            challenge.opponent_match_id,
+            challenge,
+          ],
+        ),
+      );
+
+    const baseRowsById =
+      new Map(
+        liveRows.map(
+          (match) => [match.id, match],
+        ),
+      );
+
+    const slots = liveRows.map(
+      (targetMatch) => {
+        if (!hasOfficialOneToOneStrategy) {
+          return null;
+        }
+
+        const challenge =
+          challengeByTarget.get(
+            targetMatch.id,
+          );
+
+        if (!challenge) return null;
+
+        const ownMatch =
+          baseRowsById.get(
+            challenge.own_match_id,
+          );
+
+        if (!ownMatch) return null;
+
+        const ownResult =
+          byMemberAndMatch.get(
+            `${viewedMemberId}:${challenge.own_match_id}`,
+          );
+
+        return {
+          ...toPredictionSlot(ownMatch),
+          score:
+            r40LivePrediction(ownResult),
+          active:
+            r40LiveRuleKeys(ownResult),
+        };
+      },
+    );
+
+    const rows = liveRows.map(
+      (targetMatch) => {
+        const opponentResult =
+          r40OneToOneView
+            .opponentHasOfficialStrategy &&
+          opponentMemberId
+            ? byMemberAndMatch.get(
+                `${opponentMemberId}:${targetMatch.id}`,
+              )
+            : undefined;
+
+        return {
+          ...targetMatch,
+
+          rightPrediction:
+            r40OneToOneView
+              .opponentHasOfficialStrategy
+              ? r40LivePrediction(
+                  opponentResult,
+                )
+              : "—",
+
+          rightActive:
+            r40OneToOneView
+              .opponentHasOfficialStrategy
+              ? r40LiveRuleKeys(
+                  opponentResult,
+                )
+              : [],
+        };
+      },
+    );
+
+    return {
+      rows,
+      slots,
+    };
+  })();
+
+  const displayedLeftSlots =
+    r40OneToOneDisplay.slots;
+
+  const displayedLiveRows =
+    r40OneToOneDisplay.rows;
+
   const [openMemoryIndex, setOpenMemoryIndex] = useState<number | null>(null);
   const [, setMemoryPopupFloating] = useState(false);
   const [memoryPopupPosition, setMemoryPopupPosition] = useState({
@@ -2116,7 +2784,7 @@ export default function OneToOneLivePage() {
                 : ""
             }`}
           >
-            {liveRows.map((match, index) => {
+            {displayedLiveRows.map((match, index) => {
               const leftSlot = displayedLeftSlots[index];
 
               return (

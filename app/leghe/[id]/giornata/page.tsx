@@ -67,6 +67,87 @@ type CrossMemberPredictionRow = {
   away_prediction: number | null;
 };
 
+type LivePredictionResultRow = CrossMemberPredictionRow & {
+  slot_number?: number | null;
+  prediction_id?: string | null;
+  match_status?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  base_total?: number | string | null;
+  pure_points?: number | string | null;
+  missing?: boolean | null;
+  provisional?: boolean | null;
+  void?: boolean | null;
+  is_exact?: boolean | null;
+  is_sign?: boolean | null;
+  is_over_under?: boolean | null;
+  is_goal_no_goal?: boolean | null;
+  is_surprise?: boolean | null;
+  is_goal_show?: boolean | null;
+  is_grand_slam?: boolean | null;
+  is_cantonata?: boolean | null;
+  is_opposite_sign?: boolean | null;
+};
+
+type LivePointsMemberRow = {
+  league_member_id: string;
+  pure_points?: number | string | null;
+  missing_count?: number | string | null;
+  resolved_match_count?: number | string | null;
+  pending_match_count?: number | string | null;
+  provisional?: boolean | null;
+};
+
+type LeagueLiveFrontendProjectionRow = {
+  simulation_id: string;
+  simulation_version: number;
+  simulation_status: string;
+  points_preview?: {
+    members?: LivePointsMemberRow[];
+    prediction_results?: LivePredictionResultRow[];
+  } | null;
+};
+
+function toLiveRuleKeys(
+  row: LivePredictionResultRow | null | undefined,
+) {
+  if (!row) {
+    return {
+      bonus: [] as string[],
+      malus: [] as string[],
+    };
+  }
+
+  const bonus: string[] = [];
+  const malus: string[] = [];
+
+  if (row.is_exact) bonus.push("exact");
+  if (row.is_sign) bonus.push("sign");
+  if (row.is_over_under) bonus.push("uo");
+  if (row.is_goal_no_goal) bonus.push("gg");
+  if (row.is_surprise) bonus.push("surprise");
+  if (row.is_goal_show) bonus.push("show");
+  if (row.is_grand_slam) bonus.push("slam");
+
+  if (row.is_cantonata) malus.push("bad");
+  if (row.is_opposite_sign) malus.push("opposite");
+
+  return { bonus, malus };
+}
+
+function toLivePoints(value: number | string | null | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+}
+
 type ClubInfo = {
   name: string;
   motto?: string | null;
@@ -500,6 +581,12 @@ export default function GiornataPage() {
   const [crossMemberPredictions, setCrossMemberPredictions] = useState<
     CrossMemberPredictionRow[]
   >([]);
+  const [livePredictionResults, setLivePredictionResults] = useState<
+    LivePredictionResultRow[]
+  >([]);
+  const [livePointsMembers, setLivePointsMembers] = useState<
+    LivePointsMemberRow[]
+  >([]);
   const [activeSwipeIndex, setActiveSwipeIndex] = useState(0);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeStartYRef = useRef<number | null>(null);
@@ -763,23 +850,61 @@ export default function GiornataPage() {
       setHasUnconfirmedChanges(rows.some((row) => row.has_unconfirmed_changes));
 
       if (nextRound.isLive || nextRound.isFinished) {
-        const { data: visiblePredictionData, error: visiblePredictionError } =
-          await supabase
-            .from("predictions")
-            .select("league_member_id,match_id,home_prediction,away_prediction")
-            .eq("league_round_id", currentRound.league_round_id);
+        const {
+          data: liveProjectionData,
+          error: liveProjectionError,
+        } = await supabase.rpc(
+          "get_league_live_frontend_projection_rpc",
+          {
+            p_league_round_id:
+              currentRound.league_round_id,
+          },
+        );
 
         if (cancelled) return;
 
-        if (!visiblePredictionError) {
-          setCrossMemberPredictions(
-            (visiblePredictionData || []) as CrossMemberPredictionRow[],
+        if (liveProjectionError) {
+          console.error(
+            "LIVE_FRONTEND_PROJECTION_ERROR",
+            liveProjectionError,
           );
-        } else {
+
           setCrossMemberPredictions([]);
+          setLivePredictionResults([]);
+          setLivePointsMembers([]);
+        } else {
+          const projection =
+            (((liveProjectionData || [])[0] ||
+              null) as unknown as
+              LeagueLiveFrontendProjectionRow | null);
+
+          const results =
+            projection?.points_preview?.prediction_results ??
+            [];
+
+          const members =
+            projection?.points_preview?.members ??
+            [];
+
+          setLivePredictionResults(results);
+          setLivePointsMembers(members);
+
+          setCrossMemberPredictions(
+            results.map((row) => ({
+              league_member_id:
+                row.league_member_id,
+              match_id: row.match_id,
+              home_prediction:
+                row.home_prediction,
+              away_prediction:
+                row.away_prediction,
+            })),
+          );
         }
       } else {
         setCrossMemberPredictions([]);
+        setLivePredictionResults([]);
+        setLivePointsMembers([]);
       }
 
       setRoundLoading(false);
@@ -806,7 +931,51 @@ export default function GiornataPage() {
 
   const allComplete = matches.length > 0 && submittedCount === matches.length;
   const locked = round?.isLocked ?? true;
-  const currentPoints = 0;
+  const liveResultsByMemberAndMatch = useMemo(() => {
+    const index =
+      new Map<
+        string,
+        Map<string, LivePredictionResultRow>
+      >();
+
+    livePredictionResults.forEach((row) => {
+      let memberMap =
+        index.get(row.league_member_id);
+
+      if (!memberMap) {
+        memberMap =
+          new Map<string, LivePredictionResultRow>();
+
+        index.set(
+          row.league_member_id,
+          memberMap,
+        );
+      }
+
+      memberMap.set(row.match_id, row);
+    });
+
+    return index;
+  }, [livePredictionResults]);
+
+  const livePointsByMember = useMemo(() => {
+    const index =
+      new Map<string, LivePointsMemberRow>();
+
+    livePointsMembers.forEach((row) => {
+      index.set(row.league_member_id, row);
+    });
+
+    return index;
+  }, [livePointsMembers]);
+
+  const currentPoints = currentMemberId
+    ? toLivePoints(
+        livePointsByMember.get(
+          currentMemberId,
+        )?.pure_points,
+      )
+    : 0;
 
   const isLiveForSwipe = round?.isLive === true || round?.isFinished === true;
   const swipeProfiles = useMemo(
@@ -842,6 +1011,8 @@ export default function GiornataPage() {
       })),
     [leagueMembers, currentMemberId],
   );
+
+
 
   const predictionsByMemberAndMatch = useMemo(() => {
     const index = new Map<string, Map<string, Prediction>>();
@@ -902,7 +1073,19 @@ export default function GiornataPage() {
     ? viewedMemberPredictions
     : matches.map(() => ({ home: "", away: "" }));
 
-  const displayedCurrentPoints = canViewProfileContent ? currentPoints : 0;
+  const viewedCurrentPoints =
+    activeProfile?.memberId
+      ? toLivePoints(
+          livePointsByMember.get(
+            activeProfile.memberId,
+          )?.pure_points,
+        )
+      : currentPoints;
+
+  const displayedCurrentPoints =
+    canViewProfileContent
+      ? viewedCurrentPoints
+      : 0;
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
     const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
@@ -1497,9 +1680,23 @@ export default function GiornataPage() {
                 (
                   surpriseCandidates[match.id] ?? []
                 ).includes(predictedSign);
+              const liveResult =
+                activeProfile?.memberId
+                  ? liveResultsByMemberAndMatch
+                      .get(activeProfile.memberId)
+                      ?.get(match.id)
+                  : null;
+
+              const liveRuleKeys =
+                toLiveRuleKeys(liveResult);
+
               const activeKeys = new Set([
-                ...(match.bonusActive ?? []),
-                ...(match.malusActive ?? []),
+                ...(liveResult
+                  ? liveRuleKeys.bonus
+                  : match.bonusActive ?? []),
+                ...(liveResult
+                  ? liveRuleKeys.malus
+                  : match.malusActive ?? []),
               ]);
 
               return (
