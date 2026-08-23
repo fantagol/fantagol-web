@@ -312,9 +312,125 @@ function normalizeDashboardMatchStatus(
     .toLowerCase();
 }
 
+
+/*
+ * R43-R9A-LOCAL-VISUAL-HARNESS
+ *
+ * TEMPORARY.
+ * LOCALHOST / 127.0.0.1 ONLY.
+ * NEVER COMMIT.
+ */
+function r43LocalClockTestMatch(
+  match: DashboardLiveClockMatch,
+): DashboardLiveClockMatch {
+  if (typeof window === "undefined") {
+    return match;
+  }
+
+  const hostname =
+    window.location.hostname;
+
+  if (
+    hostname !== "localhost" &&
+    hostname !== "127.0.0.1"
+  ) {
+    return match;
+  }
+
+  const mode =
+    new URLSearchParams(
+      window.location.search,
+    ).get("r43clocktest");
+
+  if (!mode) {
+    return match;
+  }
+
+  switch (mode) {
+    case "prematch":
+      return {
+        ...match,
+        match_status: "scheduled",
+        minute: null,
+        live_half: null,
+        live_phase_started_at: null,
+      };
+
+    case "live12":
+      return {
+        ...match,
+        match_status: "in_play",
+        minute: 12,
+        live_half: 1,
+        live_phase_started_at: null,
+      };
+
+    case "45plus3":
+      return {
+        ...match,
+        match_status: "in_play",
+        minute: 48,
+        live_half: 1,
+        live_phase_started_at: null,
+      };
+
+    case "ht":
+      return {
+        ...match,
+        match_status: "halftime",
+        minute: null,
+        live_half: 1,
+        live_phase_started_at: null,
+      };
+
+    case "second67":
+      return {
+        ...match,
+        match_status: "in_play",
+        minute: 67,
+        live_half: 2,
+        live_phase_started_at: null,
+      };
+
+    case "90plus5":
+      return {
+        ...match,
+        match_status: "in_play",
+        minute: 95,
+        live_half: 2,
+        live_phase_started_at: null,
+      };
+
+    case "ft":
+      return {
+        ...match,
+        match_status: "finished",
+        minute: null,
+        live_half: 2,
+        live_phase_started_at: null,
+      };
+
+    case "livenominute":
+      return {
+        ...match,
+        match_status: "in_play",
+        minute: null,
+        live_half: null,
+        live_phase_started_at: null,
+      };
+
+    default:
+      return match;
+  }
+}
+
 function isDashboardMatchActivelyPlaying(
   match: DashboardLiveClockMatch,
 ) {
+  match =
+    r43LocalClockTestMatch(
+      match,
+    );
   const status =
     normalizeDashboardMatchStatus(
       match.match_status,
@@ -347,6 +463,10 @@ function getDashboardMatchClockLabel(
   match: DashboardLiveClockMatch,
   nowMs: number,
 ) {
+  match =
+    r43LocalClockTestMatch(
+      match,
+    );
   const status =
     normalizeDashboardMatchStatus(
       match.match_status,
@@ -1428,7 +1548,7 @@ export default function LeagueDashboardPage() {
         supabase.rpc("get_my_standings_preview_rpc", {
           p_league_round_id: currentRound.league_round_id,
         }),
-        supabase.rpc("get_my_dashboard_matchups_live_rpc", {
+        supabase.rpc("get_my_dashboard_matchups_rpc", {
           p_league_round_id: currentRound.league_round_id,
         }),
         supabase.rpc("get_my_fantacalcio_preview_rpc", {
