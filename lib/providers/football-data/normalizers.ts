@@ -180,7 +180,7 @@ export function normalizeMatch(
     status: normalizeStatus(match.status),
     homeScore: match.score.fullTime.home,
     awayScore: match.score.fullTime.away,
-    minute: null,
+    minute: Number.isInteger(match.minute) ? match.minute ?? null : null,
     period: match.status,
     providerUpdatedAt: match.lastUpdated,
     raw: match,

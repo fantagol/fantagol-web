@@ -74,6 +74,7 @@ export type FootballDataMatch = {
   stage: string | null;
   group: string | null;
   lastUpdated: string | null;
+  minute?: number | null;
   homeTeam: FootballDataTeam;
   awayTeam: FootballDataTeam;
   score: FootballDataScore;
