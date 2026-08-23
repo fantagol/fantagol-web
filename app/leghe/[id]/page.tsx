@@ -1038,6 +1038,12 @@ export default function LeagueDashboardPage() {
     useState<string>("unknown");
   const [recoveryCanOpen, setRecoveryCanOpen] = useState(false);
   const [recoveryWorkspaceOpen, setRecoveryWorkspaceOpen] = useState(false);
+  const [recoveryMissingMemberCount, setRecoveryMissingMemberCount] =
+    useState(0);
+  const [
+    recoveryExistingAuthorizationCount,
+    setRecoveryExistingAuthorizationCount,
+  ] = useState(0);
   const [recoveryOpening, setRecoveryOpening] = useState(false);
   const [liveModeSummary, setLiveModeSummary] = useState<LiveModeSummary>({
     purePoints: 0,
@@ -1177,13 +1183,23 @@ export default function LeagueDashboardPage() {
           recoveryAdminResult.error,
         );
         setRecoveryCanOpen(false);
+        setRecoveryMissingMemberCount(0);
+        setRecoveryExistingAuthorizationCount(0);
       } else {
         const recoveryAdminRows = (recoveryAdminResult.data || []) as Array<{
           can_open_recovery?: boolean | null;
+          missing_member_count?: number | null;
+          existing_authorization_count?: number | null;
         }>;
 
         setRecoveryCanOpen(
           recoveryAdminRows[0]?.can_open_recovery === true,
+        );
+        setRecoveryMissingMemberCount(
+          Number(recoveryAdminRows[0]?.missing_member_count ?? 0),
+        );
+        setRecoveryExistingAuthorizationCount(
+          Number(recoveryAdminRows[0]?.existing_authorization_count ?? 0),
         );
       }
 
@@ -1401,6 +1417,13 @@ export default function LeagueDashboardPage() {
 
   const predictionWindowOpen = predictionWindowState === "open";
 
+  const recoveryWaitingForMissingPredictions =
+    !predictionWindowOpen &&
+    !recoveryWorkspaceOpen &&
+    !recoveryCanOpen &&
+    recoveryExistingAuthorizationCount > 0 &&
+    recoveryMissingMemberCount > 0;
+
   const predictionCtaLabel = recoveryOpening
     ? "Riapertura in corso..."
     : predictionWindowOpen
@@ -1409,12 +1432,14 @@ export default function LeagueDashboardPage() {
         ? "Completa i pronostici"
         : recoveryCanOpen
           ? "Riapri pronostici"
-          : "🔒 Pronostici bloccati";
+          : recoveryWaitingForMissingPredictions
+            ? "⏳ Attesa pronostici mancanti"
+            : "🔒 Pronostici bloccati";
 
   const predictionCtaDisabled =
     recoveryOpening ||
+    recoveryWaitingForMissingPredictions ||
     (!predictionWindowOpen && !recoveryWorkspaceOpen && !recoveryCanOpen);
-
   async function refreshPredictionRecoveryState(leagueRoundId: string) {
     const [adminResult, workspaceResult] = await Promise.all([
       supabase.rpc("get_prediction_recovery_admin_status_rpc", {
@@ -1431,13 +1456,23 @@ export default function LeagueDashboardPage() {
         adminResult.error,
       );
       setRecoveryCanOpen(false);
+      setRecoveryMissingMemberCount(0);
+      setRecoveryExistingAuthorizationCount(0);
     } else {
       const adminRows = (adminResult.data || []) as Array<{
         can_open_recovery?: boolean | null;
+          missing_member_count?: number | null;
+          existing_authorization_count?: number | null;
       }>;
 
       setRecoveryCanOpen(
         adminRows[0]?.can_open_recovery === true,
+      );
+      setRecoveryMissingMemberCount(
+        Number(adminRows[0]?.missing_member_count ?? 0),
+      );
+      setRecoveryExistingAuthorizationCount(
+        Number(adminRows[0]?.existing_authorization_count ?? 0),
       );
     }
 
