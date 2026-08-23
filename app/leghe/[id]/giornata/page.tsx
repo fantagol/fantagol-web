@@ -767,6 +767,37 @@ export default function GiornataPage() {
         return;
       }
 
+      /*
+       * Recovery is a separate post-lock authority.
+       *
+       * Failure or absence of a Recovery workspace MUST fail closed:
+       * normal prediction-window rules remain authoritative.
+       */
+      const {
+        data: predictionRecoveryData,
+        error: predictionRecoveryError,
+      } = await supabase.rpc(
+        "get_my_prediction_recovery_workspace_rpc",
+        {
+          p_league_round_id: currentRound.league_round_id,
+        },
+      );
+
+      if (cancelled) return;
+
+      const predictionRecoveryRows = Array.isArray(
+        predictionRecoveryData,
+      )
+        ? predictionRecoveryData
+        : predictionRecoveryData
+          ? [predictionRecoveryData]
+          : [];
+
+      setPredictionRecoveryActive(
+        !predictionRecoveryError &&
+          predictionRecoveryRows.length > 0,
+      );
+
       const rows = (predictionData || []) as RoundPredictionRow[];
       if (!rows.length) {
         setRoundError("Il calendario della giornata non contiene partite.");
@@ -921,6 +952,16 @@ export default function GiornataPage() {
     };
   }, [leagueId]);
 
+  /*
+   * R42 Prediction Recovery
+   *
+   * Standard prediction-window authority remains unchanged.
+   * This flag becomes true only when the authenticated member has
+   * an explicit Recovery workspace exposed by the Recovery Engine.
+   */
+  const [predictionRecoveryActive, setPredictionRecoveryActive] =
+    useState(false);
+
   const submittedCount = useMemo(
     () =>
       predictions.filter(
@@ -1057,7 +1098,12 @@ export default function GiornataPage() {
     kit_crest_position: activeProfile?.kitCrestPosition || "left_chest",
     stars_count: activeProfile?.starsCount || 0,
   };
-  const canEdit = round?.canEdit === true && isViewingSelf;
+  const canEdit =
+    isViewingSelf &&
+    (
+      round?.canEdit === true ||
+      predictionRecoveryActive
+    );
   const canViewProfileContent = isViewingSelf || isLiveForSwipe;
 
   const viewedMemberPredictions =
@@ -1268,12 +1314,26 @@ export default function GiornataPage() {
     setPredictionSaveState(index, "saving");
 
     predictionSaveTimersRef.current[index] = window.setTimeout(async () => {
-      const { error } = await supabase.rpc("save_prediction_draft_rpc", {
-        p_league_round_id: round.id,
-        p_match_id: match.id,
-        p_home_prediction: Number(prediction.home),
-        p_away_prediction: Number(prediction.away),
-      });
+      const { error } =
+        predictionRecoveryActive
+          ? await supabase.rpc(
+              "save_prediction_recovery_draft_rpc",
+              {
+                p_league_round_id: round.id,
+                p_match_id: match.id,
+                p_home_prediction: Number(prediction.home),
+                p_away_prediction: Number(prediction.away),
+              },
+            )
+          : await supabase.rpc(
+              "save_prediction_draft_rpc",
+              {
+                p_league_round_id: round.id,
+                p_match_id: match.id,
+                p_home_prediction: Number(prediction.home),
+                p_away_prediction: Number(prediction.away),
+              },
+            );
 
       if (error) {
         setPredictionSaveState(index, "error", error.message);
@@ -1341,7 +1401,13 @@ export default function GiornataPage() {
   }
 
   async function submitPredictions() {
-    if (locked || submitting || !round?.id) return;
+    if (
+      (locked && !predictionRecoveryActive) ||
+      submitting ||
+      !round?.id
+    ) {
+      return;
+    }
 
     if (predictionSaveStates.some((state) => state === "saving")) {
       alert("Attendi il completamento del salvataggio dei pronostici.");
@@ -1360,9 +1426,20 @@ export default function GiornataPage() {
 
     setSubmitting(true);
 
-    const { data, error } = await supabase.rpc("submit_round_predictions_rpc", {
-      p_league_round_id: round.id,
-    });
+    const { data, error } =
+      predictionRecoveryActive
+        ? await supabase.rpc(
+            "submit_prediction_recovery_rpc",
+            {
+              p_league_round_id: round.id,
+            },
+          )
+        : await supabase.rpc(
+            "submit_round_predictions_rpc",
+            {
+              p_league_round_id: round.id,
+            },
+          );
 
     if (error) {
       setSubmitting(false);
@@ -1841,7 +1918,7 @@ export default function GiornataPage() {
 
         <section className="mt-5 flex justify-center">
           <RoundSubmissionButton
-            locked={locked}
+            locked={locked && !predictionRecoveryActive}
             isViewingSelf={isViewingSelf}
             hasOfficialSubmission={submitted}
             hasUnconfirmedChanges={hasUnconfirmedChanges}
