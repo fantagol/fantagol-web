@@ -9,6 +9,7 @@ import {
 import { persistCanonicalOddsSnapshot } from "./odds-snapshot-service";
 import {
   executeProviderBatchPoll,
+  executeProviderPoll,
 } from "./provider-runtime-runner";
 import { createDefaultProviderRuntimeRegistry } from "./provider-runtime-registry";
 import type {
@@ -26,6 +27,14 @@ type BatchMatchTarget = {
   leagueRoundIds: string[];
 };
 
+const FOOTBALL_DATA_TERMINAL_VERIFICATION_LIVE_STATUSES =
+  new Set([
+    "live_first_half",
+    "halftime",
+    "live_second_half",
+    "extra_time",
+    "penalties",
+  ]);
 function getBatchMatchTargets(
   payload: Record<string, unknown>,
 ): BatchMatchTarget[] {
@@ -272,6 +281,128 @@ export async function handlePollBatchJob(input: {
       );
     }
 
+    const returnedExternalIdSet =
+      new Set(
+        result.returnedExternalMatchIds,
+      );
+
+    const missingRequestedExternalIds =
+      mode === "live"
+        ? result.requestedExternalMatchIds.filter(
+            (externalMatchId) =>
+              !returnedExternalIdSet.has(
+                externalMatchId,
+              ),
+          )
+        : [];
+
+    const missingTargets =
+      missingRequestedExternalIds.map(
+        (externalMatchId) => {
+          const target =
+            targetByExternalId.get(
+              externalMatchId,
+            );
+
+          if (!target) {
+            throw new Error(
+              `Missing LIVE batch target '${externalMatchId}' has no canonical Match target`,
+            );
+          }
+
+          return target;
+        },
+      );
+
+    let terminalVerificationTargets:
+      BatchMatchTarget[] = [];
+
+    if (missingTargets.length > 0) {
+      const {
+        data: canonicalStatusData,
+        error: canonicalStatusError,
+      } = await input.client
+        .from("matches")
+        .select("id,status")
+        .in(
+          "id",
+          missingTargets.map(
+            (target) => target.matchId,
+          ),
+        );
+
+      if (canonicalStatusError) {
+        throw new Error(
+          `FOOTBALL_DATA_TERMINAL_STATUS_LOOKUP_FAILED: ${canonicalStatusError.message}`,
+        );
+      }
+
+      const canonicalLiveMatchIds =
+        new Set(
+          (
+            (canonicalStatusData ?? []) as Array<{
+              id: string;
+              status: string;
+            }>
+          )
+            .filter((row) =>
+              FOOTBALL_DATA_TERMINAL_VERIFICATION_LIVE_STATUSES.has(
+                row.status,
+              ),
+            )
+            .map((row) => row.id),
+        );
+
+      terminalVerificationTargets =
+        missingTargets.filter(
+          (target) =>
+            canonicalLiveMatchIds.has(
+              target.matchId,
+            ),
+        );
+    }
+
+    const terminalVerificationExternalIds:
+      string[] = [];
+
+    if (
+      terminalVerificationTargets.length > 0
+    ) {
+      const pointRegistry =
+        createDefaultProviderRuntimeRegistry();
+
+      for (
+        const target
+        of terminalVerificationTargets
+      ) {
+        const terminalPoll =
+          await executeProviderPoll(
+            input.client,
+            pointRegistry,
+            providerCode,
+            target.externalMatchId,
+          );
+
+        terminalVerificationExternalIds.push(
+          target.externalMatchId,
+        );
+
+        ingestions.push(
+          await ingestFootballDataPollResult({
+            client: input.client,
+            poll: terminalPoll,
+            scope: {
+              matchId: target.matchId,
+              fantagolRoundId:
+                target.fantagolRoundId,
+              leagueRoundIds:
+                target.leagueRoundIds,
+            },
+          }),
+        );
+      }
+    }
+
     return {
       branch:
         "football_data_batch",
@@ -284,6 +415,14 @@ export async function handlePollBatchJob(input: {
         result.returnedExternalMatchIds.length,
       returned_external_match_ids:
         result.returnedExternalMatchIds,
+      missing_requested_match_count:
+        missingRequestedExternalIds.length,
+      missing_requested_external_match_ids:
+        missingRequestedExternalIds,
+      terminal_verification_match_count:
+        terminalVerificationExternalIds.length,
+      terminal_verification_external_match_ids:
+        terminalVerificationExternalIds,
       ingested_match_count:
         ingestions.length,
       meaningful_change_count:
@@ -313,7 +452,6 @@ export async function handlePollBatchJob(input: {
         ) ?? null,
     };
   }
-
   if (providerCode === "the_odds_api") {
     const canonicalMatches:
       MarketBatchCanonicalMatch[] = [];

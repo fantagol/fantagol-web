@@ -1031,6 +1031,14 @@ export default function LeagueDashboardPage() {
   const [roundNumber, setRoundNumber] = useState<number | null>(null);
   const [roundLabel, setRoundLabel] = useState("Giornata non disponibile");
   const [roundError, setRoundError] = useState<string | null>(null);
+  const [currentLeagueRoundId, setCurrentLeagueRoundId] = useState<string | null>(
+    null,
+  );
+  const [predictionWindowState, setPredictionWindowState] =
+    useState<string>("unknown");
+  const [recoveryCanOpen, setRecoveryCanOpen] = useState(false);
+  const [recoveryWorkspaceOpen, setRecoveryWorkspaceOpen] = useState(false);
+  const [recoveryOpening, setRecoveryOpening] = useState(false);
   const [liveModeSummary, setLiveModeSummary] = useState<LiveModeSummary>({
     purePoints: 0,
     currentClub: null,
@@ -1095,6 +1103,10 @@ export default function LeagueDashboardPage() {
         return;
       }
 
+      setCurrentLeagueRoundId(
+        currentRound.league_round_id,
+      );
+
       const { data: predictionData, error: predictionError } =
         await supabase.rpc("get_my_round_predictions_rpc", {
           p_league_round_id: currentRound.league_round_id,
@@ -1108,15 +1120,22 @@ export default function LeagueDashboardPage() {
 
       const rows = (predictionData || []) as RoundPredictionRow[];
 
+      const loadedPredictionWindowState =
+        rows[0]?.prediction_window_state ?? "unknown";
+
+      setPredictionWindowState(
+        loadedPredictionWindowState,
+      );
+
       setRoundNumber(
         currentRound.league_round_number ??
           rows[0]?.league_round_number ??
           null,
       );
       setRoundLabel(
-        rows[0]?.prediction_window_state === "open"
+        loadedPredictionWindowState === "open"
           ? "Pronostici aperti"
-          : rows[0]?.prediction_window_state === "not_open"
+          : loadedPredictionWindowState === "not_open"
             ? "Pronostici non ancora aperti"
             : "Pronostici chiusi",
       );
@@ -1142,6 +1161,39 @@ export default function LeagueDashboardPage() {
           };
         }).sort(compareDashboardMatchKickoff),
       );
+
+      const [recoveryAdminResult, recoveryWorkspaceResult] = await Promise.all([
+        supabase.rpc("get_prediction_recovery_admin_status_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_my_prediction_recovery_workspace_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+      ]);
+
+      if (recoveryAdminResult.error) {
+        console.error(
+          "Prediction Recovery admin status failed:",
+          recoveryAdminResult.error,
+        );
+        setRecoveryCanOpen(false);
+      } else {
+        const recoveryAdminRows = (recoveryAdminResult.data || []) as Array<{
+          can_open_recovery?: boolean | null;
+        }>;
+
+        setRecoveryCanOpen(
+          recoveryAdminRows[0]?.can_open_recovery === true,
+        );
+      }
+
+      if (recoveryWorkspaceResult.error) {
+        setRecoveryWorkspaceOpen(false);
+      } else {
+        setRecoveryWorkspaceOpen(
+          (recoveryWorkspaceResult.data || []).length > 0,
+        );
+      }
 
       const [
         standingsResult,
@@ -1347,6 +1399,100 @@ export default function LeagueDashboardPage() {
     );
   }, [matches]);
 
+  const predictionWindowOpen = predictionWindowState === "open";
+
+  const predictionCtaLabel = recoveryOpening
+    ? "Riapertura in corso..."
+    : predictionWindowOpen
+      ? "Inserisci pronostici"
+      : recoveryWorkspaceOpen
+        ? "Completa i pronostici"
+        : recoveryCanOpen
+          ? "Riapri pronostici"
+          : "🔒 Pronostici bloccati";
+
+  const predictionCtaDisabled =
+    recoveryOpening ||
+    (!predictionWindowOpen && !recoveryWorkspaceOpen && !recoveryCanOpen);
+
+  async function refreshPredictionRecoveryState(leagueRoundId: string) {
+    const [adminResult, workspaceResult] = await Promise.all([
+      supabase.rpc("get_prediction_recovery_admin_status_rpc", {
+        p_league_round_id: leagueRoundId,
+      }),
+      supabase.rpc("get_my_prediction_recovery_workspace_rpc", {
+        p_league_round_id: leagueRoundId,
+      }),
+    ]);
+
+    if (adminResult.error) {
+      console.error(
+        "Prediction Recovery admin refresh failed:",
+        adminResult.error,
+      );
+      setRecoveryCanOpen(false);
+    } else {
+      const adminRows = (adminResult.data || []) as Array<{
+        can_open_recovery?: boolean | null;
+      }>;
+
+      setRecoveryCanOpen(
+        adminRows[0]?.can_open_recovery === true,
+      );
+    }
+
+    if (workspaceResult.error) {
+      setRecoveryWorkspaceOpen(false);
+    } else {
+      setRecoveryWorkspaceOpen(
+        (workspaceResult.data || []).length > 0,
+      );
+    }
+  }
+
+  async function handlePredictionCtaClick() {
+    if (predictionWindowOpen || recoveryWorkspaceOpen) {
+      router.push(`/leghe/${leagueId}/giornata`);
+      return;
+    }
+
+    if (
+      !recoveryCanOpen ||
+      !currentLeagueRoundId ||
+      recoveryOpening
+    ) {
+      return;
+    }
+
+    setRecoveryOpening(true);
+    setRoundError(null);
+
+    try {
+      const { error: openRecoveryError } = await supabase.rpc(
+        "open_missing_predictions_recovery_rpc",
+        {
+          p_league_round_id: currentLeagueRoundId,
+          p_reason: "dashboard_recovery",
+        },
+      );
+
+      if (openRecoveryError) {
+        setRoundError(openRecoveryError.message);
+        return;
+      }
+
+      // Server authority determines the missing members and eligible matches.
+      // Do not assume the Admin personally receives a Recovery workspace.
+      setRecoveryCanOpen(false);
+
+      await refreshPredictionRecoveryState(
+        currentLeagueRoundId,
+      );
+    } finally {
+      setRecoveryOpening(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -1407,10 +1553,16 @@ export default function LeagueDashboardPage() {
 
           <button
             type="button"
-            onClick={() => router.push(`/leghe/${leagueId}/giornata`)}
-            className="mt-6 w-full rounded-2xl bg-[#A6E824] px-6 py-4 font-black text-black shadow-lg shadow-[#A6E824]/20 transition hover:brightness-110"
+            onClick={handlePredictionCtaClick}
+            disabled={predictionCtaDisabled}
+            aria-label={predictionCtaLabel}
+            className={`mt-6 w-full rounded-2xl px-6 py-4 font-black transition ${
+              predictionCtaDisabled
+                ? "cursor-not-allowed border border-white/10 bg-[#1a1d1f] text-gray-500"
+                : "bg-[#A6E824] text-black shadow-lg shadow-[#A6E824]/20 hover:brightness-110"
+            }`}
           >
-            Inserisci pronostici
+            {predictionCtaLabel}
           </button>
         </DashboardCard>
 
