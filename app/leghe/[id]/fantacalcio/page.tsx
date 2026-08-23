@@ -1845,25 +1845,44 @@ export default function FantacalcioLivePage() {
   );
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
 
-  const displayedLiveRows = (() => {
-    const maskedRows = () =>
-      liveRows.map((match) => ({
-        ...match,
-        leftPrediction: "—",
-        rightPrediction: "—",
-        leftActive: [],
-        rightActive: [],
-      }));
+  type FantacalcioDisplayRow = {
+    leftMatch: DuelMatch;
+    rightMatch: DuelMatch | null;
+  };
 
-    if (!canViewProfileContent) {
-      return maskedRows();
-    }
+  const displayedLiveRows: FantacalcioDisplayRow[] = (() => {
+    const rowsById =
+      new Map(
+        liveRows.map(
+          (match) => [match.id, match],
+        ),
+      );
+
+    const neutralRows = () =>
+      liveRows.map((match) => ({
+        leftMatch: {
+          ...match,
+          leftPrediction: "—",
+          rightPrediction: "—",
+          leftActive: [],
+          rightActive: [],
+        },
+        rightMatch: null,
+      }));
 
     /*
      * Pre-live/self workspace remains completely untouched.
+     * liveRows is still the editable Strategy workspace authority.
      */
     if (!isLiveForSwipe) {
-      return liveRows;
+      return liveRows.map((match) => ({
+        leftMatch: match,
+        rightMatch: match,
+      }));
+    }
+
+    if (!canViewProfileContent) {
+      return neutralRows();
     }
 
     if (
@@ -1871,8 +1890,11 @@ export default function FantacalcioLivePage() {
       !r40FantacalcioView
     ) {
       return isViewingSelf
-        ? liveRows
-        : maskedRows();
+        ? liveRows.map((match) => ({
+            leftMatch: match,
+            rightMatch: match,
+          }))
+        : neutralRows();
     }
 
     const {
@@ -1902,13 +1924,7 @@ export default function FantacalcioLivePage() {
       );
 
     if (viewedMemberIsRecovery) {
-      return liveRows.map((match) => ({
-        ...match,
-        leftPrediction: "—",
-        rightPrediction: "—",
-        leftActive: [],
-        rightActive: [],
-      }));
+      return neutralRows();
     }
 
     const strategies =
@@ -1916,7 +1932,7 @@ export default function FantacalcioLivePage() {
         .ui_snapshot
         ?.strategies_live ?? [];
 
-    const strategy =
+    const viewedStrategy =
       strategies.find(
         (candidate) =>
           candidate.mode === "fantacalcio" &&
@@ -1926,104 +1942,166 @@ export default function FantacalcioLivePage() {
             activeProfile?.fixture.fixtureId,
       ) ?? null;
 
-    const allocations =
-      strategy?.payload?.allocations ?? [];
+    const opponentStrategy =
+      opponentMemberId
+        ? (
+            strategies.find(
+              (candidate) =>
+                candidate.mode === "fantacalcio" &&
+                candidate.league_member_id ===
+                  opponentMemberId &&
+                candidate.league_fixture_id ===
+                  activeProfile?.fixture.fixtureId,
+            ) ?? null
+          )
+        : null;
+
+    const viewedAllocations =
+      viewedStrategy?.payload?.allocations ?? [];
+
+    const opponentAllocations =
+      opponentStrategy?.payload?.allocations ?? [];
 
     const viewedHasOfficialStrategy =
       r40FantacalcioView.leftSide
         ?.strategy_valid === true &&
-      strategy !== null &&
-      allocations.length === 10;
+      viewedStrategy !== null &&
+      viewedAllocations.length === 10;
 
     const opponentHasOfficialStrategy =
       r40FantacalcioView.rightSide
-        ?.strategy_valid === true;
+        ?.strategy_valid === true &&
+      opponentStrategy !== null &&
+      opponentAllocations.length === 10;
 
-    const attackIds = allocations
-      .filter(
-        (allocation) =>
-          allocation.department === "attack",
-      )
-      .map((allocation) => allocation.match_id);
+    const allocationIds = (
+      allocations: NonNullable<
+        NonNullable<R40LiveStrategy["payload"]>["allocations"]
+      >,
+      department: "attack" | "defense",
+    ) =>
+      allocations
+        .filter(
+          (allocation) =>
+            allocation.department === department,
+        )
+        .map((allocation) => allocation.match_id);
 
-    const defenseIds = allocations
-      .filter(
-        (allocation) =>
-          allocation.department === "defense",
-      )
-      .map((allocation) => allocation.match_id);
+    const viewedAttackIds =
+      allocationIds(viewedAllocations, "attack");
 
-    const hasCompleteOfficialAllocation =
+    const viewedDefenseIds =
+      allocationIds(viewedAllocations, "defense");
+
+    const opponentAttackIds =
+      allocationIds(opponentAllocations, "attack");
+
+    const opponentDefenseIds =
+      allocationIds(opponentAllocations, "defense");
+
+    const viewedHasCompleteAllocation =
       viewedHasOfficialStrategy &&
-      attackIds.length === 5 &&
-      defenseIds.length === 5;
+      viewedAttackIds.length === 5 &&
+      viewedDefenseIds.length === 5;
 
-    /*
-     * Neutral calendar order is allowed only as layout.
-     * It MUST NOT imply Strategy ownership.
-     */
-    const officialOrder =
-      hasCompleteOfficialAllocation
-        ? [...attackIds, ...defenseIds]
-        : liveRows.map((match) => match.id);
+    const opponentHasCompleteAllocation =
+      opponentHasOfficialStrategy &&
+      opponentAttackIds.length === 5 &&
+      opponentDefenseIds.length === 5;
 
-    const rowsById =
-      new Map(
-        liveRows.map(
-          (match) => [match.id, match],
-        ),
-      );
+    const neutralOrder =
+      liveRows.map((match) => match.id);
 
-    return officialOrder
-      .map((matchId) => {
-        const match = rowsById.get(matchId);
+    const viewedOrder =
+      viewedHasCompleteAllocation
+        ? [
+            ...viewedAttackIds,
+            ...viewedDefenseIds,
+          ]
+        : neutralOrder;
 
-        if (!match) return null;
+    const opponentOrder =
+      opponentHasCompleteAllocation
+        ? [
+            ...opponentAttackIds,
+            ...opponentDefenseIds,
+          ]
+        : neutralOrder;
+
+    return viewedOrder
+      .map((leftMatchId, index) => {
+        const leftBase =
+          rowsById.get(leftMatchId);
+
+        if (!leftBase) return null;
+
+        const rightMatchId =
+          opponentOrder[index] ?? null;
+
+        const rightBase =
+          rightMatchId
+            ? rowsById.get(rightMatchId) ?? null
+            : null;
 
         const leftResult =
-          hasCompleteOfficialAllocation
+          viewedHasCompleteAllocation
             ? byMemberAndMatch.get(
-                `${viewedMemberId}:${matchId}`,
+                `${viewedMemberId}:${leftMatchId}`,
               )
             : undefined;
 
         const rightResult =
-          opponentHasOfficialStrategy &&
-          opponentMemberId
+          opponentHasCompleteAllocation &&
+          opponentMemberId &&
+          rightMatchId
             ? byMemberAndMatch.get(
-                `${opponentMemberId}:${matchId}`,
+                `${opponentMemberId}:${rightMatchId}`,
               )
             : undefined;
 
-        return {
-          ...match,
+        const leftMatch: DuelMatch = {
+          ...leftBase,
           leftPrediction:
-            hasCompleteOfficialAllocation
+            viewedHasCompleteAllocation
               ? r40LivePrediction(leftResult)
               : "—",
-
-          rightPrediction:
-            opponentHasOfficialStrategy
-              ? r40LivePrediction(rightResult)
-              : "—",
-
+          rightPrediction: "—",
           leftActive:
-            hasCompleteOfficialAllocation
+            viewedHasCompleteAllocation
               ? r40LiveRuleKeys(leftResult)
               : [],
+          rightActive: [],
+        };
 
-          rightActive:
-            opponentHasOfficialStrategy
-              ? r40LiveRuleKeys(rightResult)
-              : [],
+        const rightMatch: DuelMatch | null =
+          rightBase
+            ? {
+                ...rightBase,
+                leftPrediction: "—",
+                rightPrediction:
+                  opponentHasCompleteAllocation
+                    ? r40LivePrediction(rightResult)
+                    : "—",
+                leftActive: [],
+                rightActive:
+                  opponentHasCompleteAllocation
+                    ? r40LiveRuleKeys(rightResult)
+                    : [],
+              }
+            : null;
+
+        return {
+          leftMatch,
+          rightMatch,
         };
       })
       .filter(
-        (match): match is DuelMatch =>
-          match !== null,
+        (
+          row,
+        ): row is FantacalcioDisplayRow =>
+          row !== null,
       );
   })();
-
   async function persistStrategy(nextRows: DuelMatch[]) {
     if (
 
@@ -2566,7 +2644,9 @@ export default function FantacalcioLivePage() {
                   </span>
                 </div>
 
-                {group.rows.map((match, groupIndex) => {
+                {group.rows.map((displayRow, groupIndex) => {
+                  const match = displayRow.leftMatch;
+                  const opponentMatch = displayRow.rightMatch;
                   const matchIndex = group.offset + groupIndex;
                   const selected = selectedMatchIndex === matchIndex;
 
@@ -2601,7 +2681,7 @@ export default function FantacalcioLivePage() {
 
                   return (
                     <article
-                      key={match.id}
+                      key={`${match.id}:${opponentMatch?.id ?? "none"}:${matchIndex}`}
                       className={`border-b border-white/10 px-2 py-2 transition-all duration-200 last:border-b-0 sm:px-5 sm:py-4 ${
                         selected && !interactionLocked
                           ? currentGroup === "attacco"
@@ -2643,13 +2723,13 @@ export default function FantacalcioLivePage() {
                           />
                         </button>
 
-                        {interactionLocked ? (
+                        {interactionLocked && opponentMatch ? (
                           <PredictionSide
-                            score={match.rightPrediction}
-                            active={match.rightActive}
+                            score={opponentMatch.rightPrediction}
+                            active={opponentMatch.rightActive}
                             side="right"
-                            homeName={match.home}
-                            awayName={match.away}
+                            homeName={opponentMatch.home}
+                            awayName={opponentMatch.away}
                           />
                         ) : (
                           <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
