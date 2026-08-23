@@ -713,6 +713,8 @@ export default function OneToOneLivePage() {
   const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
   const [strategyExists, setStrategyExists] = useState(false);
   const [strategyLocked, setStrategyLocked] = useState(false);
+
+  const [strategySubmittable, setStrategySubmittable] = useState(false);
   const [isByeRound, setIsByeRound] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(true);
   const [savingStrategy, setSavingStrategy] = useState(false);
@@ -1186,7 +1188,8 @@ export default function OneToOneLivePage() {
       setStrategyExists(Boolean(status?.strategy_exists));
       setHasOfficialSubmission(Boolean(status?.has_official_snapshot));
       setHasUnconfirmedChanges(Boolean(status?.has_unconfirmed_changes));
-      setStrategyLocked(Boolean(status?.is_locked));
+      setStrategyLocked(status?.is_editable !== true);
+      setStrategySubmittable(status?.is_submittable === true);
       setStrategyLoading(false);
     }
 
@@ -1535,6 +1538,8 @@ export default function OneToOneLivePage() {
 
   async function persistPairings(nextSlots: (PredictionSlot | null)[]) {
     if (
+
+      strategyLocked ||
       strategyPendingSchedule ||
       isByeRound ||
       !leagueRoundId ||
@@ -1688,7 +1693,9 @@ export default function OneToOneLivePage() {
   }
 
   async function submitStrategy() {
-    if (strategyPendingSchedule) {
+    if (
+      !strategySubmittable ||
+      strategyPendingSchedule) {
       setStrategyAvailabilityModalOpen(true);
       return;
     }
