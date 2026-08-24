@@ -39,12 +39,6 @@ type RoundPredictionRow = {
   match_id: string;
   kickoff: string | null;
   match_status: string;
-
-  minute?: number | null;
-
-  live_half?: number | null;
-
-  live_phase_started_at?: string | null;
   home_score: number | null;
   away_score: number | null;
   home_team_name: string;
@@ -295,327 +289,6 @@ function compareDashboardMatchKickoff(
   return delta !== 0 ? delta : left.id.localeCompare(right.id);
 }
 
-
-type DashboardLiveClockMatch = {
-  match_status?: string | null;
-  kickoffHour?: string | null;
-  minute?: number | null;
-  live_half?: number | null;
-  live_phase_started_at?: string | null;
-};
-
-function normalizeDashboardMatchStatus(
-  status: string | null | undefined,
-) {
-  return String(status || "")
-    .trim()
-    .toLowerCase();
-}
-
-
-/*
- * R43-R9A-LOCAL-VISUAL-HARNESS
- *
- * TEMPORARY.
- * LOCALHOST / 127.0.0.1 ONLY.
- * NEVER COMMIT.
- */
-function r43LocalClockTestMatch(
-  match: DashboardLiveClockMatch,
-): DashboardLiveClockMatch {
-  if (typeof window === "undefined") {
-    return match;
-  }
-
-  const hostname =
-    window.location.hostname;
-
-  if (
-    hostname !== "localhost" &&
-    hostname !== "127.0.0.1"
-  ) {
-    return match;
-  }
-
-  const mode =
-    new URLSearchParams(
-      window.location.search,
-    ).get("r43clocktest");
-
-  if (!mode) {
-    return match;
-  }
-
-  switch (mode) {
-    case "prematch":
-      return {
-        ...match,
-        match_status: "scheduled",
-        minute: null,
-        live_half: null,
-        live_phase_started_at: null,
-      };
-
-    case "live12":
-      return {
-        ...match,
-        match_status: "in_play",
-        minute: 12,
-        live_half: 1,
-        live_phase_started_at: null,
-      };
-
-    case "45plus3":
-      return {
-        ...match,
-        match_status: "in_play",
-        minute: 48,
-        live_half: 1,
-        live_phase_started_at: null,
-      };
-
-    case "ht":
-      return {
-        ...match,
-        match_status: "halftime",
-        minute: null,
-        live_half: 1,
-        live_phase_started_at: null,
-      };
-
-    case "second67":
-      return {
-        ...match,
-        match_status: "in_play",
-        minute: 67,
-        live_half: 2,
-        live_phase_started_at: null,
-      };
-
-    case "90plus5":
-      return {
-        ...match,
-        match_status: "in_play",
-        minute: 95,
-        live_half: 2,
-        live_phase_started_at: null,
-      };
-
-    case "ft":
-      return {
-        ...match,
-        match_status: "finished",
-        minute: null,
-        live_half: 2,
-        live_phase_started_at: null,
-      };
-
-    case "livenominute":
-      return {
-        ...match,
-        match_status: "in_play",
-        minute: null,
-        live_half: null,
-        live_phase_started_at: null,
-      };
-
-    default:
-      return match;
-  }
-}
-
-function isDashboardMatchActivelyPlaying(
-  match: DashboardLiveClockMatch,
-) {
-  match =
-    r43LocalClockTestMatch(
-      match,
-    );
-  const status =
-    normalizeDashboardMatchStatus(
-      match.match_status,
-    );
-
-  return (
-    status.startsWith("live_") ||
-    status === "in_play" ||
-    status === "extra_time" ||
-    status === "penalties"
-  );
-}
-
-function formatDashboardProviderMinute(
-  minute: number,
-  half: number | null | undefined,
-) {
-  if (half === 1 && minute > 45) {
-    return `45+${minute - 45}′`;
-  }
-
-  if (half === 2 && minute > 90) {
-    return `90+${minute - 90}′`;
-  }
-
-  return `${minute}′`;
-}
-
-function getDashboardMatchClockLabel(
-  match: DashboardLiveClockMatch,
-  nowMs: number,
-) {
-  match =
-    r43LocalClockTestMatch(
-      match,
-    );
-  const status =
-    normalizeDashboardMatchStatus(
-      match.match_status,
-    );
-
-  if (
-    status === "finished" ||
-    status === "awarded"
-  ) {
-    return "FT";
-  }
-
-  if (
-    status === "halftime" ||
-    status === "paused"
-  ) {
-    return "HT";
-  }
-
-  if (
-    !isDashboardMatchActivelyPlaying(
-      match,
-    )
-  ) {
-    return match.kickoffHour || "—";
-  }
-
-  if (
-    Number.isInteger(match.minute) &&
-    Number(match.minute) > 0
-  ) {
-    return formatDashboardProviderMinute(
-      Number(match.minute),
-      match.live_half,
-    );
-  }
-
-  const half =
-    match.live_half;
-
-  const phaseStartedAt =
-    match.live_phase_started_at;
-
-  if (
-    (half !== 1 && half !== 2) ||
-    !phaseStartedAt
-  ) {
-    return "LIVE";
-  }
-
-  const startedMs =
-    Date.parse(phaseStartedAt);
-
-  if (!Number.isFinite(startedMs)) {
-    return "LIVE";
-  }
-
-  const elapsedMinutes =
-    Math.max(
-      0,
-      Math.floor(
-        (nowMs - startedMs) / 60_000,
-      ),
-    );
-
-  const displayMinute =
-    half === 2
-      ? 46 + elapsedMinutes
-      : 1 + elapsedMinutes;
-
-  return formatDashboardProviderMinute(
-    displayMinute,
-    half,
-  );
-}
-
-function dashboardMatchPulseClass(
-  match: DashboardLiveClockMatch,
-) {
-  if (
-    !isDashboardMatchActivelyPlaying(
-      match,
-    )
-  ) {
-    return "";
-  }
-
-  return [
-    "relative",
-    "ring-1",
-    "ring-[#A6E824]/20",
-    "after:pointer-events-none",
-    "after:absolute",
-    "after:inset-0",
-    "after:rounded-[inherit]",
-    "after:ring-1",
-    "after:ring-[#A6E824]/30",
-    "after:content-['']",
-    "motion-safe:after:animate-pulse",
-  ].join(" ");
-}
-
-function DashboardLiveClock({
-  match,
-}: {
-  match: DashboardLiveClockMatch;
-}) {
-  const activelyPlaying =
-    isDashboardMatchActivelyPlaying(
-      match,
-    );
-
-  const [nowMs, setNowMs] =
-    useState(() => Date.now());
-
-  useEffect(() => {
-    if (!activelyPlaying) {
-      return;
-    }
-
-    const updateClock = () => {
-      setNowMs(Date.now());
-    };
-
-    updateClock();
-
-    const intervalId =
-      window.setInterval(
-        updateClock,
-        15_000,
-      );
-
-    return () => {
-      window.clearInterval(
-        intervalId,
-      );
-    };
-  }, [activelyPlaying]);
-
-  return (
-    <>
-      {getDashboardMatchClockLabel(
-        match,
-        nowMs,
-      )}
-    </>
-  );
-}
-
 function isDashboardMatchLive(match: DashboardMatch) {
   const status = match.status.toLowerCase();
 
@@ -685,7 +358,7 @@ function getProviderScoreLabel(match: DashboardMatch) {
 
 function MatchMiniRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className={`${dashboardMatchPulseClass(match)} grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3`}>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3">
       <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
         {match.home}
       </span>
@@ -706,7 +379,7 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
 
         <div className="mt-1 flex flex-col items-center whitespace-nowrap text-[9px] font-semibold leading-[1.15] text-gray-500 sm:text-[10px]">
           <span>{match.kickoffDay}</span>
-          <span><DashboardLiveClock match={match} /></span>
+          <span>{match.kickoffHour}</span>
         </div>
       </div>
 
@@ -728,7 +401,7 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
 
 function DayMatchRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className={`${dashboardMatchPulseClass(match)} grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4 max-[429px]:gap-2`}>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4 max-[429px]:gap-2">
       <div className="flex min-w-0 items-center justify-end gap-2">
         <span className="min-w-0 truncate text-right text-sm font-black max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
           {match.home}
