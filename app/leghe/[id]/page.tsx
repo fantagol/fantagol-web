@@ -39,6 +39,7 @@ type RoundPredictionRow = {
   match_id: string;
   kickoff: string | null;
   match_status: string;
+  minute: number | null;
   home_score: number | null;
   away_score: number | null;
   home_team_name: string;
@@ -56,6 +57,10 @@ type DashboardMatch = {
   kickoff: string | null;
   kickoffDay: string;
   kickoffHour: string;
+
+  match_status?: string | null;
+
+  minute?: number | null;
   status: string;
   homeScore: number | null;
   awayScore: number | null;
@@ -275,6 +280,265 @@ function getLocalDateKey(value: Date | string) {
   }).format(date);
 }
 
+
+function normalizeDashboardLiveStatus(
+  status: string | null | undefined,
+) {
+  return String(status || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isDashboardActivelyPlaying(
+  status: string | null | undefined,
+) {
+  const normalized =
+    normalizeDashboardLiveStatus(status);
+
+  return (
+    normalized.startsWith("live_") ||
+    normalized === "live" ||
+    normalized === "in_play" ||
+    normalized === "extra_time" ||
+    normalized === "penalties"
+  );
+}
+
+function formatDashboardLiveMinute(
+  minute: number,
+  status: string | null | undefined,
+) {
+  const normalized =
+    normalizeDashboardLiveStatus(status);
+
+  if (minute > 90) {
+    return `90+${minute - 90}′`;
+  }
+
+  /*
+   * First-half recovery is represented as 45+N only when the
+   * status itself certifies first-half authority.
+   */
+  if (
+    minute > 45 &&
+    (
+      normalized === "live_1h" ||
+      normalized === "first_half"
+    )
+  ) {
+    return `45+${minute - 45}′`;
+  }
+
+  return `${minute}′`;
+}
+
+function dashboardMatchClockLabel(
+  match: {
+    match_status?: string | null;
+    minute?: number | null;
+    kickoffHour?: string | null;
+  },
+) {
+  const status =
+    normalizeDashboardLiveStatus(
+      match.match_status,
+    );
+
+  if (
+    status === "finished" ||
+    status === "awarded"
+  ) {
+    return "FT";
+  }
+
+  if (
+    status === "halftime" ||
+    status === "paused"
+  ) {
+    return "HT";
+  }
+
+  if (isDashboardActivelyPlaying(status)) {
+
+    if (
+      Number.isInteger(match.minute) &&
+      Number(match.minute) > 0
+    ) {
+      return formatDashboardLiveMinute(
+        Number(match.minute),
+        status,
+      );
+    }
+
+    return "LIVE";
+  }
+
+  return match.kickoffHour || "—";
+}
+
+function dashboardVisualMatchState<
+  T extends {
+    match_status?: string | null;
+    minute?: number | null;
+  }
+>(
+  match: T,
+): T {
+  return match;
+}
+
+function isDashboardMatchToday(
+  kickoff: string | null | undefined,
+) {
+  if (!kickoff) {
+    return false;
+  }
+
+  return (
+    getLocalDateKey(kickoff) ===
+    getLocalDateKey(new Date())
+  );
+}
+
+function shouldShowDashboardKickoffDate(
+  match: {
+    match_status?: string | null;
+    minute?: number | null;
+  },
+) {
+  const visualMatch =
+    dashboardVisualMatchState(match);
+
+  const status =
+    normalizeDashboardLiveStatus(
+      visualMatch.match_status,
+    );
+
+  return !(
+    isDashboardActivelyPlaying(status) ||
+    status === "halftime" ||
+    status === "paused" ||
+    status === "finished" ||
+    status === "awarded"
+  );
+}
+
+function dashboardMatchFrameClass(
+  match: {
+    kickoff?: string | null;
+    match_status?: string | null;
+    minute?: number | null;
+  },
+) {
+  const visualMatch =
+    dashboardVisualMatchState(match);
+
+  const normalizedStatus =
+    String(
+      visualMatch.match_status || "",
+    )
+      .trim()
+      .toLowerCase();
+
+  const terminal =
+    [
+      "finished",
+      "awarded",
+      "ft",
+      "full_time",
+      "full-time",
+      "cancelled",
+      "canceled",
+    ].includes(
+      normalizedStatus,
+    );
+
+  if (
+    terminal ||
+    !isDashboardMatchToday(
+      match.kickoff,
+    )
+  ) {
+    return [
+      "relative",
+      "overflow-hidden",
+      "border",
+      "border-white/10",
+    ].join(" ");
+  }
+
+  const activelyPlaying =
+    isDashboardActivelyPlaying(
+      visualMatch.match_status,
+    );
+
+  return [
+    "relative",
+    "overflow-hidden",
+    "border",
+    activelyPlaying
+      ? "border-[#A6E824] fantagol-dashboard-live-border-pulse"
+      : "border-[#A6E824]/70",
+  ].join(" ");
+}
+
+function DashboardLiveVisualState({
+  match,
+}: {
+  match: {
+    match_status?: string | null;
+    minute?: number | null;
+  };
+}) {
+  const visualMatch =
+    dashboardVisualMatchState(match);
+
+  if (
+    !isDashboardActivelyPlaying(
+      visualMatch.match_status,
+    )
+  ) {
+    return null;
+  }
+
+  return (
+    <>
+      <span className="pointer-events-none absolute right-1.5 top-1.5 z-20 rounded border border-[#A6E824]/45 bg-[#A6E824]/15 px-1 py-px text-[6px] font-bold leading-none tracking-[0.08em] text-[#A6E824]">
+        LIVE
+      </span>
+
+      <style>{`
+        @keyframes fantagol-dashboard-live-border-pulse {
+          0%,
+          100% {
+            border-color:
+              rgba(166, 232, 36, 0.52);
+            box-shadow:
+              0 0 0 0
+              rgba(166, 232, 36, 0);
+          }
+
+          50% {
+            border-color:
+              rgba(166, 232, 36, 1);
+            box-shadow:
+              0 0 11px 1px
+              rgba(166, 232, 36, 0.40);
+          }
+        }
+
+        .fantagol-dashboard-live-border-pulse {
+          animation:
+            fantagol-dashboard-live-border-pulse
+            1.8s
+            ease-in-out
+            infinite;
+        }
+      `}</style>
+    </>
+  );
+}
+
 function compareDashboardMatchKickoff(
   left: DashboardMatch,
   right: DashboardMatch,
@@ -287,23 +551,6 @@ function compareDashboardMatchKickoff(
     new Date(left.kickoff).getTime() - new Date(right.kickoff).getTime();
 
   return delta !== 0 ? delta : left.id.localeCompare(right.id);
-}
-
-function isDashboardMatchLive(match: DashboardMatch) {
-  const status = match.status.toLowerCase();
-
-  return (
-    status === "live" ||
-    status === "in_play" ||
-    status.startsWith("live_") ||
-    ["halftime", "extra_time", "penalties", "paused"].includes(status)
-  );
-}
-
-function isDashboardMatchTerminal(match: DashboardMatch) {
-  return ["finished", "awarded", "cancelled", "postponed"].includes(
-    match.status.toLowerCase(),
-  );
 }
 
 function buildDashboardMatchGroups(matches: DashboardMatch[]) {
@@ -358,7 +605,12 @@ function getProviderScoreLabel(match: DashboardMatch) {
 
 function MatchMiniRow({ match }: { match: DashboardMatch }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl border border-white/10 bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3">
+    <div className={`${dashboardMatchFrameClass(match)} grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3`}>
+
+      <DashboardLiveVisualState
+        match={match}
+      />
+
       <span className="min-w-0 truncate pr-0.5 text-right text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
         {match.home}
       </span>
@@ -378,8 +630,17 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
         </div>
 
         <div className="mt-1 flex flex-col items-center whitespace-nowrap text-[9px] font-semibold leading-[1.15] text-gray-500 sm:text-[10px]">
-          <span>{match.kickoffDay}</span>
-          <span>{match.kickoffHour}</span>
+          <span>{shouldShowDashboardKickoffDate({
+        match_status: match.match_status,
+        minute: match.minute,
+      })
+        ? match.kickoffDay
+        : null}</span>
+          <span>{dashboardMatchClockLabel({
+          match_status: match.match_status,
+          minute: match.minute,
+          kickoffHour: match.kickoffHour,
+        })}</span>
         </div>
       </div>
 
@@ -395,44 +656,6 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
       <span className="min-w-0 truncate pl-0.5 text-left text-sm font-black text-white max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
         {match.away}
       </span>
-    </div>
-  );
-}
-
-function DayMatchRow({ match }: { match: DashboardMatch }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-white/10 bg-black px-3 py-4 max-[429px]:gap-2">
-      <div className="flex min-w-0 items-center justify-end gap-2">
-        <span className="min-w-0 truncate text-right text-sm font-black max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
-          {match.home}
-        </span>
-        <TeamCrest
-          crestReference={match.homeCrestReference}
-          logoUrl={match.homeLogoUrl}
-          alt={`${match.home} stemma`}
-          fallbackLabel={match.home}
-          size="sm"
-        />
-      </div>
-
-      <div className="min-w-[68px] rounded-xl bg-[#A6E824]/10 px-3 py-2 text-center text-sm font-black text-[#A6E824] max-[429px]:min-w-[60px] max-[429px]:px-2 max-[399px]:min-w-[56px] max-[399px]:px-1.5 max-[381px]:min-w-[52px] max-[381px]:px-1">
-        {isDashboardMatchLive(match)
-          ? getProviderScoreLabel(match)
-          : match.kickoffHour}
-      </div>
-
-      <div className="flex min-w-0 items-center gap-2">
-        <TeamCrest
-          crestReference={match.awayCrestReference}
-          logoUrl={match.awayLogoUrl}
-          alt={`${match.away} stemma`}
-          fallbackLabel={match.away}
-          size="sm"
-        />
-        <span className="min-w-0 truncate text-sm font-black max-[429px]:text-[13px] max-[399px]:text-xs max-[381px]:text-[11px] max-[381px]:tracking-[-0.02em] sm:text-base">
-          {match.away}
-        </span>
-      </div>
     </div>
   );
 }
@@ -1155,6 +1378,8 @@ export default function LeagueDashboardPage() {
             home: cleanTeamDisplayName(row.home_team_name),
             away: cleanTeamDisplayName(row.away_team_name),
             kickoff: row.kickoff,
+            match_status: row.match_status,
+            minute: row.minute ?? null,
             kickoffDay: kickoff.day,
             kickoffHour: kickoff.hour,
             status: row.match_status,
@@ -1396,25 +1621,6 @@ export default function LeagueDashboardPage() {
     [matches],
   );
 
-  const todayFocusMatch = useMemo(() => {
-    const todayKey = getLocalDateKey(new Date());
-
-    const todayCandidates = matches
-      .filter(
-        (match) =>
-          match.kickoff &&
-          getLocalDateKey(match.kickoff) === todayKey &&
-          !isDashboardMatchTerminal(match),
-      )
-      .sort(compareDashboardMatchKickoff);
-
-    return (
-      todayCandidates.find((match) => isDashboardMatchLive(match)) ??
-      todayCandidates[0] ??
-      null
-    );
-  }, [matches]);
-
   const predictionWindowOpen = predictionWindowState === "open";
 
   const recoveryWaitingForMissingPredictions =
@@ -1601,34 +1807,7 @@ export default function LeagueDashboardPage() {
           </button>
         </DashboardCard>
 
-        <DashboardCard className="mt-6">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gray-400">
-              Partita del giorno
-            </p>
 
-            <Badge>
-              {todayFocusMatch
-                ? isDashboardMatchLive(todayFocusMatch)
-                  ? "Live"
-                  : "Prossima"
-                : "—"}
-            </Badge>
-          </div>
-
-          <div className="mt-4">
-            {todayFocusMatch ? (
-              <DayMatchRow
-                key={todayFocusMatch.id}
-                match={todayFocusMatch}
-              />
-            ) : (
-              <div className="rounded-2xl bg-black p-5 text-center text-sm font-semibold text-gray-500">
-                Nessuna partita da seguire oggi.
-              </div>
-            )}
-          </div>
-        </DashboardCard>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <button
