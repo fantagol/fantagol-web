@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  enqueueFinalCalculableLeagueRoundRebuildJobs,
+} from "./rebuild-enqueue";
+
+import {
   loadFootballDataProductionTargets,
   loadMarketRoundProductionTargets,
   resolveProductionRoundContext,
@@ -164,6 +168,13 @@ export type ProductionHeartbeatDependencies = {
     fantagolRoundId: string;
   }) => Promise<unknown>;
 
+  advanceRoundFinalCalculable: (input: {
+    client: SupabaseClient;
+    fantagolRoundId: string;
+  }) => Promise<unknown>;
+  enqueueFinalCalculableRebuilds:
+    typeof enqueueFinalCalculableLeagueRoundRebuildJobs;
+
   expireDuePredictionRecoveries: (input: {
     client: SupabaseClient;
     at: string;
@@ -302,6 +313,28 @@ async function advanceRoundLiveDefault(input: {
   return data;
 }
 
+async function advanceRoundFinalCalculableDefault(input: {
+  client: SupabaseClient;
+  fantagolRoundId: string;
+}): Promise<unknown> {
+  const { data, error } =
+    await input.client.rpc(
+      "advance_round_final_calculable_internal",
+      {
+        p_fantagol_round_id:
+          input.fantagolRoundId,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `ROUND_FINAL_CALCULABLE_ADVANCE_FAILED:${error.message}`,
+    );
+  }
+
+  return data;
+}
+
 async function expireDuePredictionRecoveriesDefault(input: {
   client: SupabaseClient;
   at: string;
@@ -427,6 +460,13 @@ function resolveDependencies(
     advanceRoundLive:
       overrides.advanceRoundLive ??
       advanceRoundLiveDefault,
+
+    advanceRoundFinalCalculable:
+      overrides.advanceRoundFinalCalculable ??
+      advanceRoundFinalCalculableDefault,
+    enqueueFinalCalculableRebuilds:
+      overrides.enqueueFinalCalculableRebuilds ??
+      enqueueFinalCalculableLeagueRoundRebuildJobs,
 
     expireDuePredictionRecoveries:
       overrides.expireDuePredictionRecoveries ??
@@ -789,6 +829,46 @@ export async function runProductionHeartbeat(
    * It must not mutate canonical round lifecycle state.
    * Failure is retried by the next heartbeat.
    */
+  /*
+   * Canonical post-LIVE lifecycle reconciliation.
+   *
+   * The database owns all terminal-match semantics.
+   * This heartbeat merely asks the idempotent authority whether the
+   * round can advance LIVE -> FINAL_CALCULABLE.
+   */
+  try {
+    await deps.advanceRoundFinalCalculable({
+      client: input.client,
+      fantagolRoundId:
+        round.fantagolRoundId,
+    });
+
+    /*
+     * Lifecycle-specific final rebuild producer.
+     *
+     * The database authority deliberately owns no job enqueue.
+     * Once League Rounds are FINAL_CALCULABLE, enqueue one
+     * idempotent final rebuild per enabled League Round.
+     *
+     * If the round is not ready yet this resolves zero targets.
+     * Partial enqueue failure is safe: the next heartbeat retries
+     * and enqueue_live_runtime_job_rpc preserves idempotency.
+     */
+    await deps.enqueueFinalCalculableRebuilds({
+      client: input.client,
+      fantagolRoundId:
+        round.fantagolRoundId,
+      correlationId,
+      causationId: null,
+    });
+  } catch {
+    /*
+     * Fail open at transport/orchestration level.
+     * The DB authority itself fails closed and the next heartbeat retries.
+     */
+  }
+
+
   try {
     await deps.expireDuePredictionRecoveries({
       client: input.client,

@@ -108,6 +108,117 @@ async function loadCalculableLeagueRoundIds(
   });
 }
 
+
+export type EnqueueFinalCalculableLeagueRoundRebuildJobsInput = {
+  client: SupabaseClient;
+  fantagolRoundId: string;
+  correlationId: string | null;
+  causationId: string | null;
+};
+
+type FinalCalculableLeagueRoundRow = {
+  id: string;
+  version: number;
+  status: string;
+  enabled: boolean;
+};
+
+function buildFinalCalculableRebuildIdempotencyKey(input: {
+  leagueRoundId: string;
+  leagueRoundVersion: number;
+}): string {
+  return [
+    "live",
+    "final-calculable",
+    "rebuild-league-round",
+    input.leagueRoundId,
+    `v${input.leagueRoundVersion}`,
+  ].join(":");
+}
+
+async function loadFinalCalculableLeagueRounds(
+  client: SupabaseClient,
+  fantagolRoundId: string,
+): Promise<FinalCalculableLeagueRoundRow[]> {
+  const { data, error } = await client
+    .from("league_rounds")
+    .select("id,version,status,enabled")
+    .eq("fantagol_round_id", fantagolRoundId)
+    .eq("enabled", true)
+    .eq("status", "final_calculable");
+
+  if (error) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message:
+        "Unable to resolve FINAL_CALCULABLE league rounds before rebuild enqueue",
+      details: {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        fantagolRoundId,
+      },
+      cause: error,
+    });
+  }
+
+  return (data ?? []) as FinalCalculableLeagueRoundRow[];
+}
+
+export async function enqueueFinalCalculableLeagueRoundRebuildJobs(
+  input: EnqueueFinalCalculableLeagueRoundRebuildJobsInput,
+): Promise<EnqueuedLiveRuntimeJob[]> {
+  const leagueRounds =
+    await loadFinalCalculableLeagueRounds(
+      input.client,
+      input.fantagolRoundId,
+    );
+
+  const jobs: EnqueuedLiveRuntimeJob[] = [];
+
+  for (const leagueRound of leagueRounds) {
+    const rebuildJob =
+      await enqueueLiveRuntimeJob(
+        input.client,
+        {
+          jobType: "rebuild_league_round",
+          scopeType: "league_round",
+          scopeId: leagueRound.id,
+          idempotencyKey:
+            buildFinalCalculableRebuildIdempotencyKey({
+              leagueRoundId:
+                leagueRound.id,
+              leagueRoundVersion:
+                leagueRound.version,
+            }),
+          priority: 30,
+          payload: {
+            fantagol_round_id:
+              input.fantagolRoundId,
+            league_round_id:
+              leagueRound.id,
+            league_round_version:
+              leagueRound.version,
+            lifecycle_reason:
+              "final_calculable",
+            publication_channel:
+              "realtime",
+            round_certification_reason:
+              "automatic official round certification",
+          },
+          correlationId:
+            input.correlationId,
+          causationId:
+            input.causationId,
+        },
+      );
+
+    jobs.push(rebuildJob);
+  }
+
+  return jobs;
+}
 export async function enqueueLeagueRoundRebuildJobs(
   input: EnqueueLeagueRoundRebuildJobsInput,
 ): Promise<EnqueuedLiveRuntimeJob[]> {
