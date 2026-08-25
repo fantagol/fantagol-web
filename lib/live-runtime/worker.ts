@@ -5,6 +5,9 @@ import { handleCertifyAchievementStateJob } from "./certify-achievement-state-ha
 import { handleCertifyMatchResultJob } from "./certify-match-result-handler";
 import { handleCertifyRoundJob } from "./certify-round-handler";
 import { LiveRuntimeError } from "./errors";
+import {
+  handleTerminalGameObjectiveHook,
+} from "./terminal-game-objective-hook";
 import { handlePollBatchJob } from "./poll-batch-handler";
 import { handlePollMatchJob } from "./poll-match-handler";
 import {
@@ -337,6 +340,11 @@ export async function runLiveRuntimeWorkerOnce(
       workerId: input.workerId,
       result,
     });
+
+    await handleTerminalGameObjectiveHook(
+      input.client,
+      job,
+    );
 
     return {
       claimed: true,
