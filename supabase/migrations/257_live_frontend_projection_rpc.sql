@@ -1,6 +1,6 @@
 -- ================================================================
 -- FANTAGOL
--- 255_live_frontend_projection_rpc.sql
+-- 257_live_frontend_projection_rpc.sql
 --
 -- R40-R14E2
 -- Canonical post-lock LIVE frontend projection.

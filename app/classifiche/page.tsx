@@ -111,7 +111,7 @@ type StandingsRpcRow = {
 
 const modeDescriptions: Record<Mode, string> = {
   pure_points:
-    "Somma dinamica dei punti FantaGol, comprensiva della baseline certificata e della giornata corrente.",
+    "Somma dei punti FantaGol consolidati fino all'ultima giornata ufficialmente certificata.",
   fantacalcio:
     "Classifica a scontri diretti generata dalle fasce punti-gol e dalle regole Fantacalcio attive.",
   one_to_one:
@@ -423,11 +423,9 @@ export default function ClassifichePage() {
         return;
       }
 
-      setRoundNumber(currentRound.league_round_number ?? null);
-
       const { data: standingsData, error: standingsError } = await supabase.rpc(
-        "get_my_standings_preview_rpc",
-        { p_league_round_id: currentRound.league_round_id }
+        "get_my_official_standings_rpc",
+        { p_league_id: selectedLeague.league_id }
       );
 
       if (cancelled) return;
@@ -438,17 +436,30 @@ export default function ClassifichePage() {
         return;
       }
 
-      const response = ((standingsData || []) as StandingsRpcRow[])[0];
+      const response = ((standingsData || []) as Array<{
+        league_id: string;
+        league_round_id: string | null;
+        league_round_number: number | null;
+        certification_id: string | null;
+        certification_version: number | null;
+        certification_status: string | null;
+        committed_at: string | null;
+        standings_snapshot: StandingsRpcRow["standings_preview"];
+        bootstrap: boolean;
+      }>)[0];
 
-      if (!response?.standings_preview) {
+      if (!response?.standings_snapshot) {
         setStandings({});
         setSimulationStatus("");
         setGeneratedAt(null);
+        setRoundNumber(null);
         setLoading(false);
         return;
       }
 
-      const rawModes = response.standings_preview.modes || {};
+      setRoundNumber(response.league_round_number ?? null);
+
+      const rawModes = response.standings_snapshot.modes || {};
       const nextStandings: Partial<Record<Mode, ModePayload>> = {};
 
       for (const candidateMode of [
@@ -467,8 +478,8 @@ export default function ClassifichePage() {
       }
 
       setStandings(nextStandings);
-      setSimulationStatus(response.simulation_status || "");
-      setGeneratedAt(response.standings_preview.generated_at || null);
+      setSimulationStatus(response.certification_status ?? (response.bootstrap ? "bootstrap" : ""));
+      setGeneratedAt(response.standings_snapshot.generated_at || null);
 
       const firstAvailableMode = (
   ["pure_points", "fantacalcio", "one_to_one"] as Mode[]
