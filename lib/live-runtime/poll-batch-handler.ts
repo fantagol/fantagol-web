@@ -6,6 +6,11 @@ import {
   persistMarketBatchIntelligence,
   type MarketBatchCanonicalMatch,
 } from "./market-intelligence-round-orchestrator";
+import {
+  buildTheOddsRoundBootstrapMapping,
+  loadTheOddsBootstrapCanonicalTargets,
+  persistTheOddsRoundBootstrapMapping,
+} from "./the-odds-package-bootstrap";
 import { persistCanonicalOddsSnapshot } from "./odds-snapshot-service";
 import {
   executeProviderBatchPoll,
@@ -180,6 +185,96 @@ function getOptionalString(
     : undefined;
 }
 
+export type TheOddsBootstrapDiscoveryPlan =
+  | {
+      bootstrapDiscovery: false;
+    }
+  | {
+      bootstrapDiscovery: true;
+      fantagolRoundId: string;
+      competitionCode: string;
+    };
+
+/**
+ * Parse the explicit The Odds API mapping-bootstrap poll_batch contract.
+ *
+ * This is deliberately separate from ordinary match_targets polling:
+ *
+ * normal poll_batch
+ *   -> canonical external Match IDs already exist
+ *
+ * bootstrap discovery poll_batch
+ *   -> external Match IDs do NOT exist yet
+ *   -> sport-level PACKAGE discovery will establish them
+ *
+ * R47-R2B2-A only recognizes and validates this contract.
+ * Execution remains fail-closed before any provider request.
+ */
+export function parseTheOddsBootstrapDiscoveryPlan(
+  input: {
+    payload: Record<string, unknown>;
+    providerCode: string;
+    mode: ProviderBatchPollMode;
+  },
+): TheOddsBootstrapDiscoveryPlan {
+  const rawDiscovery =
+    input.payload.bootstrap_discovery;
+
+  if (rawDiscovery !== true) {
+    return {
+      bootstrapDiscovery: false,
+    };
+  }
+
+  if (
+    input.providerCode !==
+    "the_odds_api"
+  ) {
+    throw new Error(
+      "THE_ODDS_BOOTSTRAP_DISCOVERY_PROVIDER_INVALID",
+    );
+  }
+
+  if (input.mode !== "prematch") {
+    throw new Error(
+      "THE_ODDS_BOOTSTRAP_DISCOVERY_MODE_INVALID",
+    );
+  }
+
+  /*
+   * Never permit a hybrid job.
+   *
+   * A bootstrap discovery job cannot carry match_targets because those
+   * targets necessarily imply provider external IDs already exist.
+   */
+  if (
+    input.payload.match_targets !==
+    undefined
+  ) {
+    throw new Error(
+      "THE_ODDS_BOOTSTRAP_DISCOVERY_MATCH_TARGETS_FORBIDDEN",
+    );
+  }
+
+  const fantagolRoundId =
+    getRequiredString(
+      input.payload,
+      "fantagol_round_id",
+    );
+
+  const competitionCode =
+    getOptionalString(
+      input.payload,
+      "competition_code",
+    ) ?? "SA";
+
+  return {
+    bootstrapDiscovery: true,
+    fantagolRoundId,
+    competitionCode,
+  };
+}
+
 export async function handlePollBatchJob(input: {
   client: SupabaseClient;
   job: ClaimedLiveRuntimeJob;
@@ -188,17 +283,6 @@ export async function handlePollBatchJob(input: {
     getRequiredString(
       input.job.payload,
       "provider_code",
-    );
-
-  const matchTargets =
-    getBatchMatchTargets(
-      input.job.payload,
-    );
-
-  const externalMatchIds =
-    matchTargets.map(
-      (target) =>
-        target.externalMatchId,
     );
 
   const mode =
@@ -215,6 +299,119 @@ export async function handlePollBatchJob(input: {
       `Unsupported batch polling mode '${mode}'.`,
     );
   }
+
+  const bootstrapDiscovery =
+    parseTheOddsBootstrapDiscoveryPlan({
+      payload:
+        input.job.payload,
+      providerCode,
+      mode,
+    });
+
+  /*
+   * R47-R2B2-C bootstrap discovery execution.
+   *
+   * canonical Round Match Set
+   *   -> one sport-level The Odds API PACKAGE discovery
+   *   -> deterministic exact fixture mapping
+   *   -> atomic DB mapping authority
+   *
+   * EVENT / ADVANCED transport remains excluded by the
+   * bootstrap payload parser.
+   */
+  if (
+    bootstrapDiscovery.bootstrapDiscovery
+  ) {
+    const canonicalTargets =
+      await loadTheOddsBootstrapCanonicalTargets({
+        client:
+          input.client,
+        fantagolRoundId:
+          bootstrapDiscovery.fantagolRoundId,
+      });
+
+    const discoveryResult =
+      await executeProviderBatchPoll(
+        input.client,
+        createDefaultProviderRuntimeRegistry(),
+        providerCode,
+        [],
+        {
+          mode,
+          competitionCode:
+            bootstrapDiscovery.competitionCode,
+          dateFrom:
+            getOptionalString(
+              input.job.payload,
+              "date_from",
+            ),
+          dateTo:
+            getOptionalString(
+              input.job.payload,
+              "date_to",
+            ),
+          discovery: true,
+        },
+      );
+
+    const mappings =
+      buildTheOddsRoundBootstrapMapping({
+        targets:
+          canonicalTargets,
+        polls:
+          discoveryResult.results,
+      });
+
+    const mappingPersistence =
+      await persistTheOddsRoundBootstrapMapping({
+        client:
+          input.client,
+        fantagolRoundId:
+          bootstrapDiscovery.fantagolRoundId,
+        mappings,
+      });
+
+    return {
+      provider_code:
+        providerCode,
+      mode,
+      bootstrap_discovery:
+        true,
+      fantagol_round_id:
+        bootstrapDiscovery.fantagolRoundId,
+      competition_code:
+        bootstrapDiscovery.competitionCode,
+      canonical_target_count:
+        canonicalTargets.length,
+      provider_event_count:
+        discoveryResult.results.length,
+      mapping_count:
+        mappings.length,
+      mapped_match_count:
+        mappingPersistence.mapped_match_count,
+      inserted_match_count:
+        mappingPersistence.inserted_match_count,
+      distinct_external_match_count:
+        mappingPersistence.distinct_external_match_count,
+      mapping_idempotent:
+        mappingPersistence.idempotent,
+      requested_external_match_ids:
+        discoveryResult.requestedExternalMatchIds,
+      returned_external_match_ids:
+        discoveryResult.returnedExternalMatchIds,
+    };
+  }
+
+  const matchTargets =
+    getBatchMatchTargets(
+      input.job.payload,
+    );
+
+  const externalMatchIds =
+    matchTargets.map(
+      (target) =>
+        target.externalMatchId,
+    );
 
   const result =
     await executeProviderBatchPoll(

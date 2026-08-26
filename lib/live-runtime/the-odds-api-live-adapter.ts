@@ -347,18 +347,41 @@ export class TheOddsApiLiveAdapter
       );
     }
 
+    const discovery =
+      request.discovery === true;
+
     const requestedExternalMatchIds =
-      requireNonEmptyValues(
-        "externalMatchIds",
-        request.externalMatchIds,
-      );
+      discovery
+        ? Array.from(
+            new Set(
+              request.externalMatchIds
+                .map((value) => value.trim())
+                .filter((value) => value !== ""),
+            ),
+          )
+        : requireNonEmptyValues(
+            "externalMatchIds",
+            request.externalMatchIds,
+          );
 
     const query = this.buildSharedQuery();
 
-    query.set(
-      "eventIds",
-      requestedExternalMatchIds.join(","),
-    );
+    /*
+     * Normal PACKAGE:
+     * request exactly the already-certified provider event IDs.
+     *
+     * Bootstrap PACKAGE:
+     * omit eventIds and use the same sport-level /odds response
+     * to discover the new Round's provider event identities.
+     *
+     * This is never the EVENT / ADVANCED refinement transport.
+     */
+    if (!discovery) {
+      query.set(
+        "eventIds",
+        requestedExternalMatchIds.join(","),
+      );
+    }
 
     const endpoint =
       `/sports/${encodeURIComponent(this.sportKey)}/odds`;
@@ -376,16 +399,24 @@ export class TheOddsApiLiveAdapter
     }
 
     const allowed =
-      new Set(requestedExternalMatchIds);
+      discovery
+        ? null
+        : new Set(
+            requestedExternalMatchIds,
+          );
 
     const events = body.filter(
       (event) => {
         const id =
           eventIdFromPayload(event);
 
+        if (id === null) {
+          return false;
+        }
+
         return (
-          id !== null &&
-          allowed.has(id)
+          discovery ||
+          allowed?.has(id) === true
         );
       },
     );

@@ -47,7 +47,15 @@ import {
   loadCanonicalMarketPolicyInput,
   resolveCanonicalCommunityDecision,
 } from "./production-runtime-state-resolvers";
+import {
+  loadCanonicalTheOddsRoundBootstrapDecision,
+  type TheOddsRoundBootstrapDecision,
+} from "./the-odds-round-bootstrap-policy";
+import {
+  enqueueTheOddsBootstrapPendingIntent,
+} from "./the-odds-bootstrap-pending-intent";
 import type {
+  EnqueuedLiveRuntimeJob,
   LiveRuntimeJobType,
 } from "./job-service";
 
@@ -136,6 +144,21 @@ export type ProductionHeartbeatDependencies = {
     client: SupabaseClient,
     fantagolRoundId: string,
   ) => Promise<MarketRoundPollingTarget[]>;
+
+  loadMarketBootstrapDecision: (input: {
+    client: SupabaseClient;
+    round: ProductionRoundContext;
+    now: Date;
+  }) => Promise<TheOddsRoundBootstrapDecision>;
+
+  enqueueMarketBootstrapIntent: (
+    client: SupabaseClient,
+    input: {
+      fantagolRoundId: string;
+      eligibleAt: string;
+      competitionCode?: string;
+    },
+  ) => Promise<EnqueuedLiveRuntimeJob>;
 
   loadMarketPolicyInput: LoadMarketPolicyInput;
 
@@ -421,6 +444,14 @@ function resolveDependencies(
       overrides.loadMarketTargets ??
       loadMarketRoundProductionTargets,
 
+    loadMarketBootstrapDecision:
+      overrides.loadMarketBootstrapDecision ??
+      loadCanonicalTheOddsRoundBootstrapDecision,
+
+    enqueueMarketBootstrapIntent:
+      overrides.enqueueMarketBootstrapIntent ??
+      enqueueTheOddsBootstrapPendingIntent,
+
     loadMarketPolicyInput:
       overrides.loadMarketPolicyInput ??
       loadCanonicalMarketPolicyInput,
@@ -631,6 +662,77 @@ export async function runProductionHeartbeat(
       skipped();
 
   try {
+    /*
+     * Mapping bootstrap gate.
+     *
+     * This MUST execute before loadMarketRoundProductionTargets(), because
+     * that canonical loader intentionally requires complete Odds mappings.
+     *
+     * R16-R2B1 is observation/gating only:
+     * bootstrap/wait does not enqueue, call providers or consume credits.
+     */
+    const bootstrapDecision =
+      await deps.loadMarketBootstrapDecision({
+        client:
+          input.client,
+        round,
+        now,
+      });
+
+    if (
+      bootstrapDecision.action ===
+      "wait"
+    ) {
+      throw new Error(
+        [
+          "THE_ODDS_BOOTSTRAP_WAIT",
+          bootstrapDecision.reason,
+          bootstrapDecision.eligibleAt ??
+            "none",
+          `${bootstrapDecision.mappedMatchCount}/${bootstrapDecision.requiredMatchCount}`,
+        ].join(":"),
+      );
+    }
+
+    if (
+      bootstrapDecision.action ===
+      "bootstrap"
+    ) {
+      const eligibleAt =
+        bootstrapDecision.eligibleAt;
+
+      const bootstrapJob =
+        await deps.enqueueMarketBootstrapIntent(
+          input.client,
+          {
+            fantagolRoundId:
+              round.fantagolRoundId,
+            eligibleAt,
+            competitionCode:
+              "SA",
+          },
+        );
+
+      /*
+       * R2B2-B deliberately stops here.
+       *
+       * The job may now exist in the canonical queue, but R2B2-A still
+       * makes its worker execution fail closed before the Odds provider.
+       */
+      throw new Error(
+        [
+          "THE_ODDS_BOOTSTRAP_PENDING",
+          bootstrapDecision.reason,
+          eligibleAt,
+          bootstrapJob.jobId,
+          bootstrapJob.inserted
+            ? "inserted"
+            : "reused",
+          `${bootstrapDecision.mappedMatchCount}/${bootstrapDecision.requiredMatchCount}`,
+        ].join(":"),
+      );
+    }
+
     const targets =
       await deps.loadMarketTargets(
         input.client,

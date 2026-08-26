@@ -25,6 +25,20 @@ export type ProviderBatchPollRequest = {
   externalMatchIds: string[];
 
   /**
+   * Explicit provider-level discovery mode.
+   *
+   * false / undefined:
+   *   externalMatchIds are authoritative and must be requested exactly.
+   *
+   * true:
+   *   the batch adapter may perform one sport-level PACKAGE request without
+   *   provider event IDs. This exists only to bootstrap a new FantaGol Round.
+   *
+   * Discovery MUST NOT be used by EVENT / ADVANCED polling.
+   */
+  discovery?: boolean;
+
+  /**
    * live:
    *   Provider-optimized active Match collection.
    *

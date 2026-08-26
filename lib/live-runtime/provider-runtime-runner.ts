@@ -31,6 +31,7 @@ export async function executeProviderBatchPoll(
     competitionCode?: string;
     dateFrom?: string;
     dateTo?: string;
+    discovery?: boolean;
   },
 ): Promise<ProviderBatchPollResult> {
   const adapter = registry.get(providerCode);
@@ -48,5 +49,6 @@ export async function executeProviderBatchPoll(
     competitionCode: options?.competitionCode,
     dateFrom: options?.dateFrom,
     dateTo: options?.dateTo,
+    discovery: options?.discovery,
   });
 }
