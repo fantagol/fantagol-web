@@ -1891,8 +1891,8 @@ export default function GiornataPage() {
                     </div>
 
                     <div className="text-center text-[13px] font-black leading-none text-white sm:text-2xl">
-                      {showLiveScore && activeKeys.size
-                        ? getMatchPoints(activeKeys)
+                      {showLiveScore && liveResult
+                        ? toLivePoints(liveResult.base_total)
                         : "-"}
                     </div>
 
