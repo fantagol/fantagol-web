@@ -2362,7 +2362,6 @@ export default function OneToOneLivePage() {
 
   async function submitStrategy() {
     if (
-      !strategySubmittable ||
       strategyPendingSchedule) {
       setStrategyAvailabilityModalOpen(true);
       return;
