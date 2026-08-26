@@ -22,8 +22,13 @@ type TheOddsBootstrapRoundMatchRow = {
 type TheOddsBootstrapMatchRow = {
   id: string;
   kickoff: string;
-  home_team: string;
-  away_team: string;
+  home_team_id: string;
+  away_team_id: string;
+};
+
+type TheOddsBootstrapTeamRow = {
+  id: string;
+  name: string;
 };
 
 export async function loadTheOddsBootstrapCanonicalTargets(
@@ -103,7 +108,7 @@ export async function loadTheOddsBootstrapCanonicalTargets(
   } = await input.client
     .from("matches")
     .select(
-      "id,kickoff,home_team,away_team",
+      "id,kickoff,home_team_id,away_team_id",
     )
     .in(
       "id",
@@ -132,6 +137,71 @@ export async function loadTheOddsBootstrapCanonicalTargets(
       ),
     );
 
+  const teamIds =
+    [
+      ...new Set(
+        matches.flatMap(
+          (match) => [
+            match.home_team_id,
+            match.away_team_id,
+          ],
+        ),
+      ),
+    ];
+
+  if (
+    teamIds.length !==
+    matches.length * 2
+  ) {
+    throw new Error(
+      "THE_ODDS_BOOTSTRAP_CANONICAL_TEAM_CARDINALITY_INVALID",
+    );
+  }
+
+  const {
+    data: teamData,
+    error: teamError,
+  } = await input.client
+    .from("teams")
+    .select(
+      "id,name",
+    )
+    .in(
+      "id",
+      teamIds,
+    );
+
+  if (teamError) {
+    throw new Error(
+      `THE_ODDS_BOOTSTRAP_CANONICAL_TEAMS_LOAD_FAILED:${teamError.message}`,
+    );
+  }
+
+  const teams =
+    (
+      teamData ??
+      []
+    ) as TheOddsBootstrapTeamRow[];
+
+  if (
+    teams.length !==
+    teamIds.length
+  ) {
+    throw new Error(
+      `THE_ODDS_BOOTSTRAP_CANONICAL_TEAMS_INCOMPLETE:${teamIds.length}:${teams.length}`,
+    );
+  }
+
+  const teamById =
+    new Map(
+      teams.map(
+        (team) => [
+          team.id,
+          team,
+        ],
+      ),
+    );
+
   return roundMatches.map(
     (roundMatch) => {
       const match =
@@ -148,13 +218,43 @@ export async function loadTheOddsBootstrapCanonicalTargets(
       if (
         typeof match.kickoff !== "string" ||
         match.kickoff.trim() === "" ||
-        typeof match.home_team !== "string" ||
-        match.home_team.trim() === "" ||
-        typeof match.away_team !== "string" ||
-        match.away_team.trim() === ""
+        typeof match.home_team_id !== "string" ||
+        match.home_team_id.trim() === "" ||
+        typeof match.away_team_id !== "string" ||
+        match.away_team_id.trim() === ""
       ) {
         throw new Error(
           `THE_ODDS_BOOTSTRAP_CANONICAL_MATCH_INVALID:${roundMatch.match_id}`,
+        );
+      }
+
+      const homeTeam =
+        teamById.get(
+          match.home_team_id,
+        );
+
+      const awayTeam =
+        teamById.get(
+          match.away_team_id,
+        );
+
+      if (
+        !homeTeam ||
+        typeof homeTeam.name !== "string" ||
+        homeTeam.name.trim() === ""
+      ) {
+        throw new Error(
+          `THE_ODDS_BOOTSTRAP_CANONICAL_HOME_TEAM_MISSING:${roundMatch.match_id}:${match.home_team_id}`,
+        );
+      }
+
+      if (
+        !awayTeam ||
+        typeof awayTeam.name !== "string" ||
+        awayTeam.name.trim() === ""
+      ) {
+        throw new Error(
+          `THE_ODDS_BOOTSTRAP_CANONICAL_AWAY_TEAM_MISSING:${roundMatch.match_id}:${match.away_team_id}`,
         );
       }
 
@@ -166,9 +266,9 @@ export async function loadTheOddsBootstrapCanonicalTargets(
         kickoffAt:
           match.kickoff,
         homeTeam:
-          match.home_team,
+          homeTeam.name.trim(),
         awayTeam:
-          match.away_team,
+          awayTeam.name.trim(),
       };
     },
   );
