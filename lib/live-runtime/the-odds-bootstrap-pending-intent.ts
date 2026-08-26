@@ -28,7 +28,7 @@ import {
  * failure has been understood.
  */
 export const THE_ODDS_BOOTSTRAP_SUPPORTED_GENERATION =
-  3 as const;
+  4 as const;
 
 export type BuildTheOddsBootstrapPendingIntentInput = {
   fantagolRoundId: string;

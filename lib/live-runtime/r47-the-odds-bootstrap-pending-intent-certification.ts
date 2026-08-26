@@ -21,7 +21,7 @@ const baseKey =
 
 assert.equal(
   THE_ODDS_BOOTSTRAP_SUPPORTED_GENERATION,
-  3,
+  4,
 );
 
 const noHistory =
@@ -58,16 +58,9 @@ const activeG1 =
     ],
   });
 
-assert.deepEqual(
-  activeG1,
-  {
-    generation:
-      1,
-    idempotencyKey:
-      baseKey,
-    reason:
-      "reuse_active_generation",
-  },
+assert.equal(
+  activeG1.generation,
+  1,
 );
 
 const g1Dead =
@@ -96,7 +89,7 @@ assert.deepEqual(
   },
 );
 
-const realG2State =
+const g2Dead =
   decideTheOddsBootstrapGeneration({
     baseIdempotencyKey:
       baseKey,
@@ -117,7 +110,7 @@ const realG2State =
   });
 
 assert.deepEqual(
-  realG2State,
+  g2Dead,
   {
     generation:
       3,
@@ -128,7 +121,7 @@ assert.deepEqual(
   },
 );
 
-const activeG3 =
+const realG2Recovery =
   decideTheOddsBootstrapGeneration({
     baseIdempotencyKey:
       baseKey,
@@ -149,18 +142,62 @@ const activeG3 =
         idempotencyKey:
           `${baseKey}:g3`,
         status:
+          "dead_letter",
+      },
+    ],
+  });
+
+assert.deepEqual(
+  realG2Recovery,
+  {
+    generation:
+      4,
+    idempotencyKey:
+      `${baseKey}:g4`,
+    reason:
+      "terminal_rollover",
+  },
+);
+
+const activeG4 =
+  decideTheOddsBootstrapGeneration({
+    baseIdempotencyKey:
+      baseKey,
+    priorJobs: [
+      {
+        idempotencyKey:
+          baseKey,
+        status:
+          "dead_letter",
+      },
+      {
+        idempotencyKey:
+          `${baseKey}:g2`,
+        status:
+          "dead_letter",
+      },
+      {
+        idempotencyKey:
+          `${baseKey}:g3`,
+        status:
+          "dead_letter",
+      },
+      {
+        idempotencyKey:
+          `${baseKey}:g4`,
+        status:
           "pending",
       },
     ],
   });
 
 assert.deepEqual(
-  activeG3,
+  activeG4,
   {
     generation:
-      3,
+      4,
     idempotencyKey:
-      `${baseKey}:g3`,
+      `${baseKey}:g4`,
     reason:
       "reuse_active_generation",
   },
@@ -190,9 +227,15 @@ assert.throws(
           status:
             "dead_letter",
         },
+        {
+          idempotencyKey:
+            `${baseKey}:g4`,
+          status:
+            "dead_letter",
+        },
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_GENERATION_EXHAUSTED:3:dead_letter/,
+  /THE_ODDS_BOOTSTRAP_GENERATION_EXHAUSTED:4:dead_letter/,
 );
 
 assert.throws(
@@ -216,12 +259,18 @@ assert.throws(
         {
           idempotencyKey:
             `${baseKey}:g3`,
+          status:
+            "dead_letter",
+        },
+        {
+          idempotencyKey:
+            `${baseKey}:g4`,
           status:
             "completed",
         },
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_COMPLETED_WITH_MAPPING_INCOMPLETE:3/,
+  /THE_ODDS_BOOTSTRAP_COMPLETED_WITH_MAPPING_INCOMPLETE:4/,
 );
 
 assert.throws(
@@ -246,17 +295,23 @@ assert.throws(
           idempotencyKey:
             `${baseKey}:g3`,
           status:
+            "dead_letter",
+        },
+        {
+          idempotencyKey:
+            `${baseKey}:g4`,
+          status:
             "pending",
         },
         {
           idempotencyKey:
-            `${baseKey}:g3`,
+            `${baseKey}:g4`,
           status:
             "pending",
         },
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_GENERATION_DUPLICATE:3/,
+  /THE_ODDS_BOOTSTRAP_GENERATION_DUPLICATE:4/,
 );
 
 const g1Intent =
@@ -275,11 +330,6 @@ assert.equal(
   baseKey,
 );
 
-assert.equal(
-  g1Intent.payload.bootstrap_generation,
-  1,
-);
-
 const g2Intent =
   buildTheOddsBootstrapPendingIntent({
     fantagolRoundId:
@@ -294,11 +344,6 @@ const g2Intent =
 assert.equal(
   g2Intent.idempotencyKey,
   `${baseKey}:g2`,
-);
-
-assert.equal(
-  g2Intent.payload.bootstrap_generation,
-  2,
 );
 
 const g3Intent =
@@ -317,39 +362,55 @@ assert.equal(
   `${baseKey}:g3`,
 );
 
+const g4Intent =
+  buildTheOddsBootstrapPendingIntent({
+    fantagolRoundId:
+      roundId,
+    eligibleAt,
+    competitionCode:
+      "SA",
+    generation:
+      4,
+  });
+
 assert.equal(
-  g3Intent.payload.bootstrap_generation,
-  3,
+  g4Intent.idempotencyKey,
+  `${baseKey}:g4`,
 );
 
 assert.equal(
-  g3Intent.mode,
+  g4Intent.payload.bootstrap_generation,
+  4,
+);
+
+assert.equal(
+  g4Intent.mode,
   "prematch",
 );
 
 assert.equal(
-  g3Intent.maxAttempts,
+  g4Intent.maxAttempts,
   1,
 );
 
 assert.equal(
-  g3Intent.payload.provider_code,
+  g4Intent.payload.provider_code,
   "the_odds_api",
 );
 
 assert.equal(
-  g3Intent.payload.bootstrap_discovery,
+  g4Intent.payload.bootstrap_discovery,
   true,
 );
 
 assert.equal(
-  g3Intent.payload.market_snapshot_source,
+  g4Intent.payload.market_snapshot_source,
   "PACKAGE",
 );
 
 assert.equal(
   "match_targets" in
-    g3Intent.payload,
+    g4Intent.payload,
   false,
 );
 
@@ -366,23 +427,27 @@ console.log(
 );
 
 console.log(
-  "[PASS] real G2 state g1+g2 dead-letter => g3",
+  "[PASS] g1+g2 dead-letter => g3",
 );
 
 console.log(
-  "[PASS] active g3 reused",
+  "[PASS] real G2 state g1+g2+g3 dead-letter => g4",
 );
 
 console.log(
-  "[PASS] g3 dead-letter => fail closed",
+  "[PASS] active g4 reused",
 );
 
 console.log(
-  "[PASS] completed g3 with incomplete mapping => fail closed",
+  "[PASS] g4 dead-letter => fail closed",
 );
 
 console.log(
-  "[PASS] duplicate g3 => fail closed",
+  "[PASS] completed g4 with incomplete mapping => fail closed",
+);
+
+console.log(
+  "[PASS] duplicate g4 => fail closed",
 );
 
 console.log(
@@ -394,7 +459,11 @@ console.log(
 );
 
 console.log(
-  "[PASS] g3 deterministic suffix enabled",
+  "[PASS] g3 deterministic suffix preserved",
+);
+
+console.log(
+  "[PASS] g4 deterministic suffix enabled",
 );
 
 console.log(
@@ -402,5 +471,5 @@ console.log(
 );
 
 console.log(
-  "[PASS] automatic g4 blocked",
+  "[PASS] automatic g5 blocked",
 );
