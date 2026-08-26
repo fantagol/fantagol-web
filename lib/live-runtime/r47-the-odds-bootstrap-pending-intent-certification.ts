@@ -21,8 +21,19 @@ const baseKey =
 
 assert.equal(
   THE_ODDS_BOOTSTRAP_SUPPORTED_GENERATION,
-  4,
+  5,
 );
+
+const job = (
+  generation: number,
+  status: string,
+) => ({
+  idempotencyKey:
+    generation === 1
+      ? baseKey
+      : `${baseKey}:g${generation}`,
+  status,
+});
 
 const noHistory =
   decideTheOddsBootstrapGeneration({
@@ -49,12 +60,7 @@ const activeG1 =
     baseIdempotencyKey:
       baseKey,
     priorJobs: [
-      {
-        idempotencyKey:
-          baseKey,
-        status:
-          "pending",
-      },
+      job(1, "pending"),
     ],
   });
 
@@ -68,12 +74,7 @@ const g1Dead =
     baseIdempotencyKey:
       baseKey,
     priorJobs: [
-      {
-        idempotencyKey:
-          baseKey,
-        status:
-          "dead_letter",
-      },
+      job(1, "dead_letter"),
     ],
   });
 
@@ -94,110 +95,76 @@ const g2Dead =
     baseIdempotencyKey:
       baseKey,
     priorJobs: [
-      {
-        idempotencyKey:
-          baseKey,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g2`,
-        status:
-          "dead_letter",
-      },
+      job(1, "dead_letter"),
+      job(2, "dead_letter"),
+    ],
+  });
+
+assert.equal(
+  g2Dead.generation,
+  3,
+);
+
+const g3Dead =
+  decideTheOddsBootstrapGeneration({
+    baseIdempotencyKey:
+      baseKey,
+    priorJobs: [
+      job(1, "dead_letter"),
+      job(2, "dead_letter"),
+      job(3, "dead_letter"),
+    ],
+  });
+
+assert.equal(
+  g3Dead.generation,
+  4,
+);
+
+const realG2State =
+  decideTheOddsBootstrapGeneration({
+    baseIdempotencyKey:
+      baseKey,
+    priorJobs: [
+      job(1, "dead_letter"),
+      job(2, "dead_letter"),
+      job(3, "dead_letter"),
+      job(4, "dead_letter"),
     ],
   });
 
 assert.deepEqual(
-  g2Dead,
+  realG2State,
   {
     generation:
-      3,
+      5,
     idempotencyKey:
-      `${baseKey}:g3`,
+      `${baseKey}:g5`,
     reason:
       "terminal_rollover",
   },
 );
 
-const realG2Recovery =
+const activeG5 =
   decideTheOddsBootstrapGeneration({
     baseIdempotencyKey:
       baseKey,
     priorJobs: [
-      {
-        idempotencyKey:
-          baseKey,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g2`,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g3`,
-        status:
-          "dead_letter",
-      },
+      job(1, "dead_letter"),
+      job(2, "dead_letter"),
+      job(3, "dead_letter"),
+      job(4, "dead_letter"),
+      job(5, "pending"),
     ],
   });
 
 assert.deepEqual(
-  realG2Recovery,
+  activeG5,
   {
     generation:
-      4,
+      5,
     idempotencyKey:
-      `${baseKey}:g4`,
-    reason:
-      "terminal_rollover",
-  },
-);
-
-const activeG4 =
-  decideTheOddsBootstrapGeneration({
-    baseIdempotencyKey:
-      baseKey,
-    priorJobs: [
-      {
-        idempotencyKey:
-          baseKey,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g2`,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g3`,
-        status:
-          "dead_letter",
-      },
-      {
-        idempotencyKey:
-          `${baseKey}:g4`,
-        status:
-          "pending",
-      },
-    ],
-  });
-
-assert.deepEqual(
-  activeG4,
-  {
-    generation:
-      4,
-    idempotencyKey:
-      `${baseKey}:g4`,
+      `${baseKey}:g5`,
     reason:
       "reuse_active_generation",
   },
@@ -209,33 +176,14 @@ assert.throws(
       baseIdempotencyKey:
         baseKey,
       priorJobs: [
-        {
-          idempotencyKey:
-            baseKey,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g2`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g3`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g4`,
-          status:
-            "dead_letter",
-        },
+        job(1, "dead_letter"),
+        job(2, "dead_letter"),
+        job(3, "dead_letter"),
+        job(4, "dead_letter"),
+        job(5, "dead_letter"),
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_GENERATION_EXHAUSTED:4:dead_letter/,
+  /THE_ODDS_BOOTSTRAP_GENERATION_EXHAUSTED:5:dead_letter/,
 );
 
 assert.throws(
@@ -244,33 +192,14 @@ assert.throws(
       baseIdempotencyKey:
         baseKey,
       priorJobs: [
-        {
-          idempotencyKey:
-            baseKey,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g2`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g3`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g4`,
-          status:
-            "completed",
-        },
+        job(1, "dead_letter"),
+        job(2, "dead_letter"),
+        job(3, "dead_letter"),
+        job(4, "dead_letter"),
+        job(5, "completed"),
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_COMPLETED_WITH_MAPPING_INCOMPLETE:4/,
+  /THE_ODDS_BOOTSTRAP_COMPLETED_WITH_MAPPING_INCOMPLETE:5/,
 );
 
 assert.throws(
@@ -279,39 +208,15 @@ assert.throws(
       baseIdempotencyKey:
         baseKey,
       priorJobs: [
-        {
-          idempotencyKey:
-            baseKey,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g2`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g3`,
-          status:
-            "dead_letter",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g4`,
-          status:
-            "pending",
-        },
-        {
-          idempotencyKey:
-            `${baseKey}:g4`,
-          status:
-            "pending",
-        },
+        job(1, "dead_letter"),
+        job(2, "dead_letter"),
+        job(3, "dead_letter"),
+        job(4, "dead_letter"),
+        job(5, "pending"),
+        job(5, "pending"),
       ],
     }),
-  /THE_ODDS_BOOTSTRAP_GENERATION_DUPLICATE:4/,
+  /THE_ODDS_BOOTSTRAP_GENERATION_DUPLICATE:5/,
 );
 
 const g1Intent =
@@ -325,11 +230,6 @@ const g1Intent =
       1,
   });
 
-assert.equal(
-  g1Intent.idempotencyKey,
-  baseKey,
-);
-
 const g2Intent =
   buildTheOddsBootstrapPendingIntent({
     fantagolRoundId:
@@ -340,11 +240,6 @@ const g2Intent =
     generation:
       2,
   });
-
-assert.equal(
-  g2Intent.idempotencyKey,
-  `${baseKey}:g2`,
-);
 
 const g3Intent =
   buildTheOddsBootstrapPendingIntent({
@@ -357,11 +252,6 @@ const g3Intent =
       3,
   });
 
-assert.equal(
-  g3Intent.idempotencyKey,
-  `${baseKey}:g3`,
-);
-
 const g4Intent =
   buildTheOddsBootstrapPendingIntent({
     fantagolRoundId:
@@ -373,44 +263,75 @@ const g4Intent =
       4,
   });
 
+const g5Intent =
+  buildTheOddsBootstrapPendingIntent({
+    fantagolRoundId:
+      roundId,
+    eligibleAt,
+    competitionCode:
+      "SA",
+    generation:
+      5,
+  });
+
+assert.equal(
+  g1Intent.idempotencyKey,
+  baseKey,
+);
+
+assert.equal(
+  g2Intent.idempotencyKey,
+  `${baseKey}:g2`,
+);
+
+assert.equal(
+  g3Intent.idempotencyKey,
+  `${baseKey}:g3`,
+);
+
 assert.equal(
   g4Intent.idempotencyKey,
   `${baseKey}:g4`,
 );
 
 assert.equal(
-  g4Intent.payload.bootstrap_generation,
-  4,
+  g5Intent.idempotencyKey,
+  `${baseKey}:g5`,
 );
 
 assert.equal(
-  g4Intent.mode,
+  g5Intent.payload.bootstrap_generation,
+  5,
+);
+
+assert.equal(
+  g5Intent.mode,
   "prematch",
 );
 
 assert.equal(
-  g4Intent.maxAttempts,
+  g5Intent.maxAttempts,
   1,
 );
 
 assert.equal(
-  g4Intent.payload.provider_code,
+  g5Intent.payload.provider_code,
   "the_odds_api",
 );
 
 assert.equal(
-  g4Intent.payload.bootstrap_discovery,
+  g5Intent.payload.bootstrap_discovery,
   true,
 );
 
 assert.equal(
-  g4Intent.payload.market_snapshot_source,
+  g5Intent.payload.market_snapshot_source,
   "PACKAGE",
 );
 
 assert.equal(
   "match_targets" in
-    g4Intent.payload,
+    g5Intent.payload,
   false,
 );
 
@@ -431,23 +352,27 @@ console.log(
 );
 
 console.log(
-  "[PASS] real G2 state g1+g2+g3 dead-letter => g4",
+  "[PASS] g1+g2+g3 dead-letter => g4",
 );
 
 console.log(
-  "[PASS] active g4 reused",
+  "[PASS] real G2 state g1+g2+g3+g4 dead-letter => g5",
 );
 
 console.log(
-  "[PASS] g4 dead-letter => fail closed",
+  "[PASS] active g5 reused",
 );
 
 console.log(
-  "[PASS] completed g4 with incomplete mapping => fail closed",
+  "[PASS] g5 dead-letter => fail closed",
 );
 
 console.log(
-  "[PASS] duplicate g4 => fail closed",
+  "[PASS] completed g5 with incomplete mapping => fail closed",
+);
+
+console.log(
+  "[PASS] duplicate g5 => fail closed",
 );
 
 console.log(
@@ -463,7 +388,11 @@ console.log(
 );
 
 console.log(
-  "[PASS] g4 deterministic suffix enabled",
+  "[PASS] g4 deterministic suffix preserved",
+);
+
+console.log(
+  "[PASS] g5 deterministic suffix enabled",
 );
 
 console.log(
@@ -471,5 +400,5 @@ console.log(
 );
 
 console.log(
-  "[PASS] automatic g5 blocked",
+  "[PASS] automatic g6 blocked",
 );
