@@ -142,26 +142,46 @@ export function buildFootballDataBatchEndpoint(
     return `/matches?${params.toString()}`;
   }
 
-  const dateFrom =
-    requireIsoDate(
-      request.dateFrom,
-      "dateFrom",
-    );
+  /*
+   * PREMATCH schedule discovery must not depend on the kickoff dates
+   * currently stored by FantaGol.
+   *
+   * A kickoff is exactly the attribute this polling branch is expected
+   * to refresh. Restricting the provider request to a date window derived
+   * from stale kickoff values creates a self-referential blind spot:
+   * fixtures moved outside the old window disappear from the response
+   * and can therefore never correct their canonical Match row.
+   *
+   * Football-Data v4 supports exact Match filtering through `ids`.
+   * Query the canonical external Match set directly so kickoff changes
+   * remain discoverable regardless of the new calendar date.
+   */
+  const requestedExternalMatchIds = [
+    ...new Set(
+      request.externalMatchIds
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
 
-  const dateTo =
-    requireIsoDate(
-      request.dateTo,
-      "dateTo",
-    );
-
-  if (dateTo <= dateFrom) {
+  if (requestedExternalMatchIds.length === 0) {
     throw new FootballDataConfigurationError(
-      "dateTo must be later than dateFrom.",
+      "Football-Data prematch batch polling requires at least one match id.",
     );
   }
 
-  params.set("dateFrom", dateFrom);
-  params.set("dateTo", dateTo);
+  for (const externalMatchId of requestedExternalMatchIds) {
+    if (!/^\d+$/.test(externalMatchId)) {
+      throw new FootballDataConfigurationError(
+        `Invalid Football-Data match id '${externalMatchId}'.`,
+      );
+    }
+  }
+
+  params.set(
+    "ids",
+    requestedExternalMatchIds.join(","),
+  );
 
   return `/matches?${params.toString()}`;
 }
