@@ -109,7 +109,7 @@ assert.equal(
 );
 
 const artifacts =
-  events.map(buildMarketRuntimeArtifact);
+  events.map((event) => buildMarketRuntimeArtifact(event));
 
 assert.equal(artifacts.length, 10);
 
