@@ -32,7 +32,9 @@ export type MarketPersistenceMatch = {
   odds_market_snapshot_id: string;
   slot_number: number;
   model_code: "BM_INTERPOLATED";
-  algorithm_version: "BM_INTERPOLATED_V1";
+  algorithm_version:
+    | "BM_INTERPOLATED_V1"
+    | "BM_INTERPOLATED_V2";
   sign: {
     home: number;
     draw: number;

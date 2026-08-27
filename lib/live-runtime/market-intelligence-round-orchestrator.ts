@@ -16,6 +16,12 @@ import {
   toTemporalMarketObservation,
 } from "./market-intelligence-runtime-artifact";
 import {
+  BM_INTERPOLATED_V2,
+  loadActiveMarketRuntimeAlgorithmVersion,
+  loadLatestCommunityTop3ExpertSnapshot,
+  refreshCommunityTop3ExpertSnapshot,
+} from "./top3-expert-market-feature";
+import {
   artifactToPersistenceMatch,
   persistMarketIntelligenceRound,
   type MarketPersistenceMatch,
@@ -479,6 +485,44 @@ export async function persistMarketBatchIntelligence(input: {
         a.slotNumber - b.slotNumber,
     );
 
+  const runtimeAlgorithmVersion =
+    await loadActiveMarketRuntimeAlgorithmVersion(
+      input.client,
+    );
+
+  /*
+   * Top3 lifecycle:
+   *
+   * PACKAGE:
+   *   freeze missing per-league cohort (idempotent),
+   *   read the leaders' latest official predictions,
+   *   persist a new daily aggregate snapshot.
+   *
+   * ADVANCED:
+   *   reuse the latest persisted Top3 snapshot so
+   *   EVENTS refine the same Bookmakers model.
+   *
+   * Source deployment is safe before Migration 277:
+   * V1 never touches the new tables.
+   */
+  const top3ExpertFeatures =
+    runtimeAlgorithmVersion ===
+      BM_INTERPOLATED_V2
+      ? input.source === "PACKAGE"
+        ? await refreshCommunityTop3ExpertSnapshot(
+            input.client,
+            input.fantagolRoundId,
+            input.capturedAt,
+            "PACKAGE",
+          )
+        : (
+            await loadLatestCommunityTop3ExpertSnapshot(
+              input.client,
+              input.fantagolRoundId,
+            )
+          )
+      : new Map();
+
   const persistenceMatches:
     MarketPersistenceMatch[] = [];
 
@@ -500,6 +544,14 @@ export async function persistMarketBatchIntelligence(input: {
     const artifact =
       buildMarketRuntimeArtifact(
         event,
+        {
+          algorithmVersion:
+            runtimeAlgorithmVersion,
+          top3ExpertFeature:
+            top3ExpertFeatures.get(
+              match.matchId,
+            ) ?? null,
+        },
       );
 
     const latest =
@@ -575,6 +627,18 @@ export async function persistMarketBatchIntelligence(input: {
             "R38-C4-E2",
           modeled_match_count:
             persistenceMatches.length,
+          runtime_algorithm_version:
+            runtimeAlgorithmVersion,
+          top3_expert_feature_version:
+            runtimeAlgorithmVersion ===
+              BM_INTERPOLATED_V2
+              ? "TOP3_EXPERT_FEATURE_V1"
+              : null,
+          top3_expert_scope:
+            runtimeAlgorithmVersion ===
+              BM_INTERPOLATED_V2
+              ? "ALL_ACTIVE_LEAGUES"
+              : null,
           ...(input.metadata ?? {}),
         },
       },
