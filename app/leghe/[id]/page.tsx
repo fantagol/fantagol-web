@@ -571,29 +571,18 @@ function buildDashboardMatchGroups(matches: DashboardMatch[]) {
     .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
     .map(([, dayMatches]) => dayMatches);
 
-  let groups: DashboardMatch[][];
+  const groups = [...dayGroups];
 
-  if (dayGroups.length <= 3) {
-    groups = dayGroups;
-  } else {
-    groups = [[], [], []];
-
-    dayGroups.forEach((dayMatches, dayIndex) => {
-      const bucket = Math.min(
-        2,
-        Math.floor((dayIndex * 3) / dayGroups.length),
-      );
-
-      groups[bucket].push(...dayMatches);
-    });
-  }
-
+  /*
+   * Calendar authority:
+   * every distinct local calendar date owns an independent card.
+   *
+   * Do not compress multiple dates into a fixed number of visual
+   * buckets. A Serie A round may span any number of calendar days
+   * because of anticipi, posticipi or rescheduling.
+   */
   if (unscheduledMatches.length > 0) {
-    if (groups.length === 0) {
-      groups = [unscheduledMatches];
-    } else {
-      groups[groups.length - 1].push(...unscheduledMatches);
-    }
+    groups.push(unscheduledMatches);
   }
 
   return groups.filter((group) => group.length > 0);
