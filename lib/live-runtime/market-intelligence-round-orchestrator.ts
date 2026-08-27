@@ -17,6 +17,7 @@ import {
 } from "./market-intelligence-runtime-artifact";
 import {
   BM_INTERPOLATED_V2,
+  isCommunityTop3RefreshOpen,
   loadActiveMarketRuntimeAlgorithmVersion,
   loadLatestCommunityTop3ExpertSnapshot,
   refreshCommunityTop3ExpertSnapshot,
@@ -509,12 +510,25 @@ export async function persistMarketBatchIntelligence(input: {
     runtimeAlgorithmVersion ===
       BM_INTERPOLATED_V2
       ? input.source === "PACKAGE"
-        ? await refreshCommunityTop3ExpertSnapshot(
-            input.client,
-            input.fantagolRoundId,
-            input.capturedAt,
-            "PACKAGE",
+        ? (
+            await isCommunityTop3RefreshOpen(
+              input.client,
+              input.fantagolRoundId,
+              input.capturedAt,
+            )
           )
+          ? await refreshCommunityTop3ExpertSnapshot(
+              input.client,
+              input.fantagolRoundId,
+              input.capturedAt,
+              "PACKAGE",
+            )
+          : (
+              await loadLatestCommunityTop3ExpertSnapshot(
+                input.client,
+                input.fantagolRoundId,
+              )
+            )
         : (
             await loadLatestCommunityTop3ExpertSnapshot(
               input.client,

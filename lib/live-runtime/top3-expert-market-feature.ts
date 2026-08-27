@@ -1009,6 +1009,65 @@ async function currentPredictions(
 }
 
 export async function
+isCommunityTop3RefreshOpen(
+  client: SupabaseClient,
+  roundId: string,
+  capturedAt: string,
+): Promise<boolean> {
+  const capturedAtMs =
+    Date.parse(capturedAt);
+
+  if (!Number.isFinite(capturedAtMs)) {
+    throw new Error(
+      "TOP3_REFRESH_CAPTURED_AT_INVALID",
+    );
+  }
+
+  const { data, error } =
+    await client
+      .from("fantagol_rounds")
+      .select("starts_at")
+      .eq("id", roundId)
+      .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `TOP3_REFRESH_ROUND_TIMING_FAILED:${error.message}`,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data.starts_at !==
+      "string"
+  ) {
+    throw new Error(
+      "TOP3_REFRESH_ROUND_TIMING_MISSING",
+    );
+  }
+
+  const kickoffMs =
+    Date.parse(data.starts_at);
+
+  if (!Number.isFinite(kickoffMs)) {
+    throw new Error(
+      "TOP3_REFRESH_KICKOFF_INVALID",
+    );
+  }
+
+  /*
+   * Strict lifecycle boundary:
+   *
+   * capturedAt < starts_at  -> refresh allowed
+   * capturedAt >= starts_at -> frozen
+   *
+   * At kickoff the Top3 signal becomes immutable
+   * for the whole target FantaGol round.
+   */
+  return capturedAtMs < kickoffMs;
+}
+
+export async function
 refreshCommunityTop3ExpertSnapshot(
   client: SupabaseClient,
   roundId: string,
@@ -1019,6 +1078,20 @@ refreshCommunityTop3ExpertSnapshot(
 ): Promise<
   Map<string, Top3ExpertFeatureV1>
 > {
+  const refreshOpen =
+    await isCommunityTop3RefreshOpen(
+      client,
+      roundId,
+      capturedAt,
+    );
+
+  if (!refreshOpen) {
+    return loadLatestCommunityTop3ExpertSnapshot(
+      client,
+      roundId,
+    );
+  }
+
   await ensureFrozenCommunityTop3Cohort(
     client,
     roundId,

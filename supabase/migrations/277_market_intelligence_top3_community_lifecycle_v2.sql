@@ -168,7 +168,7 @@ values (
     'top3_rank_weights', jsonb_build_array(0.45, 0.33, 0.22),
     'top3_max_weight', 0.18,
     'top3_cohort_freeze', 'PREVIOUS_ROUND_CLOSE',
-    'top3_prediction_refresh', 'PACKAGE_DAILY',
+    'top3_prediction_refresh', 'PACKAGE_DAILY_PRE_KICKOFF_ONLY',
     'advanced_top3_policy', 'LATEST_PERSISTED_SNAPSHOT'
   ),
   jsonb_build_object(
