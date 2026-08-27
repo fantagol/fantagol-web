@@ -25,6 +25,19 @@ type RefreshLiveMatchRpcRow = {
   period: string | null;
 };
 
+type RoundTimingReconciliationRpcRow = {
+  applied: boolean;
+  reason: string;
+  fantagol_round_id: string;
+  round_status: string;
+  previous_lock_at: string;
+  current_lock_at: string;
+  previous_starts_at: string;
+  current_starts_at: string;
+  previous_ends_at: string | null;
+  current_ends_at: string | null;
+};
+
 export type HandleRefreshRoundJobInput = {
   client: SupabaseClient;
   job: ClaimedLiveRuntimeJob;
@@ -202,6 +215,32 @@ export async function handleRefreshRoundJob({
       refreshedApplied: refreshed.applied,
     });
 
+  /*
+   * Canonical schedule propagation.
+   *
+   * Match kickoff is provider-owned; FantaGol Round timing is
+   * derived from the complete required active Match Set.
+   *
+   * This is intentionally generic: any pre-live kickoff move,
+   * regardless of weekday or direction, reconciles the Round.
+   */
+  const roundTiming =
+    refreshed.applied &&
+    fantagolRoundId !== null &&
+    changedFields.includes("kickoffAt")
+      ? requireSingleRpcRow(
+          await callRuntimeRpc<RoundTimingReconciliationRpcRow>(
+            client,
+            "reconcile_fantagol_round_timing_internal",
+            {
+              p_fantagol_round_id:
+                fantagolRoundId,
+            },
+          ),
+          "reconcile_fantagol_round_timing_internal",
+        )
+      : null;
+
   const shouldMaterializePostponed =
     sideEffects.materializePostponed;
 
@@ -261,6 +300,16 @@ export async function handleRefreshRoundJob({
     away_score: refreshed.away_score,
     minute: refreshed.minute,
     period: refreshed.period,
+    round_timing_reconciled:
+      roundTiming?.applied ?? false,
+    round_timing_reason:
+      roundTiming?.reason ?? null,
+    round_lock_at:
+      roundTiming?.current_lock_at ?? null,
+    round_starts_at:
+      roundTiming?.current_starts_at ?? null,
+    round_ends_at:
+      roundTiming?.current_ends_at ?? null,
     postponed_governance_materialized:
       shouldMaterializePostponed,
     postponed_governance_decision_count:
