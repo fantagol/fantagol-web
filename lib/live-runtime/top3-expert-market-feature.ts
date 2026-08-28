@@ -90,6 +90,8 @@ const RANK_WEIGHT = new Map([
   [3, 0.22],
 ]);
 
+const TOP3_MIN_ACTIVE_USER_PARTICIPANTS = 4;
+
 const MAX_TOP3_WEIGHT = 0.18;
 
 function numberValue(
@@ -297,166 +299,316 @@ ensureFrozenCommunityTop3Cohort(
   }
 
   /*
-   * Cumulative Punti Puri authority:
-   * sum every enabled league-round ledger entry
-   * strictly before the target round.
+   * TOP3_CANONICAL_STANDINGS_SNAPSHOT
+   *
+   * The Top3 service MUST NOT rebuild league standings.
+   * The immutable authority is the active official
+   * Round Certification of the immediately previous
+   * FantaGol Round.
+   *
+   * Ranking order, tie-breaks, zero-point members and
+   * deterministic fallback therefore remain exactly
+   * those already certified by StandingsPreviewBuilder.
    */
   const {
-    data: targetRound,
-    error: targetRoundError,
-  } =
-    await client
-      .from("fantagol_rounds")
-      .select("starts_at")
-      .eq("id", targetRoundId)
-      .maybeSingle();
-
-  if (
-    targetRoundError ||
-    !targetRound?.starts_at
-  ) {
-    throw new Error(
-      `TOP3_TARGET_ROUND_TIMING_FAILED:${targetRoundError?.message ?? "missing"}`,
-    );
-  }
-
-  const {
-    data: previousRounds,
-    error: previousRoundsError,
-  } =
-    await client
-      .from("fantagol_rounds")
-      .select("id")
-      .lt(
-        "starts_at",
-        targetRound.starts_at,
-      );
-
-  if (previousRoundsError) {
-    throw new Error(
-      `TOP3_PREVIOUS_ROUND_SET_FAILED:${previousRoundsError.message}`,
-    );
-  }
-
-  const previousRoundIds =
-    (previousRounds ?? [])
-      .map((row) => row.id)
-      .filter(
-        (id): id is string =>
-          typeof id === "string",
-      );
-
-  if (previousRoundIds.length === 0) {
-    return;
-  }
-
-  const {
-    data: leagueRoundData,
-    error: leagueRoundError,
+    data: basisLeagueRoundData,
+    error: basisLeagueRoundError,
   } =
     await client
       .from("league_rounds")
       .select("id,league_id")
-      .in(
+      .eq(
         "fantagol_round_id",
-        previousRoundIds,
+        basisRoundId,
       )
       .eq("enabled", true);
 
-  if (leagueRoundError) {
+  if (basisLeagueRoundError) {
     throw new Error(
-      `TOP3_LEAGUE_ROUNDS_FAILED:${leagueRoundError.message}`,
+      `TOP3_BASIS_LEAGUE_ROUNDS_FAILED:${basisLeagueRoundError.message}`,
     );
   }
 
-  const leagueRounds =
-    (leagueRoundData ?? []) as
+  const basisLeagueRounds =
+    (basisLeagueRoundData ?? []) as
       LeagueRoundRow[];
 
-  const leagueByRound =
-    new Map(
-      leagueRounds.map(
-        (row) => [
-          row.id,
+  if (basisLeagueRounds.length === 0) {
+    return;
+  }
+
+  /*
+   * TOP3_MINIMUM_REAL_PARTICIPANTS
+   *
+   * A Top3 panel has semantic value only when
+   * the league contains at least four real,
+   * currently active participants.
+   *
+   * Active membership rows without user_id are
+   * not eligible participants for the expert
+   * signal and MUST NOT make a league eligible.
+   */
+  const basisLeagueIds =
+    [...new Set(
+      basisLeagueRounds.map(
+        (row) => row.league_id,
+      ),
+    )];
+
+  const {
+    data: activeMemberData,
+    error: activeMemberError,
+  } =
+    await client
+      .from("league_members")
+      .select(
+        "id,league_id,user_id,status",
+      )
+      .in(
+        "league_id",
+        basisLeagueIds,
+      )
+      .eq("status", "active");
+
+  if (activeMemberError) {
+    throw new Error(
+      `TOP3_ACTIVE_PARTICIPANTS_FAILED:${activeMemberError.message}`,
+    );
+  }
+
+  const activeUserCountByLeague =
+    new Map<string, number>();
+
+  for (
+    const row
+    of activeMemberData ?? []
+  ) {
+    if (
+      typeof row.league_id !==
+        "string" ||
+      typeof row.user_id !==
+        "string"
+    ) {
+      continue;
+    }
+
+    activeUserCountByLeague.set(
+      row.league_id,
+      (
+        activeUserCountByLeague.get(
           row.league_id,
+        ) ?? 0
+      ) + 1,
+    );
+  }
+
+  const eligibleLeagueIds =
+    new Set(
+      basisLeagueIds.filter(
+        (leagueId) =>
+          (
+            activeUserCountByLeague.get(
+              leagueId,
+            ) ?? 0
+          ) >=
+          TOP3_MIN_ACTIVE_USER_PARTICIPANTS,
+      ),
+    );
+
+  if (eligibleLeagueIds.size === 0) {
+    return;
+  }
+
+  const eligibleBasisLeagueRounds =
+    basisLeagueRounds.filter(
+      (row) =>
+        eligibleLeagueIds.has(
+          row.league_id,
+        ),
+    );
+
+  const basisLeagueRoundIds =
+    eligibleBasisLeagueRounds.map(
+      (row) => row.id,
+    );
+
+  const {
+    data: certificationData,
+    error: certificationError,
+  } =
+    await client
+      .from("round_certifications")
+      .select(
+        "id,league_round_id,standings_snapshot",
+      )
+      .in(
+        "league_round_id",
+        basisLeagueRoundIds,
+      )
+      .eq("status", "official")
+      .eq("active", true);
+
+  if (certificationError) {
+    throw new Error(
+      `TOP3_OFFICIAL_STANDINGS_FAILED:${certificationError.message}`,
+    );
+  }
+
+  type OfficialCertificationRow = {
+    id: string;
+    league_round_id: string;
+    standings_snapshot: unknown;
+  };
+
+  type OfficialRankingRow = {
+    league_member_id?: unknown;
+    projected_points?: unknown;
+  };
+
+  const certificationByLeagueRound =
+    new Map(
+      (
+        (certificationData ?? []) as
+          unknown as
+          OfficialCertificationRow[]
+      ).map(
+        (row) => [
+          row.league_round_id,
+          row,
         ],
       ),
     );
 
-  if (leagueByRound.size === 0) {
-    return;
-  }
+  const candidateMemberIds =
+    new Set<string>();
 
-  const {
-    data: ledger,
-    error: ledgerError,
-  } =
-    await client
-      .from(
-        "league_ranking_ledger",
-      )
-      .select(
-        "league_round_id,league_member_id,points_delta",
-      )
-      .in(
-        "league_round_id",
-        [...leagueByRound.keys()],
-      )
-      .eq("mode", "pure_points")
-      .eq("active", true);
-
-  if (ledgerError) {
-    throw new Error(
-      `TOP3_LEDGER_FAILED:${ledgerError.message}`,
-    );
-  }
-
-  const totals =
+  const canonicalTop3ByLeague =
     new Map<
       string,
-      Map<string, number>
+      Array<{
+        memberId: string;
+        points: number;
+        rank: number;
+      }>
     >();
 
-  for (const row of ledger ?? []) {
-    const leagueId =
-      leagueByRound.get(
-        row.league_round_id,
+  for (
+    const leagueRound
+    of eligibleBasisLeagueRounds
+  ) {
+    const certification =
+      certificationByLeagueRound.get(
+        leagueRound.id,
       );
 
-    if (!leagueId) continue;
+    if (!certification) {
+      continue;
+    }
 
-    const perLeague =
-      totals.get(leagueId) ??
-      new Map<string, number>();
+    const snapshot =
+      certification.standings_snapshot;
 
-    perLeague.set(
-      row.league_member_id,
+    if (
+      !snapshot ||
+      typeof snapshot !== "object"
+    ) {
+      continue;
+    }
+
+    const modes =
       (
-        perLeague.get(
-          row.league_member_id,
-        ) ?? 0
-      ) +
-        numberValue(
-          row.points_delta,
-        ),
-    );
+        snapshot as {
+          modes?: unknown;
+        }
+      ).modes;
 
-    totals.set(
-      leagueId,
-      perLeague,
-    );
+    if (
+      !modes ||
+      typeof modes !== "object"
+    ) {
+      continue;
+    }
+
+    const purePoints =
+      (
+        modes as {
+          pure_points?: unknown;
+        }
+      ).pure_points;
+
+    if (
+      !purePoints ||
+      typeof purePoints !== "object"
+    ) {
+      continue;
+    }
+
+    const ranking =
+      (
+        purePoints as {
+          ranking?: unknown;
+        }
+      ).ranking;
+
+    if (!Array.isArray(ranking)) {
+      continue;
+    }
+
+    const canonicalTop3:
+      Array<{
+        memberId: string;
+        points: number;
+        rank: number;
+      }> = [];
+
+    for (
+      let index = 0;
+      index <
+        Math.min(
+          ranking.length,
+          3,
+        );
+      index += 1
+    ) {
+      const row =
+        ranking[index] as
+          OfficialRankingRow;
+
+      const memberId =
+        typeof row
+          ?.league_member_id ===
+          "string"
+          ? row.league_member_id
+          : null;
+
+      if (!memberId) {
+        continue;
+      }
+
+      canonicalTop3.push({
+        memberId,
+        points:
+          numberValue(
+            row.projected_points,
+          ),
+        rank:
+          index + 1,
+      });
+
+      candidateMemberIds.add(
+        memberId,
+      );
+    }
+
+    if (canonicalTop3.length > 0) {
+      canonicalTop3ByLeague.set(
+        leagueRound.league_id,
+        canonicalTop3,
+      );
+    }
   }
 
-  const allMemberIds =
-    [...new Set(
-      [...totals.values()]
-        .flatMap(
-          (map) =>
-            [...map.keys()],
-        ),
-    )];
-
-  if (allMemberIds.length === 0) {
+  if (candidateMemberIds.size === 0) {
     return;
   }
 
@@ -467,10 +619,12 @@ ensureFrozenCommunityTop3Cohort(
     await client
       .from("league_members")
       .select(
-        "id,league_id,user_id,status",
+        "id,league_id,user_id",
       )
-      .in("id", allMemberIds)
-      .eq("status", "active");
+      .in(
+        "id",
+        [...candidateMemberIds],
+      );
 
   if (memberError) {
     throw new Error(
@@ -483,6 +637,8 @@ ensureFrozenCommunityTop3Cohort(
       (members ?? [])
         .filter(
           (row) =>
+            typeof row.id ===
+              "string" &&
             typeof row.user_id ===
               "string" &&
             typeof row.league_id ===
@@ -508,47 +664,28 @@ ensureFrozenCommunityTop3Cohort(
   }> = [];
 
   for (
-    const [leagueId, perLeague]
-    of totals.entries()
+    const [
+      leagueId,
+      canonicalTop3,
+    ]
+    of canonicalTop3ByLeague.entries()
   ) {
-    const top3 =
-      [...perLeague.entries()]
-        .filter(
-          ([memberId]) =>
-            memberById.get(memberId)
-              ?.league_id ===
-            leagueId,
-        )
-        .sort(
-          ([leftId, leftPoints],
-           [rightId, rightPoints]) =>
-            rightPoints -
-              leftPoints ||
-            leftId.localeCompare(
-              rightId,
-            ),
-        )
-        .slice(0, 3);
-
     for (
-      let index = 0;
-      index < top3.length;
-      index += 1
+      const leader
+      of canonicalTop3
     ) {
-      const [
-        memberId,
-        points,
-      ] = top3[index];
-
       const member =
-        memberById.get(memberId);
+        memberById.get(
+          leader.memberId,
+        );
 
-      if (!member?.user_id) {
+      if (
+        !member?.user_id ||
+        member.league_id !==
+          leagueId
+      ) {
         continue;
       }
-
-      const rank =
-        index + 1;
 
       insertRows.push({
         target_fantagol_round_id:
@@ -558,15 +695,17 @@ ensureFrozenCommunityTop3Cohort(
         league_id:
           leagueId,
         league_member_id:
-          memberId,
+          leader.memberId,
         user_id:
           member.user_id,
-        rank,
+        rank:
+          leader.rank,
         pure_points:
-          points,
+          leader.points,
         rank_weight:
-          RANK_WEIGHT.get(rank) ??
-          0,
+          RANK_WEIGHT.get(
+            leader.rank,
+          ) ?? 0,
       });
     }
   }
