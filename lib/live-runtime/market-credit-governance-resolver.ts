@@ -517,15 +517,24 @@ export async function loadCanonicalMonthlyMarketCreditState(
         "completed_at",
         monthStart,
       )
+      /*
+       * Keep the monthly ledger provider-scoped at the database boundary.
+       *
+       * A global completed-job limit is unsafe because unrelated runtime
+       * traffic can push valid monthly Odds jobs outside the result window.
+       * Provider identity is canonical in the persisted payload for the
+       * market jobs governed here, including bootstrap-discovery rows.
+       */
+      .eq(
+        "payload->>provider_code",
+        "the_odds_api",
+      )
       .order(
         "completed_at",
         {
           ascending: false,
           nullsFirst: false,
         },
-      )
-      .limit(
-        1000,
       );
 
   if (error) {
@@ -553,6 +562,24 @@ export async function loadCanonicalMonthlyMarketCreditState(
     if (
       resolveProvider(row) !==
       "the_odds_api"
+    ) {
+      continue;
+    }
+
+    const payload =
+      asRecord(row.payload);
+
+    /*
+     * Mapping bootstrap jobs identify the provider but do not
+     * consume a canonical market-credit bucket themselves.
+     *
+     * Their provider quota is intentionally absent because the
+     * actual billable PACKAGE/ADVANCED poll follows separately.
+     * Keep real market jobs fail-closed in readQuota().
+     */
+    if (
+      payload?.bootstrap_discovery ===
+      true
     ) {
       continue;
     }
