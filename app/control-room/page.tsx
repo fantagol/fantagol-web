@@ -149,6 +149,13 @@ export default function ControlRoomPage() {
             : null;
 
         setActivePremiumSessionId(existingSessionId);
+
+        if (existingSessionId) {
+          window.location.replace(
+            `/control-room/${existingSessionId}`,
+          );
+          return;
+        }
       } catch (error) {
         console.error(
           "[Control Room] Premium status load failed.",

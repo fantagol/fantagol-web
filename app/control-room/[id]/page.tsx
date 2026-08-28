@@ -2605,21 +2605,6 @@ export default function ControlRoomDetailPage() {
     let accessConfirmed = false;
     let currentRemainingSeconds = 0;
 
-    const isLocalDevelopment =
-      process.env.NODE_ENV === "development" &&
-      (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1");
-
-    if (isLocalDevelopment) {
-      accessConfirmed = true;
-      currentRemainingSeconds = 15 * 60;
-      setRemainingSeconds(currentRemainingSeconds);
-      setPremiumAccessReady(true);
-
-      return () => {
-        cancelled = true;
-      };
-    }
 
     const match = window.location.pathname.match(
       /^\/control-room\/([^/]+)\/?$/,
