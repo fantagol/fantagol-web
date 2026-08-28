@@ -54,6 +54,9 @@ type CommunityRegistryStateRow = {
   snapshot_count: number;
   lock_snapshot_id: string | null;
 };
+type LatestOfficialPredictionSubmissionRow = {
+  official_submitted_at: string | null;
+};
 
 function requireIso(
   value: string | null | undefined,
@@ -370,6 +373,53 @@ async function loadCommunityRegistryState(
     | CommunityRegistryStateRow
     | null;
 }
+async function loadLatestOfficialPredictionSubmissionAt(
+  client: SupabaseClient,
+  fantagolRoundId: string,
+): Promise<string | null> {
+  const { data: leagueRounds, error: leagueRoundsError } =
+    await client
+      .from("league_rounds")
+      .select("id")
+      .eq("fantagol_round_id", fantagolRoundId);
+
+  if (leagueRoundsError) {
+    throw new Error(
+      `PRODUCTION_COMMUNITY_PREDICTION_ROUNDS_LOAD_FAILED:${leagueRoundsError.message}`,
+    );
+  }
+
+  const leagueRoundIds = (
+    (leagueRounds ?? []) as Array<{ id: string }>
+  ).map((row) => row.id);
+
+  if (leagueRoundIds.length === 0) {
+    return null;
+  }
+
+  const { data, error } =
+    await client
+      .from("predictions")
+      .select("official_submitted_at")
+      .in("league_round_id", leagueRoundIds)
+      .not("submitted_version", "is", null)
+      .not("official_submitted_at", "is", null)
+      .order("official_submitted_at", {
+        ascending: false,
+      })
+      .limit(1)
+      .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `PRODUCTION_COMMUNITY_PREDICTION_SUBMISSION_LOAD_FAILED:${error.message}`,
+    );
+  }
+
+  return (
+    data as LatestOfficialPredictionSubmissionRow | null
+  )?.official_submitted_at ?? null;
+}
 
 function isPreLiveRoundStatus(
   status: string,
@@ -433,6 +483,13 @@ export async function resolveCanonicalCommunityDecision(input: {
       input.client,
       input.round.fantagolRoundId,
     );
+  const latestOfficialSubmissionAt =
+    isPreLiveRoundStatus(input.round.status)
+      ? await loadLatestOfficialPredictionSubmissionAt(
+          input.client,
+          input.round.fantagolRoundId,
+        )
+      : null;
 
   if (
     shouldFreezeRound(
@@ -478,6 +535,27 @@ export async function resolveCanonicalCommunityDecision(input: {
     };
   }
 
+  if (
+    latestOfficialSubmissionAt &&
+    registry.last_completed_at
+  ) {
+    const latestSubmissionMs =
+      Date.parse(latestOfficialSubmissionAt);
+    const lastCompletedMs =
+      Date.parse(registry.last_completed_at);
+
+    if (
+      Number.isFinite(latestSubmissionMs) &&
+      Number.isFinite(lastCompletedMs) &&
+      latestSubmissionMs > lastCompletedMs
+    ) {
+      return {
+        action: "refresh",
+        reason:
+          "community_new_prediction_submission",
+      };
+    }
+  }
   if (registry.next_refresh_at) {
     const nextRefreshMs =
       Date.parse(
