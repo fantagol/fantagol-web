@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import { leaguePath } from "../../../lib/navigation/league-paths";
+import { resolveDashboardLiveDisplayClock } from "../../../lib/live-runtime/dashboard-live-display-clock";
 
 import Badge from "../../../components/ui/Badge";
 import DashboardCard from "../../../components/ui/DashboardCard";
@@ -40,6 +41,8 @@ type RoundPredictionRow = {
   kickoff: string | null;
   match_status: string;
   minute: number | null;
+  live_half: number | null;
+  live_phase_started_at: string | null;
   home_score: number | null;
   away_score: number | null;
   home_team_name: string;
@@ -61,6 +64,8 @@ type DashboardMatch = {
   match_status?: string | null;
 
   minute?: number | null;
+  liveHalf?: number | null;
+  livePhaseStartedAt?: string | null;
   status: string;
   homeScore: number | null;
   awayScore: number | null;
@@ -336,46 +341,24 @@ function dashboardMatchClockLabel(
   match: {
     match_status?: string | null;
     minute?: number | null;
+    kickoff?: string | null;
     kickoffHour?: string | null;
+    liveHalf?: number | null;
+    livePhaseStartedAt?: string | null;
   },
+  nowMs: number,
 ) {
-  const status =
-    normalizeDashboardLiveStatus(
-      match.match_status,
-    );
+  const clock = resolveDashboardLiveDisplayClock({
+    status: match.match_status,
+    providerMinute: match.minute,
+    kickoffAt: match.kickoff,
+    livePhaseStartedAt: match.livePhaseStartedAt,
+    liveHalf: match.liveHalf,
+    now: new Date(nowMs),
+  });
 
-  if (
-    status === "finished" ||
-    status === "awarded"
-  ) {
-    return "FT";
-  }
-
-  if (
-    status === "halftime" ||
-    status === "paused"
-  ) {
-    return "HT";
-  }
-
-  if (isDashboardActivelyPlaying(status)) {
-
-    if (
-      Number.isInteger(match.minute) &&
-      Number(match.minute) > 0
-    ) {
-      return formatDashboardLiveMinute(
-        Number(match.minute),
-        status,
-      );
-    }
-
-    return "LIVE";
-  }
-
-  return match.kickoffHour || "—";
+  return clock.label || match.kickoffHour || "—";
 }
-
 function dashboardVisualMatchState<
   T extends {
     match_status?: string | null;
@@ -592,7 +575,13 @@ function getProviderScoreLabel(match: DashboardMatch) {
   return `${match.homeScore ?? 0} - ${match.awayScore ?? 0}`;
 }
 
-function MatchMiniRow({ match }: { match: DashboardMatch }) {
+function MatchMiniRow({
+  match,
+  dashboardClockNow,
+}: {
+  match: DashboardMatch;
+  dashboardClockNow: number;
+}) {
   return (
     <div className={`${dashboardMatchFrameClass(match)} grid grid-cols-[minmax(0,1fr)_auto_minmax(64px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 rounded-xl bg-black/35 px-2.5 py-3 max-[429px]:grid-cols-[minmax(0,1fr)_auto_minmax(58px,auto)_auto_minmax(0,1fr)] max-[429px]:gap-x-0.5 max-[399px]:grid-cols-[minmax(0,1fr)_auto_minmax(54px,auto)_auto_minmax(0,1fr)] max-[381px]:grid-cols-[minmax(0,1fr)_auto_minmax(50px,auto)_auto_minmax(0,1fr)] max-[381px]:gap-x-0 sm:gap-x-1.5 sm:px-3`}>
 
@@ -628,8 +617,11 @@ function MatchMiniRow({ match }: { match: DashboardMatch }) {
           <span>{dashboardMatchClockLabel({
           match_status: match.match_status,
           minute: match.minute,
+          kickoff: match.kickoff,
           kickoffHour: match.kickoffHour,
-        })}</span>
+          liveHalf: match.liveHalf,
+          livePhaseStartedAt: match.livePhaseStartedAt,
+        }, dashboardClockNow)}</span>
         </div>
       </div>
 
@@ -1240,6 +1232,7 @@ export default function LeagueDashboardPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<DashboardMatch[]>([]);
+  const [dashboardClockNow, setDashboardClockNow] = useState(() => Date.now());
   const [roundNumber, setRoundNumber] = useState<number | null>(null);
   const [roundLabel, setRoundLabel] = useState("Giornata non disponibile");
   const [roundError, setRoundError] = useState<string | null>(null);
@@ -1369,6 +1362,8 @@ export default function LeagueDashboardPage() {
             kickoff: row.kickoff,
             match_status: row.match_status,
             minute: row.minute ?? null,
+            liveHalf: row.live_half ?? null,
+            livePhaseStartedAt: row.live_phase_started_at ?? null,
             kickoffDay: kickoff.day,
             kickoffHour: kickoff.hour,
             status: row.match_status,
@@ -1605,6 +1600,13 @@ export default function LeagueDashboardPage() {
     loadDashboard();
   }, [leagueId]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setDashboardClockNow(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
   const matchGroups = useMemo(
     () => buildDashboardMatchGroups(matches),
     [matches],
@@ -1775,7 +1777,11 @@ export default function LeagueDashboardPage() {
                 className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
               >
                 {group.map((match) => (
-                  <MatchMiniRow key={match.id} match={match} />
+                  <MatchMiniRow
+  key={match.id}
+  match={match}
+  dashboardClockNow={dashboardClockNow}
+/>
                 ))}
               </div>
             ))}

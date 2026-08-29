@@ -84,6 +84,7 @@ export async function launchCertificationReadinessWorkflow(
         freeze_at: input.freezeAt,
         freeze_reason: "first_certification_eligible_live_state",
         policy_version: "official_match_odds_v1",
+        require_official_odds: false,
         match_status: input.matchStatus,
         match_state_version: input.matchStateVersion,
       },

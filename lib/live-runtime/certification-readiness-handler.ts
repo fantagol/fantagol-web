@@ -215,12 +215,14 @@ export async function handleCertificationReadinessJob({
     "match-result-certification-policy-v1",
   );
 
-  const frozen = await freezeOfficialMatchOddsSnapshot(client, {
-    matchId,
-    freezeAt,
-    freezeReason,
-    policyVersion: oddsPolicyVersion,
-  });
+  const frozen = requireOfficialOdds
+    ? await freezeOfficialMatchOddsSnapshot(client, {
+        matchId,
+        freezeAt,
+        freezeReason,
+        policyVersion: oddsPolicyVersion,
+      })
+    : null;
 
   const functionName = "evaluate_match_certification_readiness_rpc";
   const rows = await callRuntimeRpc<MatchCertificationReadinessRpcRow>(
@@ -301,13 +303,13 @@ export async function handleCertificationReadinessJob({
     blocking_code: readiness.blocking_code,
     active_certification_id: readiness.active_certification_id,
     readiness_details: readiness.details,
-    official_odds_ready: true,
+    official_odds_ready: requireOfficialOdds ? frozen !== null : null,
     official_match_odds_snapshot_id:
-      frozen.officialMatchOddsSnapshotId,
-    odds_market_snapshot_id: frozen.oddsMarketSnapshotId,
-    source_collected_at: frozen.sourceCollectedAt,
-    official_hash: frozen.officialHash,
-    already_frozen: frozen.alreadyFrozen,
+      frozen?.officialMatchOddsSnapshotId ?? null,
+    odds_market_snapshot_id: frozen?.oddsMarketSnapshotId ?? null,
+    source_collected_at: frozen?.sourceCollectedAt ?? null,
+    official_hash: frozen?.officialHash ?? null,
+    already_frozen: frozen?.alreadyFrozen ?? false,
     freeze_at: freezeAt,
     freeze_reason: freezeReason,
     odds_policy_version: oddsPolicyVersion,
