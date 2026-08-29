@@ -793,9 +793,27 @@ export default function GiornataPage() {
           ? [predictionRecoveryData]
           : [];
 
-      setPredictionRecoveryActive(
+      const recoveryActive =
         !predictionRecoveryError &&
-          predictionRecoveryRows.length > 0,
+        predictionRecoveryRows.length > 0;
+
+      setPredictionRecoveryActive(recoveryActive);
+      setPredictionRecoveryEditableMatchIds(
+        recoveryActive
+          ? new Set(
+              predictionRecoveryRows.flatMap((row) => {
+                const candidate = row as {
+                  match_id?: unknown;
+                  editable?: unknown;
+                };
+
+                return candidate.editable === true &&
+                  typeof candidate.match_id === "string"
+                  ? [candidate.match_id]
+                  : [];
+              }),
+            )
+          : new Set(),
       );
 
       const rows = (predictionData || []) as RoundPredictionRow[];
@@ -961,6 +979,10 @@ export default function GiornataPage() {
    */
   const [predictionRecoveryActive, setPredictionRecoveryActive] =
     useState(false);
+  const [
+    predictionRecoveryEditableMatchIds,
+    setPredictionRecoveryEditableMatchIds,
+  ] = useState<Set<string>>(() => new Set());
 
   const submittedCount = useMemo(
     () =>
@@ -971,6 +993,17 @@ export default function GiornataPage() {
   );
 
   const allComplete = matches.length > 0 && submittedCount === matches.length;
+  const recoveryEditableCount = predictionRecoveryEditableMatchIds.size;
+  const recoveryComplete =
+    recoveryEditableCount > 0 &&
+    matches.every((match, index) => {
+      if (!predictionRecoveryEditableMatchIds.has(match.id)) return true;
+
+      const prediction = predictions[index];
+      return prediction?.home !== "" && prediction?.away !== "";
+    });
+  const submissionComplete =
+    predictionRecoveryActive ? recoveryComplete : allComplete;
   const locked = round?.isLocked ?? true;
   const liveResultsByMemberAndMatch = useMemo(() => {
     const index =
@@ -1306,6 +1339,12 @@ export default function GiornataPage() {
   function schedulePredictionDraftSave(index: number, prediction: Prediction) {
     const match = matches[index];
     if (!round?.id || !match?.id) return;
+    if (
+      predictionRecoveryActive &&
+      !predictionRecoveryEditableMatchIds.has(match.id)
+    ) {
+      return;
+    }
     if (prediction.home === "" || prediction.away === "") return;
 
     const previousTimer = predictionSaveTimersRef.current[index];
@@ -1358,6 +1397,14 @@ export default function GiornataPage() {
     value: string,
   ) {
     if (!canEdit) return;
+
+    const match = matches[index];
+    if (
+      predictionRecoveryActive &&
+      (!match || !predictionRecoveryEditableMatchIds.has(match.id))
+    ) {
+      return;
+    }
 
     const previousValue = predictions[index]?.[field] ?? "";
     const nextGoal = cleanGoal(value);
@@ -1419,8 +1466,12 @@ export default function GiornataPage() {
       return;
     }
 
-    if (!allComplete) {
-      alert("Completa tutti i 10 pronostici prima di inviare.");
+    if (!submissionComplete) {
+      alert(
+        predictionRecoveryActive
+          ? "Completa tutti i pronostici ancora recuperabili prima di inviare."
+          : "Completa tutti i 10 pronostici prima di inviare.",
+      );
       return;
     }
 
@@ -1746,6 +1797,9 @@ export default function GiornataPage() {
             !roundError &&
             matches.map((match, index) => {
               const prediction = displayedPredictions[index];
+              const recoveryMatchEditable =
+                !predictionRecoveryActive ||
+                predictionRecoveryEditableMatchIds.has(match.id);
               const showLiveScore =
                 round?.isLive === true ||
                 round?.isFinished === true;
@@ -1832,8 +1886,8 @@ export default function GiornataPage() {
                             getPredictionInputPosition(index, "home")
                           ] = element;
                         }}
-                        value={prediction.home}
-                        disabled={!canEdit}
+                        value={recoveryMatchEditable ? prediction.home : "-"}
+                        disabled={!canEdit || !recoveryMatchEditable}
                         inputMode="numeric"
                         maxLength={1}
                         onChange={(event) =>
@@ -1848,7 +1902,7 @@ export default function GiornataPage() {
                         placeholder="-"
                       />
                       <span className="text-[10px] font-black text-gray-500 sm:text-base">
-                        -
+                        {recoveryMatchEditable ? "-" : ""}
                       </span>
                       <input
                         ref={(element) => {
@@ -1856,8 +1910,8 @@ export default function GiornataPage() {
                             getPredictionInputPosition(index, "away")
                           ] = element;
                         }}
-                        value={prediction.away}
-                        disabled={!canEdit}
+                        value={recoveryMatchEditable ? prediction.away : "-"}
+                        disabled={!canEdit || !recoveryMatchEditable}
                         inputMode="numeric"
                         maxLength={1}
                         onChange={(event) =>

@@ -355,6 +355,7 @@ function DrawerMenuItem({
   danger = false,
   special = false,
   publicAccent = false,
+  disabled = false,
   badgeText,
   onClick,
 }: {
@@ -364,14 +365,17 @@ function DrawerMenuItem({
   danger?: boolean;
   special?: boolean;
   publicAccent?: boolean;
+  disabled?: boolean;
   badgeText?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
+      aria-disabled={disabled}
       onClick={onClick}
-      className={`group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
+      className={`disabled:cursor-not-allowed disabled:opacity-40 group flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
         special
           ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80 hover:bg-[#A6E824]/15"
           : publicAccent
@@ -731,6 +735,8 @@ export default function HamburgerDrawer({
   const [rewardUnseenPasses, setRewardUnseenPasses] = useState(0);
   const [supportConsoleAuthorized, setSupportConsoleAuthorized] =
     useState(false);
+  const [predictionNavigationOpen, setPredictionNavigationOpen] =
+    useState(false);
   const isNativeApp = useNativeAppMode();
 
   function getCurrentLeagueIdFromPath() {
@@ -877,6 +883,48 @@ export default function HamburgerDrawer({
 
       rememberLeague(current.leagueId);
       setDrawerLeague(current);
+
+      /*
+       * Drawer prediction navigation authority.
+       *
+       * The standard Pronostici card follows ONLY the canonical normal
+       * prediction window. Recovery remains a separate post-lock authority
+       * inside /giornata and must not semantically reopen this drawer card.
+       *
+       * Fail closed on every read/error path.
+       */
+      setPredictionNavigationOpen(false);
+
+      try {
+        const { data: currentRoundData, error: currentRoundError } =
+          await supabase.rpc("get_my_current_league_round_rpc", {
+            p_league_id: current.leagueId,
+          });
+
+        if (!currentRoundError) {
+          const currentRound = (currentRoundData || [])[0] as
+            | { league_round_id?: string | null }
+            | undefined;
+
+          if (currentRound?.league_round_id) {
+            const { data: predictionData, error: predictionError } =
+              await supabase.rpc("get_my_round_predictions_rpc", {
+                p_league_round_id: currentRound.league_round_id,
+              });
+
+            const predictionRows = (predictionData || []) as Array<{
+              prediction_window_state?: string | null;
+            }>;
+
+            setPredictionNavigationOpen(
+              !predictionError &&
+                predictionRows[0]?.prediction_window_state === "open",
+            );
+          }
+        }
+      } catch {
+        setPredictionNavigationOpen(false);
+      }
 
       // Never render identity from the previously active league while
       // the canonical profile for the new league is loading.
@@ -1389,14 +1437,19 @@ export default function HamburgerDrawer({
 
           <DrawerMenuItem
             icon="target"
-            title="Pronostici"
-            subtitle="Inserisci o modifica la giornata"
+            title={predictionNavigationOpen ? "Pronostici" : "🔒 Pronostici"}
+            subtitle={
+              predictionNavigationOpen
+                ? "Inserisci o modifica la giornata"
+                : "Pronostici chiusi — usa Vai a Live"
+            }
+            disabled={!predictionNavigationOpen}
             onClick={() => goTo(getLeagueRoundPath())}
           />
 
           <DrawerMenuItem
             icon="live"
-            title="Live"
+            title="Vai a Live"
             subtitle="Segui risultati e punti in tempo reale"
             onClick={() => goTo(getLeagueRoundPath())}
           />
