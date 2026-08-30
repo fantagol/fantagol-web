@@ -36,6 +36,15 @@ type RoundPredictionRow = {
   kickoff: string;
   match_id: string;
   match_status: string;
+  exact_points?: number | string | null;
+  sign_points?: number | string | null;
+  over_under_points?: number | string | null;
+  goal_no_goal_points?: number | string | null;
+  surprise_points?: number | string | null;
+  goal_show_points?: number | string | null;
+  grand_slam_points?: number | string | null;
+  cantonata_points?: number | string | null;
+  opposite_sign_points?: number | string | null;
   home_prediction: number | null;
   away_prediction: number | null;
   home_score: number | null;
@@ -192,6 +201,17 @@ type R40LivePredictionResult = {
   is_grand_slam?: boolean | null;
   is_cantonata?: boolean | null;
   is_opposite_sign?: boolean | null;
+  void?: boolean | null;
+  exact_points?: number | null;
+  sign_points?: number | null;
+  over_under_points?: number | null;
+  goal_no_goal_points?: number | null;
+  surprise_points?: number | null;
+  goal_show_points?: number | null;
+  grand_slam_points?: number | null;
+  cantonata_points?: number | null;
+  opposite_sign_points?: number | null;
+  result_phase?: string | null;
 };
 
 type R40LivePointsMember = {
@@ -315,6 +335,25 @@ function r40LivePrediction(
   return `${row.home_prediction}-${row.away_prediction}`;
 }
 
+function r40LivePredictionPoints(
+  result: R40LivePredictionResult | undefined,
+): number {
+  if (!result || result.void) {
+    return 0;
+  }
+
+  return (
+    (result.exact_points ?? 0) +
+    (result.sign_points ?? 0) +
+    (result.over_under_points ?? 0) +
+    (result.goal_no_goal_points ?? 0) +
+    (result.surprise_points ?? 0) +
+    (result.goal_show_points ?? 0) +
+    (result.grand_slam_points ?? 0) +
+    (result.cantonata_points ?? 0) +
+    (result.opposite_sign_points ?? 0)
+  );
+}
 function r40LiveRuleKeys(
   row: R40LivePredictionResult | null | undefined,
 ) {
@@ -380,6 +419,9 @@ type PredictionSlot = {
   awayLogoUrl: string | null;
   score: string;
   active: string[];
+  points?: number;
+  opponentPoints?: number;
+  determined?: boolean;
 };
 
 const ruleItems: RuleItem[] = [
@@ -698,7 +740,15 @@ function StaticMemoryIndicator() {
   );
 }
 
-function LiveMatchCenter({ match }: { match: DuelMatch }) {
+function LiveMatchCenter({
+  match,
+  leftPoints = 0,
+  rightPoints = 0,
+}: {
+  match: DuelMatch;
+  leftPoints?: number;
+  rightPoints?: number;
+}) {
   return (
     <div className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(70px,auto)_auto_minmax(0,1fr)] items-center gap-x-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(120px,auto)_auto_minmax(0,1fr)] sm:gap-x-2">
       <span className="col-start-1 row-start-1 min-w-0 truncate text-right text-[9px] font-black uppercase text-gray-300 sm:text-xs">
@@ -738,7 +788,7 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
 
         <div className="mt-2 grid w-full grid-cols-[1fr_auto_1fr] items-center text-center">
           <span className="text-lg font-black leading-none text-[#A6E824] sm:text-2xl">
-            0
+            {leftPoints}
           </span>
 
           <span className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
@@ -746,7 +796,7 @@ function LiveMatchCenter({ match }: { match: DuelMatch }) {
           </span>
 
           <span className="text-lg font-black leading-none text-white sm:text-2xl">
-            0
+            {rightPoints}
           </span>
         </div>
       </div>
@@ -1660,7 +1710,7 @@ export default function OneToOneLivePage() {
           candidate.league_member_id ===
             viewedMemberId &&
           candidate.league_fixture_id ===
-            screen.fixtureId,
+            fixture.fixture_id,
       ) ?? null;
 
     const opponentOfficialStrategy =
@@ -1671,7 +1721,7 @@ export default function OneToOneLivePage() {
               candidate.league_member_id ===
                 opponentMemberId &&
               candidate.league_fixture_id ===
-                screen.fixtureId,
+                fixture.fixture_id,
           ) ?? null
         : null;
 
@@ -1706,77 +1756,6 @@ export default function OneToOneLivePage() {
       opponentHasOfficialStrategy,
     };
   })();
-  const r40PointsByMember =
-    new Map(
-      (
-        leagueLiveProjection
-          ?.points_preview
-          ?.members ?? []
-      ).map(
-        (member) => [
-          member.league_member_id,
-          r40LiveNumber(member.pure_points),
-        ],
-      ),
-    );
-
-  const displayedLeftPoints = canViewProfileContent
-    ? r40OneToOneView
-      ? r40OneToOneView.viewedHasOfficialStrategy
-        ? r40PointsByMember.get(
-            r40OneToOneView.viewedMemberId,
-          ) ?? 0
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? leftPoints
-        : "—"
-    : "—";
-
-  const displayedRightPoints = canViewProfileContent
-    ? r40OneToOneView?.opponentMemberId
-      ? r40OneToOneView.opponentHasOfficialStrategy
-        ? r40PointsByMember.get(
-            r40OneToOneView.opponentMemberId,
-          ) ?? 0
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? rightPoints
-        : "—"
-    : "—";
-
-  const displayedLeftGoals = canViewProfileContent
-    ? r40OneToOneView
-      ? r40OneToOneView.viewedHasOfficialStrategy &&
-        r40OneToOneView.fixture.aggregate
-        ? r40LiveNumber(
-            r40OneToOneView.viewedIsHome
-              ? r40OneToOneView.fixture.aggregate
-                  .home_wins
-              : r40OneToOneView.fixture.aggregate
-                  .away_wins,
-          )
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? leftGoals
-        : "—"
-    : "—";
-
-  const displayedRightGoals = canViewProfileContent
-    ? r40OneToOneView
-      ? r40OneToOneView.opponentHasOfficialStrategy &&
-        r40OneToOneView.fixture.aggregate
-        ? r40LiveNumber(
-            r40OneToOneView.viewedIsHome
-              ? r40OneToOneView.fixture.aggregate
-                  .away_wins
-              : r40OneToOneView.fixture.aggregate
-                  .home_wins,
-          )
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? rightGoals
-        : "—"
-    : "—";
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
     closeMemoryPopup();
@@ -1941,6 +1920,7 @@ export default function OneToOneLivePage() {
           rightActive: [],
         })),
         slots: hiddenSlots,
+        rightSlots: hiddenSlots,
       };
     }
 
@@ -1948,6 +1928,7 @@ export default function OneToOneLivePage() {
       return {
         rows: liveRows,
         slots: leftSlots,
+        rightSlots: hiddenSlots,
       };
     }
 
@@ -1966,6 +1947,7 @@ export default function OneToOneLivePage() {
         slots: isViewingSelf
           ? leftSlots
           : hiddenSlots,
+        rightSlots: hiddenSlots,
       };
     }
 
@@ -1973,6 +1955,7 @@ export default function OneToOneLivePage() {
       viewedMemberId,
       opponentMemberId,
       matrix,
+      opponentMatrix,
     } = r40OneToOneView;
 
     const results =
@@ -1997,16 +1980,13 @@ export default function OneToOneLivePage() {
       );
 
     if (viewedMemberIsRecovery) {
-      return {
-        rows: liveRows.map((match) => ({
-          ...match,
-          leftPrediction: "—",
-          rightPrediction: "—",
-          leftActive: [],
-          rightActive: [],
-        })),
-        slots: leftSlots.map(() => null),
-      };
+      /*
+       * ONE-SIDED RECOVERY CONTRACT:
+       *
+       * Recovery/missing belongs only to the viewed member.
+       * Do not blank the valid opponent: the normal opponent
+       * strategy path below must remain available.
+       */
     }
 
     const strategies =
@@ -2021,7 +2001,7 @@ export default function OneToOneLivePage() {
           candidate.league_member_id ===
             viewedMemberId &&
           candidate.league_fixture_id ===
-            activeProfile?.fixture.fixtureId,
+            r40OneToOneView.fixture.fixture_id,
       ) ?? null;
 
     /*
@@ -2103,45 +2083,137 @@ export default function OneToOneLivePage() {
             `${viewedMemberId}:${challenge.own_match_id}`,
           );
 
+        const pairedOpponentResult =
+          r40OneToOneView.opponentHasOfficialStrategy &&
+          opponentMemberId
+            ? byMemberAndMatch.get(
+                `${opponentMemberId}:${challenge.opponent_match_id}`,
+              )
+            : undefined;
+
         return {
           ...toPredictionSlot(ownMatch),
           score:
             r40LivePrediction(ownResult),
           active:
             r40LiveRuleKeys(ownResult),
+          points: r40LivePredictionPoints(ownResult),
+          opponentPoints: r40LivePredictionPoints(pairedOpponentResult),
+          determined:
+            ownResult?.result_phase === "post_live" &&
+            (!r40OneToOneView.opponentHasOfficialStrategy ||
+              pairedOpponentResult?.result_phase === "post_live"),
+        };
+      },
+    );
+
+    const opponentStrategy =
+      opponentMemberId
+        ? strategies.find(
+            (candidate) =>
+              candidate.mode === "one_to_one" &&
+              candidate.league_member_id ===
+                opponentMemberId &&
+              candidate.league_fixture_id ===
+                r40OneToOneView.fixture.fixture_id,
+          ) ?? null
+        : null;
+
+    const opponentOfficialPairings =
+      opponentStrategy?.payload?.pairings ?? [];
+
+    const hasMaterializedOpponentMatrix =
+      Boolean(
+        opponentMatrix?.owner_member_id ===
+          opponentMemberId &&
+        opponentMatrix?.mini_challenges?.length === 10,
+      );
+
+    const hasOpponentOfficialPairings =
+      opponentStrategy !== null &&
+      opponentOfficialPairings.length === 10;
+
+    const opponentChallenges =
+      hasMaterializedOpponentMatrix
+        ? opponentMatrix?.mini_challenges ?? []
+        : hasOpponentOfficialPairings
+          ? opponentOfficialPairings
+          : [];
+
+    const opponentChallengeByTarget =
+      new Map(
+        opponentChallenges.map(
+          (challenge) => [
+            challenge.opponent_match_id,
+            challenge,
+          ],
+        ),
+      );
+
+    const rightSlots = liveRows.map(
+      (targetMatch) => {
+        if (
+          !r40OneToOneView
+            .opponentHasOfficialStrategy ||
+          !opponentMemberId
+        ) {
+          return null;
+        }
+
+        const challenge =
+          opponentChallengeByTarget.get(
+            targetMatch.id,
+          );
+
+        if (!challenge) return null;
+
+        const ownMatch =
+          baseRowsById.get(
+            challenge.own_match_id,
+          );
+
+        if (!ownMatch) return null;
+
+        const opponentResult =
+          byMemberAndMatch.get(
+            `${opponentMemberId}:${challenge.own_match_id}`,
+          );
+
+        const pairedViewedResult =
+          r40OneToOneView.viewedHasOfficialStrategy
+            ? byMemberAndMatch.get(
+                `${viewedMemberId}:${challenge.opponent_match_id}`,
+              )
+            : undefined;
+
+        return {
+          ...toPredictionSlot(ownMatch),
+          score:
+            r40LivePrediction(opponentResult),
+          active:
+            r40LiveRuleKeys(opponentResult),
+          points: r40LivePredictionPoints(opponentResult),
+          opponentPoints: r40LivePredictionPoints(pairedViewedResult),
+          determined:
+            opponentResult?.result_phase === "post_live" &&
+            (!r40OneToOneView.viewedHasOfficialStrategy ||
+              pairedViewedResult?.result_phase === "post_live"),
         };
       },
     );
 
     const rows = liveRows.map(
-      (targetMatch) => {
-        const opponentResult =
-          r40OneToOneView
-            .opponentHasOfficialStrategy &&
-          opponentMemberId
-            ? byMemberAndMatch.get(
-                `${opponentMemberId}:${targetMatch.id}`,
-              )
-            : undefined;
+      (targetMatch, index) => {
+        const rightSlot = rightSlots[index];
 
         return {
           ...targetMatch,
 
           rightPrediction:
-            r40OneToOneView
-              .opponentHasOfficialStrategy
-              ? r40LivePrediction(
-                  opponentResult,
-                )
-              : "—",
+            rightSlot?.score ?? "—",
 
           rightActive:
-            r40OneToOneView
-              .opponentHasOfficialStrategy
-              ? r40LiveRuleKeys(
-                  opponentResult,
-                )
-              : [],
+            rightSlot?.active ?? [],
         };
       },
     );
@@ -2149,14 +2221,79 @@ export default function OneToOneLivePage() {
     return {
       rows,
       slots,
+      rightSlots,
     };
   })();
-
   const displayedLeftSlots =
     r40OneToOneDisplay.slots;
 
+  const displayedRightSlots =
+    r40OneToOneDisplay.rightSlots;
+
   const displayedLiveRows =
     r40OneToOneDisplay.rows;
+
+  const liveMiniChallengeSummary = (() => {
+    if (!r40OneToOneView || !canViewProfileContent) {
+      return null;
+    }
+
+    let viewedWins = 0;
+    let opponentWins = 0;
+
+    const leftMatrixWeight =
+      r40OneToOneView.viewedHasOfficialStrategy &&
+      !r40OneToOneView.opponentHasOfficialStrategy
+        ? 2
+        : 1;
+
+    for (const slot of displayedLeftSlots) {
+      if (!slot?.determined) continue;
+
+      if ((slot.points ?? 0) > (slot.opponentPoints ?? 0)) {
+        viewedWins += leftMatrixWeight;
+      } else if ((slot.points ?? 0) < (slot.opponentPoints ?? 0)) {
+        opponentWins += leftMatrixWeight;
+      }
+    }
+
+    const rightMatrixWeight =
+      r40OneToOneView.opponentHasOfficialStrategy &&
+      !r40OneToOneView.viewedHasOfficialStrategy
+        ? 2
+        : 1;
+
+    for (const slot of displayedRightSlots) {
+      if (!slot?.determined) continue;
+
+      if ((slot.points ?? 0) > (slot.opponentPoints ?? 0)) {
+        opponentWins += rightMatrixWeight;
+      } else if ((slot.points ?? 0) < (slot.opponentPoints ?? 0)) {
+        viewedWins += rightMatrixWeight;
+      }
+    }
+
+    return {
+      viewedWins,
+      opponentWins,
+    };
+  })();
+
+  const displayedLeftGoals = canViewProfileContent
+    ? r40OneToOneView
+      ? liveMiniChallengeSummary?.viewedWins ?? 0
+      : isViewingSelf && !isLiveForSwipe
+        ? leftGoals
+        : "—"
+    : "—";
+
+  const displayedRightGoals = canViewProfileContent
+    ? r40OneToOneView?.opponentMemberId
+      ? liveMiniChallengeSummary?.opponentWins ?? 0
+      : isViewingSelf && !isLiveForSwipe
+        ? rightGoals
+        : "—"
+    : "—";
 
   const [openMemoryIndex, setOpenMemoryIndex] = useState<number | null>(null);
   const [, setMemoryPopupFloating] = useState(false);
@@ -2535,21 +2672,7 @@ export default function OneToOneLivePage() {
               </div>
 
               <div className="flex min-w-0 flex-col items-center justify-center px-0.5 sm:min-w-[104px] sm:px-2">
-                <div className="relative flex w-full items-end justify-between text-center">
-                  <span className="min-w-[18px] text-base font-black leading-none text-[#A6E824] sm:min-w-[24px] sm:text-xl">
-                    {displayedLeftPoints}
-                  </span>
-
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 pb-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
-                    PT
-                  </span>
-
-                  <span className="min-w-[18px] text-base font-black leading-none text-[#A6E824] sm:min-w-[24px] sm:text-xl">
-                    {displayedRightPoints}
-                  </span>
-                </div>
-
-                <span className="my-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:my-2 sm:h-8 sm:w-8 sm:text-[10px]">
+<span className="my-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#A6E824]/40 bg-black/40 text-[9px] font-black text-white sm:my-2 sm:h-8 sm:w-8 sm:text-[10px]">
                   VS
                 </span>
 
@@ -2776,38 +2899,25 @@ export default function OneToOneLivePage() {
         )}
 
         {!strategyLoading && liveRows.length === 10 && (
-          <section
-            className={`mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4 ${
-              isByeRound
-                ? "pointer-events-none select-none opacity-25 grayscale"
-                : ""
-            }`}
-          >
-            {displayedLiveRows.map((match, index) => {
-              const leftSlot = displayedLeftSlots[index];
+          interactionLocked && canViewProfileContent && !isByeRound ? (
+            <div className="mt-3 grid gap-3 sm:mt-4 lg:grid-cols-2 lg:gap-4">
+              <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40">
+                <header className="border-b border-white/10 px-3 py-2 text-center sm:px-5 sm:py-3">
+                  <p className="truncate text-xs font-black uppercase tracking-[0.12em] text-[#A6E824] sm:text-sm">
+                    {viewedClubInfo.name}
+                  </p>
+                </header>
 
-              return (
-                <article
-                  key={match.id}
-                  className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4"
-                >
-                  <div className="grid grid-cols-[23%_54%_23%] items-center gap-0.5 sm:grid-cols-[1fr_1.35fr_1fr] sm:gap-5">
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={(event) =>
-                          removePredictionSlot(index, event.currentTarget)
-                        }
-                        disabled={interactionLocked || !isViewingSelf}
-                        className={`w-full text-left transition ${interactionLocked ? "cursor-default" : "hover:scale-[1.01]"}`}
-                        title={
-                          interactionLocked
-                            ? "Pronostico bloccato"
-                            : leftSlot
-                              ? "Clicca per svuotare la casella e mettere il pronostico in memoria"
-                              : "Clicca per scegliere un pronostico dalla memoria"
-                        }
-                      >
+                {displayedLiveRows.map((match, index) => {
+                  const leftSlot = displayedLeftSlots[index];
+                  const rightSlot = displayedRightSlots[index];
+
+                  return (
+                    <article
+                      key={`left-matrix-${match.id}`}
+                      className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-3 sm:py-3"
+                    >
+                      <div className="grid grid-cols-[38%_62%] items-center gap-1 sm:grid-cols-[0.9fr_1.4fr] sm:gap-3">
                         {leftSlot ? (
                           <PredictionSide
                             score={leftSlot.score}
@@ -2817,7 +2927,7 @@ export default function OneToOneLivePage() {
                             awayBadge={leftSlot.awayBadge}
                           />
                         ) : (
-                          <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5 sm:min-h-[104px]">
+                          <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5">
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
                               Vuota
                             </p>
@@ -2826,20 +2936,131 @@ export default function OneToOneLivePage() {
                             </p>
                           </div>
                         )}
-                      </button>
-                    </div>
 
-                    <LiveMatchCenter match={match} />
+                        <LiveMatchCenter
+                          match={match}
+                          leftPoints={leftSlot?.points ?? 0}
+                          rightPoints={
+                            leftSlot?.opponentPoints ??
+                            (!r40OneToOneView?.viewedHasOfficialStrategy
+                              ? rightSlot?.points ?? 0
+                              : 0)
+                          }
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
 
-                    {interactionLocked && canViewProfileContent ? (
-                      <PredictionSide
-                        score={match.rightPrediction}
-                        active={match.rightActive}
-                        side="right"
-                        homeBadge={match.homeBadge}
-                        awayBadge={match.awayBadge}
-                      />
-                    ) : (
+              <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40">
+                <header className="border-b border-white/10 px-3 py-2 text-center sm:px-5 sm:py-3">
+                  <p className="truncate text-xs font-black uppercase tracking-[0.12em] text-white sm:text-sm">
+                    {viewedOpponentClubInfo?.name ?? "Avversario"}
+                  </p>
+                </header>
+
+                {displayedLiveRows.map((match, index) => {
+                  const leftSlot = displayedLeftSlots[index];
+                  const rightSlot = displayedRightSlots[index];
+
+                  return (
+                    <article
+                      key={`right-matrix-${match.id}`}
+                      className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-3 sm:py-3"
+                    >
+                      <div className="grid grid-cols-[62%_38%] items-center gap-1 sm:grid-cols-[1.4fr_0.9fr] sm:gap-3">
+                        <LiveMatchCenter
+                          match={match}
+                          leftPoints={rightSlot?.points ?? 0}
+                          rightPoints={
+                            rightSlot?.opponentPoints ??
+                            (!r40OneToOneView?.opponentHasOfficialStrategy
+                              ? leftSlot?.points ?? 0
+                              : 0)
+                          }
+                        />
+
+                        {rightSlot ? (
+                          <PredictionSide
+                            score={rightSlot.score}
+                            active={rightSlot.active}
+                            side="right"
+                            homeBadge={rightSlot.homeBadge}
+                            awayBadge={rightSlot.awayBadge}
+                          />
+                        ) : (
+                          <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                              Vuota
+                            </p>
+                            <p className="mt-1 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                              —
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            </div>
+          ) : (
+            <section
+              className={`mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1419] shadow-2xl shadow-black/40 sm:mt-4 ${
+                isByeRound
+                  ? "pointer-events-none select-none opacity-25 grayscale"
+                  : ""
+              }`}
+            >
+              {displayedLiveRows.map((match, index) => {
+                const leftSlot = displayedLeftSlots[index];
+
+                return (
+                  <article
+                    key={match.id}
+                    className="border-b border-white/10 px-2 py-2 last:border-b-0 sm:px-5 sm:py-4"
+                  >
+                    <div className="grid grid-cols-[23%_54%_23%] items-center gap-0.5 sm:grid-cols-[1fr_1.35fr_1fr] sm:gap-5">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(event) =>
+                            removePredictionSlot(index, event.currentTarget)
+                          }
+                          disabled={interactionLocked || !isViewingSelf}
+                          className={`w-full text-left transition ${interactionLocked ? "cursor-default" : "hover:scale-[1.01]"}`}
+                          title={
+                            interactionLocked
+                              ? "Pronostico bloccato"
+                              : leftSlot
+                                ? "Clicca per svuotare la casella e mettere il pronostico in memoria"
+                                : "Clicca per scegliere un pronostico dalla memoria"
+                          }
+                        >
+                          {leftSlot ? (
+                            <PredictionSide
+                              score={leftSlot.score}
+                              active={leftSlot.active}
+                              side="left"
+                              homeBadge={leftSlot.homeBadge}
+                              awayBadge={leftSlot.awayBadge}
+                            />
+                          ) : (
+                            <div className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/25 px-1.5 py-2 text-center shadow-inner shadow-white/5 sm:min-h-[104px]">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                                Vuota
+                              </p>
+                              <p className="mt-1 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                                —
+                              </p>
+                            </div>
+                          )}
+                        </button>
+                      </div>
+
+                      <LiveMatchCenter match={match} />
+
                       <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
                         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
                           Avversario
@@ -2849,12 +3070,12 @@ export default function OneToOneLivePage() {
                         </p>
                         <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
                       </div>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </section>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )
         )}
 
         {!isByeRound && (
