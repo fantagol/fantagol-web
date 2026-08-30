@@ -1003,12 +1003,14 @@ function DashboardModeCard({
   value,
   currentClub,
   duel,
+  live = false,
 }: {
   icon: ReactNode;
   title: string;
   value?: string;
   currentClub?: Duelist | null;
   duel?: DuelSummary | null;
+  live?: boolean;
 }) {
   const isBye = duel?.bye === true;
 
@@ -1029,20 +1031,28 @@ function DashboardModeCard({
           </h2>
         </div>
 
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          fill="none"
-          className="mt-1 h-6 w-6 shrink-0 text-[#A6E824]"
-        >
-          <path
-            d="M5 12h14M13 6l6 6-6 6"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <div className="flex shrink-0 items-center gap-2">
+          {live && (
+            <span className="rounded border border-[#A6E824]/45 bg-[#A6E824]/15 px-1 py-px text-[6px] font-bold leading-none tracking-[0.08em] text-[#A6E824]">
+              LIVE
+            </span>
+          )}
+
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="mt-1 h-6 w-6 shrink-0 text-[#A6E824]"
+          >
+            <path
+              d="M5 12h14M13 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </div>
 
       {duel || title !== "Punti Puri" ? (
@@ -1198,31 +1208,57 @@ function DashboardQuickAction({
   label,
   href,
   special = false,
+  disabled = false,
 }: {
   icon: string;
   label: string;
   href: string;
   special?: boolean;
+  disabled?: boolean;
 }) {
-  return (
-    <a
-      href={href}
-      className={`rounded-2xl p-4 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:brightness-110 ${
-        special
-          ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80"
-          : "border border-white/10 bg-[#111417] hover:border-[#A6E824]/60"
-      }`}
-    >
+  const className = `rounded-2xl p-4 text-left shadow-lg shadow-black/20 transition ${
+    disabled
+      ? "cursor-not-allowed border border-white/10 bg-[#111417] opacity-45 grayscale"
+      : `hover:-translate-y-0.5 hover:brightness-110 ${
+          special
+            ? "border border-[#A6E824]/40 bg-[#A6E824]/10 shadow-[0_0_22px_rgba(166,232,36,0.10)] animate-pulse hover:border-[#A6E824]/80"
+            : "border border-white/10 bg-[#111417] hover:border-[#A6E824]/60"
+        }`
+  }`;
+
+  const content = (
+    <>
       <DashboardQuickIcon icon={icon} />
       <div
-        className={`mt-2 text-sm font-black ${special ? "text-[#A6E824]" : "text-white"}`}
+        className={`mt-2 text-sm font-black ${
+          special && !disabled ? "text-[#A6E824]" : "text-white"
+        }`}
       >
         {label}
       </div>
+    </>
+  );
+
+  if (disabled) {
+    return (
+      <div
+        aria-disabled="true"
+        className={className}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      className={className}
+    >
+      {content}
     </a>
   );
 }
-
 export default function LeagueDashboardPage() {
   const router = useRouter();
   const params = useParams();
@@ -1614,6 +1650,25 @@ export default function LeagueDashboardPage() {
 
   const predictionWindowOpen = predictionWindowState === "open";
 
+  /*
+   * Dashboard round-phase visual authority.
+   * Once any match has entered play (or has already finished), the round has
+   * semantically entered LIVE and remains so across multiwindow gaps.
+   * This locks only the ordinary Pronostici quick action and drives the LIVE
+   * badge on the three mode cards. Mode-card navigation remains available.
+   */
+  const dashboardRoundHasEnteredLive = matches.some((match) => {
+    const status = normalizeDashboardLiveStatus(match.match_status);
+
+    return (
+      isDashboardActivelyPlaying(status) ||
+      status === "halftime" ||
+      status === "paused" ||
+      status === "finished" ||
+      status === "awarded"
+    );
+  });
+
   const recoveryWaitingForMissingPredictions =
     !predictionWindowOpen &&
     !recoveryWorkspaceOpen &&
@@ -1814,6 +1869,7 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="fantacalcio" />}
               title="Fantacalcio"
+              live={dashboardRoundHasEnteredLive}
               duel={liveModeSummary.fantacalcio}
             />
           </button>
@@ -1827,6 +1883,7 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="one-to-one" />}
               title="One To One"
+              live={dashboardRoundHasEnteredLive}
               duel={liveModeSummary.oneToOne}
             />
           </button>
@@ -1840,6 +1897,7 @@ export default function LeagueDashboardPage() {
             <DashboardModeCard
               icon={<FantaGolModeIcon mode="punti-puri" />}
               title="Punti Puri"
+              live={dashboardRoundHasEnteredLive}
               value={formatLivePoints(liveModeSummary.purePoints)}
               currentClub={liveModeSummary.currentClub}
             />
@@ -1855,8 +1913,13 @@ export default function LeagueDashboardPage() {
           />
           <DashboardQuickAction
             icon="target"
-            label="Pronostici"
+            label={
+              dashboardRoundHasEnteredLive
+                ? "🔒 Pronostici"
+                : "Pronostici"
+            }
             href={`/leghe/${leagueId}/giornata`}
+            disabled={dashboardRoundHasEnteredLive}
           />
           <DashboardQuickAction
             icon="live"
