@@ -208,6 +208,13 @@ type R40LiveStrategy = {
   } | null;
 };
 
+type R40FantacalcioContribution = {
+  match_id: string;
+  department: "attack" | "defense";
+  points?: number | string | null;
+  provisional?: boolean | null;
+};
+
 type R40FantacalcioFixtureSide = {
   member_id: string;
   display_name?: string | null;
@@ -216,6 +223,7 @@ type R40FantacalcioFixtureSide = {
   strategy_version?: number | null;
   points?: number | string | null;
   goals?: number | string | null;
+  contributions?: R40FantacalcioContribution[];
 };
 
 type R40FantacalcioFixture = {
@@ -726,6 +734,92 @@ function SwapIndicator({
         />
       )}
     </span>
+  );
+}
+
+function r40FantacalcioContributionPoints(
+  side: R40FantacalcioFixtureSide | null | undefined,
+  matchId: string,
+) {
+  if (side?.strategy_valid !== true) return "—";
+
+  const contribution =
+    side.contributions?.find(
+      (candidate) => candidate.match_id === matchId,
+    ) ?? null;
+
+  return contribution
+    ? String(r40LiveNumber(contribution.points))
+    : "—";
+}
+
+function LiveResultPointsCard({
+  match,
+  points,
+  side,
+}: {
+  match: DuelMatch;
+  points: string;
+  side: Side;
+}) {
+  const score =
+    Number.isFinite(match.liveHome) &&
+    Number.isFinite(match.liveAway)
+      ? `${match.liveHome}-${match.liveAway}`
+      : "—";
+
+  const matchPhase = match.minute.trim().toUpperCase();
+  const isFinished = matchPhase === "FT";
+  const isLive =
+    /^\d{1,3}'?$/.test(matchPhase) ||
+    ["LIVE", "HT", "1H", "2H", "ET", "BT", "P"].includes(matchPhase);
+  const statusLabel = isFinished ? "FT" : isLive ? match.minute : "PM";
+
+  return (
+    <div
+      className={`relative flex min-w-0 flex-col rounded-xl border bg-black/25 px-1.5 py-1.5 sm:px-2.5 sm:py-2 ${
+        isLive
+          ? "border-[#A6E824]/70 shadow-[0_0_18px_rgba(166,232,36,0.12)] motion-safe:animate-pulse"
+          : "border-white/10"
+      } ${
+        side === "left" ? "items-center sm:items-end" : "items-center sm:items-start"
+      }`}
+    >
+      <div
+        className={`flex w-full min-w-0 items-center gap-1.5 ${
+          side === "left" ? "justify-end" : "justify-start"
+        }`}
+      >
+        <span
+          className={`shrink-0 text-[9px] font-black uppercase tracking-[0.14em] sm:text-[11px] ${
+            isFinished
+              ? "text-[#A6E824]"
+              : isLive
+                ? "text-[#A6E824]"
+                : "text-white"
+          }`}
+        >
+          {statusLabel}
+        </span>
+
+        <span className="shrink-0 text-sm font-black leading-none text-white sm:text-lg">
+          {score}
+        </span>
+      </div>
+
+      <div
+        className={`mt-1 flex w-full items-end gap-1.5 border-t border-white/[0.06] pt-1 ${
+          side === "left" ? "justify-end" : "justify-start"
+        }`}
+      >
+        <span className="pb-px text-[8px] font-black uppercase tracking-[0.12em] text-gray-500 sm:text-[10px]">
+          PT
+        </span>
+        <span className="text-base font-black leading-none text-[#A6E824] sm:text-xl">
+          {points}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -2102,6 +2196,93 @@ export default function FantacalcioLivePage() {
           row !== null,
       );
   })();
+  function renderLiveDepartmentSplitCards(
+    rows: FantacalcioDisplayRow[],
+  ) {
+    return (
+      <div className="grid grid-cols-2 gap-2 p-2 sm:gap-4 sm:p-4">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#081217]/95 shadow-xl shadow-black/30">
+          <div className="border-b border-white/10 px-2.5 py-2 sm:px-4 sm:py-2.5">
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white sm:text-xs">
+              {viewedClubInfo.name}
+            </p>
+          </div>
+
+          {rows.map(({ leftMatch }) => (
+            <article
+              key={`live-left-${leftMatch.id}`}
+              className="border-b border-white/[0.08] px-1.5 py-2 last:border-b-0 sm:px-3 sm:py-3"
+            >
+              <div className="grid min-w-0 grid-cols-[minmax(0,1.35fr)_minmax(72px,0.75fr)] items-center gap-1.5 sm:grid-cols-[minmax(0,1.35fr)_minmax(112px,0.75fr)] sm:gap-3">
+                <PredictionSide
+                  score={leftMatch.leftPrediction}
+                  active={leftMatch.leftActive}
+                  side="left"
+                  homeName={leftMatch.home}
+                  awayName={leftMatch.away}
+                />
+
+                <LiveResultPointsCard
+                  match={leftMatch}
+                  points={r40FantacalcioContributionPoints(
+                    r40FantacalcioView?.leftSide,
+                    leftMatch.id,
+                  )}
+                  side="left"
+                />
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#081217]/95 shadow-xl shadow-black/30">
+          <div className="border-b border-white/10 px-2.5 py-2 text-right sm:px-4 sm:py-2.5">
+            <p className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white sm:text-xs">
+              {viewedOpponentClubInfo?.name || "Avversario"}
+            </p>
+          </div>
+
+          {rows.map(({ leftMatch, rightMatch }) => (
+            <article
+              key={`live-right-${leftMatch.id}`}
+              className="border-b border-white/[0.08] px-1.5 py-2 last:border-b-0 sm:px-3 sm:py-3"
+            >
+              {rightMatch ? (
+                <div className="grid min-w-0 grid-cols-[minmax(72px,0.75fr)_minmax(0,1.35fr)] items-center gap-1.5 sm:grid-cols-[minmax(112px,0.75fr)_minmax(0,1.35fr)] sm:gap-3">
+                  <LiveResultPointsCard
+                    match={rightMatch}
+                    points={r40FantacalcioContributionPoints(
+                      r40FantacalcioView?.rightSide,
+                      rightMatch.id,
+                    )}
+                    side="right"
+                  />
+
+                  <PredictionSide
+                    score={rightMatch.rightPrediction}
+                    active={rightMatch.rightActive}
+                    side="right"
+                    homeName={rightMatch.home}
+                    awayName={rightMatch.away}
+                  />
+                </div>
+              ) : (
+                <div className="grid min-h-[52px] grid-cols-2 items-center gap-1.5 sm:min-h-[70px] sm:gap-3">
+                  <div className="rounded-xl border border-dashed border-white/10 bg-black/20 py-3 text-center text-sm font-black text-gray-700">
+                    —
+                  </div>
+                  <div className="rounded-xl border border-dashed border-white/10 bg-black/20 py-3 text-center text-sm font-black text-gray-700">
+                    —
+                  </div>
+                </div>
+              )}
+            </article>
+          ))}
+        </section>
+      </div>
+    );
+  }
+
   async function persistStrategy(nextRows: DuelMatch[]) {
     if (
 
@@ -2644,7 +2825,8 @@ export default function FantacalcioLivePage() {
                   </span>
                 </div>
 
-                {group.rows.map((displayRow, groupIndex) => {
+                {!isLiveForSwipe ? (
+group.rows.map((displayRow, groupIndex) => {
                   const match = displayRow.leftMatch;
                   const opponentMatch = displayRow.rightMatch;
                   const matchIndex = group.offset + groupIndex;
@@ -2694,21 +2876,59 @@ export default function FantacalcioLivePage() {
                             : ""
                       }`}
                     >
-                      <div className="grid grid-cols-[75%_25%] items-center gap-1 sm:grid-cols-[2.35fr_1fr] sm:gap-5">
-                        <button
-                          type="button"
-                          onClick={() => handleSwapMatch(matchIndex)}
-                          className={`grid min-w-0 grid-cols-[33%_67%] items-center gap-1 rounded-xl text-left transition sm:grid-cols-[1fr_1.35fr] sm:gap-5 ${
-                            interactionLocked
-                              ? "cursor-default"
-                              : "hover:bg-white/[0.03]"
-                          }`}
-                          title={
-                            interactionLocked
-                              ? "Swap disattivato dopo il lock ufficiale"
-                              : "Clicca una partita di Attacco e una di Difesa per scambiarle di posto"
-                          }
-                        >
+                      {!isLiveForSwipe ? (
+                        <div className="grid grid-cols-[75%_25%] items-center gap-1 sm:grid-cols-[2.35fr_1fr] sm:gap-5">
+                          <button
+                            type="button"
+                            onClick={() => handleSwapMatch(matchIndex)}
+                            className={`grid min-w-0 grid-cols-[33%_67%] items-center gap-1 rounded-xl text-left transition sm:grid-cols-[1fr_1.35fr] sm:gap-5 ${
+                              interactionLocked
+                                ? "cursor-default"
+                                : "hover:bg-white/[0.03]"
+                            }`}
+                            title={
+                              interactionLocked
+                                ? "Swap disattivato dopo il lock ufficiale"
+                                : "Clicca una partita di Attacco e una di Difesa per scambiarle di posto"
+                            }
+                          >
+                            <PredictionSide
+                              score={match.leftPrediction}
+                              active={match.leftActive}
+                              side="left"
+                              homeName={match.home}
+                              awayName={match.away}
+                            />
+                            <LiveMatchCenter
+                              match={match}
+                              swapState={swapIndicatorState}
+                              swapTone={swapIndicatorTone}
+                            />
+                          </button>
+
+                          {interactionLocked && opponentMatch ? (
+                            <PredictionSide
+                              score={opponentMatch.rightPrediction}
+                              active={opponentMatch.rightActive}
+                              side="right"
+                              homeName={opponentMatch.home}
+                              awayName={opponentMatch.away}
+                            />
+                          ) : (
+                            <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                                Avversario
+                              </p>
+                              <p className="mt-2 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                                —
+                              </p>
+                              <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(72px,0.75fr)_minmax(72px,0.75fr)_minmax(0,1.25fr)] items-center gap-x-1.5 sm:grid-cols-[minmax(0,1.35fr)_minmax(112px,0.75fr)_minmax(112px,0.75fr)_minmax(0,1.35fr)] sm:gap-x-3">
+
                           <PredictionSide
                             score={match.leftPrediction}
                             active={match.leftActive}
@@ -2716,36 +2936,59 @@ export default function FantacalcioLivePage() {
                             homeName={match.home}
                             awayName={match.away}
                           />
-                          <LiveMatchCenter
-                            match={match}
-                            swapState={swapIndicatorState}
-                            swapTone={swapIndicatorTone}
-                          />
-                        </button>
 
-                        {interactionLocked && opponentMatch ? (
-                          <PredictionSide
-                            score={opponentMatch.rightPrediction}
-                            active={opponentMatch.rightActive}
-                            side="right"
-                            homeName={opponentMatch.home}
-                            awayName={opponentMatch.away}
+                          <LiveResultPointsCard
+                            match={match}
+                            points={r40FantacalcioContributionPoints(
+                              r40FantacalcioView?.leftSide,
+                              match.id,
+                            )}
+                            side="left"
                           />
-                        ) : (
-                          <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
-                              Avversario
-                            </p>
-                            <p className="mt-2 text-lg font-black leading-none text-gray-700 sm:text-3xl">
-                              —
-                            </p>
-                            <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
+
+                          <div className="ml-2 min-w-0 sm:ml-8">
+                            {opponentMatch ? (
+                              <LiveResultPointsCard
+                                match={opponentMatch}
+                                points={r40FantacalcioContributionPoints(
+                                  r40FantacalcioView?.rightSide,
+                                  opponentMatch.id,
+                                )}
+                                side="right"
+                              />
+                            ) : (
+                              <div className="flex min-h-12 items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 text-sm font-black text-gray-700 sm:min-h-16">
+                                —
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+
+                          {opponentMatch ? (
+                            <PredictionSide
+                              score={opponentMatch.rightPrediction}
+                              active={opponentMatch.rightActive}
+                              side="right"
+                              homeName={opponentMatch.home}
+                              awayName={opponentMatch.away}
+                            />
+                          ) : (
+                            <div className="flex min-w-0 flex-col items-center text-center sm:items-end">
+                              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 sm:text-xs">
+                                Avversario
+                              </p>
+                              <p className="mt-2 text-lg font-black leading-none text-gray-700 sm:text-3xl">
+                                —
+                              </p>
+                              <div className="mt-2 h-6 w-full rounded-xl border border-dashed border-white/10 bg-black/20 sm:h-8" />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </article>
                   );
-                })}
+                })) : (
+                  renderLiveDepartmentSplitCards(group.rows)
+                )}
               </section>
             ))}
           </section>

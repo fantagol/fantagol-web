@@ -1803,6 +1803,18 @@ export default function GiornataPage() {
               const showLiveScore =
                 round?.isLive === true ||
                 round?.isFinished === true;
+              const matchStatus = (match.status ?? "").trim().toLowerCase();
+              const isFinishedMatch =
+                ["finished", "awarded"].includes(matchStatus) ||
+                match.minute === "FT";
+              const isLiveMatch =
+                matchStatus.startsWith("live_") ||
+                ["halftime", "extra_time", "penalties"].includes(matchStatus);
+              const matchStatusLabel = isFinishedMatch
+                ? "FT"
+                : isLiveMatch
+                  ? match.minute ?? "LIVE"
+                  : "PM";
               const predictedSign =
                 derivePredictionSign(prediction);
               const surprisePreviewActive =
@@ -1929,9 +1941,23 @@ export default function GiornataPage() {
 
                     <div className="flex items-center justify-center">
                       {showLiveScore ? (
-                        <div className="flex w-full max-w-[42px] flex-col items-center rounded-lg border border-white/10 bg-black/30 px-0.5 py-1 sm:max-w-[120px] sm:rounded-xl sm:px-3 sm:py-2">
-                          <span className="text-[7px] font-bold uppercase leading-none text-[#A6E824] sm:text-[10px]">
-                            {match.minute ?? "FT"}
+                        <div
+                          className={`flex w-full max-w-[42px] flex-col items-center rounded-lg border bg-black/30 px-0.5 py-1 sm:max-w-[120px] sm:rounded-xl sm:px-3 sm:py-2 ${
+                            isLiveMatch
+                              ? "border-[#A6E824]/70 shadow-[0_0_18px_rgba(166,232,36,0.12)] motion-safe:animate-pulse"
+                              : "border-white/10"
+                          }`}
+                        >
+                          <span
+                            className={`text-[7px] font-bold uppercase leading-none sm:text-[10px] ${
+                              isFinishedMatch
+                                ? "text-[#A6E824]"
+                                : isLiveMatch
+                                  ? "text-[#A6E824]"
+                                  : "text-white"
+                            }`}
+                          >
+                            {matchStatusLabel}
                           </span>
                           <span className="mt-0.5 text-[12px] font-black leading-none sm:text-xl">
                             {match.liveHome ?? 0}-{match.liveAway ?? 0}

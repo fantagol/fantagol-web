@@ -96,6 +96,8 @@ type FixtureSide = {
 type FantacalcioFixture = {
   fixture_phase?: string | null;
   is_bye?: boolean | null;
+  matrix_home?: OneToOneMatrixSummary | null;
+  matrix_away?: OneToOneMatrixSummary | null;
   home_member_id?: string | null;
   away_member_id?: string | null;
   home_display_name?: string | null;
@@ -112,9 +114,19 @@ type FantacalcioFixture = {
   } | null;
 };
 
+type OneToOneMatrixSummary = {
+  owner_member_id?: string | null;
+  strategy_id?: string | null;
+  home_wins?: number | null;
+  away_wins?: number | null;
+  draws?: number | null;
+};
+
 type OneToOneFixture = {
   fixture_phase?: string | null;
   is_bye?: boolean | null;
+  matrix_home?: OneToOneMatrixSummary | null;
+  matrix_away?: OneToOneMatrixSummary | null;
   home_member_id?: string | null;
   away_member_id?: string | null;
   home_display_name?: string | null;
@@ -763,6 +775,353 @@ function extractFantacalcioFixture(
   });
 }
 
+function extractLiveOneToOneFixture(
+  value: unknown,
+  currentMemberId: string,
+): OneToOneFixture | null {
+  if (!currentMemberId) return null;
+
+  const rows = Array.isArray(value) ? value : [];
+  const projection =
+    rows[0] && typeof rows[0] === "object" && !Array.isArray(rows[0])
+      ? (rows[0] as Record<string, unknown>)
+      : null;
+
+  const preview =
+    projection?.one_to_one_preview &&
+    typeof projection.one_to_one_preview === "object" &&
+    !Array.isArray(projection.one_to_one_preview)
+      ? (projection.one_to_one_preview as Record<string, unknown>)
+      : null;
+
+  const fixtures = Array.isArray(preview?.fixtures) ? preview.fixtures : [];
+
+  for (const candidate of fixtures) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      continue;
+    }
+
+    const fixture = candidate as OneToOneFixture;
+    const homeMemberId =
+      fixture.home_member_id || fixture.home?.member_id || "";
+    const awayMemberId =
+      fixture.away_member_id || fixture.away?.member_id || "";
+
+    if (
+      homeMemberId === currentMemberId ||
+      awayMemberId === currentMemberId
+    ) {
+      return fixture;
+    }
+  }
+
+  return null;
+}
+
+function buildCanonicalLiveOneToOneSummary(
+  projectionValue: unknown,
+  fixture: OneToOneFixture,
+) {
+  const rows = Array.isArray(projectionValue) ? projectionValue : [];
+  const projection =
+    rows[0] &&
+    typeof rows[0] === "object" &&
+    !Array.isArray(rows[0])
+      ? (rows[0] as Record<string, unknown>)
+      : null;
+
+  const uiSnapshot =
+    projection?.ui_snapshot &&
+    typeof projection.ui_snapshot === "object" &&
+    !Array.isArray(projection.ui_snapshot)
+      ? (projection.ui_snapshot as Record<string, unknown>)
+      : null;
+
+  const pointsPreview =
+    projection?.points_preview &&
+    typeof projection.points_preview === "object" &&
+    !Array.isArray(projection.points_preview)
+      ? (projection.points_preview as Record<string, unknown>)
+      : null;
+
+  const strategies = Array.isArray(uiSnapshot?.strategies_live)
+    ? uiSnapshot.strategies_live
+    : [];
+
+  const predictionResults = Array.isArray(
+    pointsPreview?.prediction_results,
+  )
+    ? pointsPreview.prediction_results
+    : [];
+
+  const fixtureId =
+    (fixture as OneToOneFixture & { fixture_id?: string | null })
+      .fixture_id ?? null;
+  const homeMemberId =
+    fixture.home_member_id ?? fixture.home?.member_id ?? null;
+  const awayMemberId =
+    fixture.away_member_id ?? fixture.away?.member_id ?? null;
+
+  if (!fixtureId || !homeMemberId || !awayMemberId) {
+    return null;
+  }
+
+  const asRecord = (
+    value: unknown,
+  ): Record<string, unknown> | null =>
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+
+  const matrixChallenges = (
+    matrix: OneToOneMatrixSummary | null | undefined,
+  ) => {
+    const candidate =
+      matrix as
+        | (OneToOneMatrixSummary & {
+            owner_member_id?: string | null;
+            mini_challenges?: unknown[];
+          })
+        | null
+        | undefined;
+
+    return Array.isArray(candidate?.mini_challenges) &&
+      candidate.mini_challenges.length === 10
+      ? candidate.mini_challenges
+      : [];
+  };
+
+  const strategyFor = (memberId: string) =>
+    strategies
+      .map(asRecord)
+      .find(
+        (strategy) =>
+          strategy?.mode === "one_to_one" &&
+          strategy?.league_member_id === memberId &&
+          strategy?.league_fixture_id === fixtureId,
+      ) ?? null;
+
+  const strategyPairings = (
+    strategy: Record<string, unknown> | null,
+  ) => {
+    const payload = asRecord(strategy?.payload);
+    return Array.isArray(payload?.pairings) &&
+      payload.pairings.length === 10
+      ? payload.pairings
+      : [];
+  };
+
+  const matrixFor = (memberId: string) => {
+    const homeMatrix =
+      fixture.matrix_home as
+        | (OneToOneMatrixSummary & {
+            owner_member_id?: string | null;
+            mini_challenges?: unknown[];
+          })
+        | null
+        | undefined;
+    const awayMatrix =
+      fixture.matrix_away as
+        | (OneToOneMatrixSummary & {
+            owner_member_id?: string | null;
+            mini_challenges?: unknown[];
+          })
+        | null
+        | undefined;
+
+    if (homeMatrix?.owner_member_id === memberId) {
+      return homeMatrix;
+    }
+    if (awayMatrix?.owner_member_id === memberId) {
+      return awayMatrix;
+    }
+    return null;
+  };
+
+  const homeMatrix = matrixFor(homeMemberId);
+  const awayMatrix = matrixFor(awayMemberId);
+  const homeStrategy = strategyFor(homeMemberId);
+  const awayStrategy = strategyFor(awayMemberId);
+
+  const homeMatrixPairings = matrixChallenges(homeMatrix);
+  const awayMatrixPairings = matrixChallenges(awayMatrix);
+  const homeOfficialPairings = strategyPairings(homeStrategy);
+  const awayOfficialPairings = strategyPairings(awayStrategy);
+
+  const homePairings =
+    homeMatrixPairings.length === 10
+      ? homeMatrixPairings
+      : homeOfficialPairings;
+  const awayPairings =
+    awayMatrixPairings.length === 10
+      ? awayMatrixPairings
+      : awayOfficialPairings;
+
+  const homeHasOfficialStrategy = homePairings.length === 10;
+  const awayHasOfficialStrategy = awayPairings.length === 10;
+
+  const resultByMemberAndMatch = new Map<
+    string,
+    Record<string, unknown>
+  >();
+
+  for (const candidate of predictionResults) {
+    const result = asRecord(candidate);
+    const memberId =
+      typeof result?.league_member_id === "string"
+        ? result.league_member_id
+        : null;
+    const matchId =
+      typeof result?.match_id === "string"
+        ? result.match_id
+        : null;
+
+    if (memberId && matchId && result) {
+      resultByMemberAndMatch.set(
+        `${memberId}:${matchId}`,
+        result,
+      );
+    }
+  }
+
+  const resultPoints = (
+    result: Record<string, unknown> | undefined,
+  ) => {
+    if (!result || result.void === true) {
+      return 0;
+    }
+
+    return [
+      "exact_points",
+      "sign_points",
+      "over_under_points",
+      "goal_no_goal_points",
+      "surprise_points",
+      "goal_show_points",
+      "grand_slam_points",
+      "cantonata_points",
+      "opposite_sign_points",
+    ].reduce((total, key) => {
+      const value = Number(result[key] ?? 0);
+      return total + (Number.isFinite(value) ? value : 0);
+    }, 0);
+  };
+
+  const resultIsPostLive = (
+    result: Record<string, unknown> | undefined,
+  ) => result?.result_phase === "post_live";
+
+  let homeWins = 0;
+  let awayWins = 0;
+  let draws = 0;
+
+  const applyDirectionalMatrix = ({
+    ownerMemberId,
+    opponentMemberId,
+    pairings,
+    ownerIsHome,
+    ownerHasOfficialStrategy,
+    opponentHasOfficialStrategy,
+  }: {
+    ownerMemberId: string;
+    opponentMemberId: string;
+    pairings: unknown[];
+    ownerIsHome: boolean;
+    ownerHasOfficialStrategy: boolean;
+    opponentHasOfficialStrategy: boolean;
+  }) => {
+    if (!ownerHasOfficialStrategy) {
+      return;
+    }
+
+    const matrixWeight =
+      ownerHasOfficialStrategy &&
+      !opponentHasOfficialStrategy
+        ? 2
+        : 1;
+
+    for (const candidate of pairings) {
+      const pairing = asRecord(candidate);
+      const ownMatchId =
+        typeof pairing?.own_match_id === "string"
+          ? pairing.own_match_id
+          : null;
+      const opponentMatchId =
+        typeof pairing?.opponent_match_id === "string"
+          ? pairing.opponent_match_id
+          : null;
+
+      if (!ownMatchId || !opponentMatchId) {
+        continue;
+      }
+
+      const ownResult = resultByMemberAndMatch.get(
+        `${ownerMemberId}:${ownMatchId}`,
+      );
+      const opponentResult = opponentHasOfficialStrategy
+        ? resultByMemberAndMatch.get(
+            `${opponentMemberId}:${opponentMatchId}`,
+          )
+        : undefined;
+
+      const determined =
+        resultIsPostLive(ownResult) &&
+        (
+          !opponentHasOfficialStrategy ||
+          resultIsPostLive(opponentResult)
+        );
+
+      if (!determined) {
+        continue;
+      }
+
+      const ownPoints = resultPoints(ownResult);
+      const opponentPoints = resultPoints(opponentResult);
+
+      if (ownPoints > opponentPoints) {
+        if (ownerIsHome) {
+          homeWins += matrixWeight;
+        } else {
+          awayWins += matrixWeight;
+        }
+      } else if (ownPoints < opponentPoints) {
+        if (ownerIsHome) {
+          awayWins += matrixWeight;
+        } else {
+          homeWins += matrixWeight;
+        }
+      } else {
+        draws += matrixWeight;
+      }
+    }
+  };
+
+  applyDirectionalMatrix({
+    ownerMemberId: homeMemberId,
+    opponentMemberId: awayMemberId,
+    pairings: homePairings,
+    ownerIsHome: true,
+    ownerHasOfficialStrategy: homeHasOfficialStrategy,
+    opponentHasOfficialStrategy: awayHasOfficialStrategy,
+  });
+
+  applyDirectionalMatrix({
+    ownerMemberId: awayMemberId,
+    opponentMemberId: homeMemberId,
+    pairings: awayPairings,
+    ownerIsHome: false,
+    ownerHasOfficialStrategy: awayHasOfficialStrategy,
+    opponentHasOfficialStrategy: homeHasOfficialStrategy,
+  });
+
+  return {
+    home_wins: homeWins,
+    away_wins: awayWins,
+    draws,
+  };
+}
 function extractOneToOneFixture(
   value: unknown,
   currentMemberId: string,
@@ -1461,6 +1820,7 @@ export default function LeagueDashboardPage() {
         matchupResult,
         fantacalcioResult,
         oneToOneResult,
+        oneToOneLiveProjectionResult,
         membersResult,
       ] = await Promise.all([
         supabase.rpc("get_my_standings_preview_rpc", {
@@ -1473,6 +1833,9 @@ export default function LeagueDashboardPage() {
           p_league_round_id: currentRound.league_round_id,
         }),
         supabase.rpc("get_my_one_to_one_preview_rpc", {
+          p_league_round_id: currentRound.league_round_id,
+        }),
+        supabase.rpc("get_league_live_frontend_projection_rpc", {
           p_league_round_id: currentRound.league_round_id,
         }),
         supabase.rpc("get_current_league_members_v2_rpc", {
@@ -1521,6 +1884,10 @@ export default function LeagueDashboardPage() {
         oneToOneResult.data || [],
         currentMemberId,
       );
+      const liveOneToOneFixture = extractLiveOneToOneFixture(
+        oneToOneLiveProjectionResult.data || [],
+        currentMemberId,
+      );
 
       const compatibleFantacalcioPreview =
         scheduledFantacalcioFixture &&
@@ -1544,6 +1911,25 @@ export default function LeagueDashboardPage() {
           oneToOnePreviewFixture.away?.member_id ||
           null) === scheduledOneToOneFixture.away_member_id
           ? oneToOnePreviewFixture
+          : null;
+      const compatibleLiveOneToOneFixture =
+        scheduledOneToOneFixture &&
+        liveOneToOneFixture &&
+        (liveOneToOneFixture.home_member_id ||
+          liveOneToOneFixture.home?.member_id ||
+          "") === scheduledOneToOneFixture.home_member_id &&
+        (liveOneToOneFixture.away_member_id ||
+          liveOneToOneFixture.away?.member_id ||
+          null) === scheduledOneToOneFixture.away_member_id
+          ? liveOneToOneFixture
+          : null;
+
+      const liveOneToOneCanonicalSummary =
+        compatibleLiveOneToOneFixture
+          ? buildCanonicalLiveOneToOneSummary(
+              oneToOneLiveProjectionResult.data || [],
+              compatibleLiveOneToOneFixture,
+            )
           : null;
 
       const fantacalcioFixture: FantacalcioFixture | null =
@@ -1577,6 +1963,7 @@ export default function LeagueDashboardPage() {
         scheduledOneToOneFixture
           ? {
               ...(compatibleOneToOnePreview || {}),
+              ...(liveOneToOneCanonicalSummary || {}),
               fixture_phase: scheduledOneToOneFixture.fixture_phase,
               is_bye: scheduledOneToOneFixture.is_bye,
               home_member_id: scheduledOneToOneFixture.home_member_id,
@@ -1599,8 +1986,7 @@ export default function LeagueDashboardPage() {
                 : null,
             }
           : null;
-
-      setLiveModeSummary({
+setLiveModeSummary({
         purePoints: toFiniteNumber(purePointsRow?.round_points),
         currentClub: currentMemberId
           ? {
