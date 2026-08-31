@@ -98,8 +98,9 @@ export function createProductionHeartbeatPostHandler(
              * Each heartbeat may drain a bounded set of
              * canonical live-chain jobs: poll_batch,
              * refresh_round and rebuild_league_round.
-             * Match-result certification, round certification and
-             * publication terminal jobs are admitted by the governed heartbeat.
+             * Match-result certification, round certification,
+             * publication and achievement certification terminal jobs
+             * are admitted by the governed heartbeat.
              */
             maxWorkerJobs:
               8,
@@ -114,6 +115,7 @@ export function createProductionHeartbeatPostHandler(
                 "certify_round",
                 "publish_snapshot",
                 "retry_publication",
+                "certify_achievement_state",
               ],
           });
 
