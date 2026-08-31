@@ -233,6 +233,20 @@ type R40FantacalcioFixture = {
   is_bye?: boolean | null;
   home: R40FantacalcioFixtureSide;
   away: R40FantacalcioFixtureSide | null;
+  result?: {
+    authority?: "normal" | "single_forfeit" | "double_forfeit" | string | null;
+    winner?: "home" | "away" | null;
+    home_goals?: number | string | null;
+    away_goals?: number | string | null;
+  } | null;
+  forfeit?: {
+    type?: "single" | "double" | string | null;
+    winner?: "home" | "away" | null;
+    home_score?: string | null;
+    away_score?: string | null;
+    home_outcome?: string | null;
+    away_outcome?: string | null;
+  } | null;
 };
 
 type R40OneToOneMiniChallenge = {
@@ -1738,10 +1752,50 @@ export default function FantacalcioLivePage() {
       fixture,
       viewedMemberId,
       opponentMemberId,
+      viewedIsHome,
       leftSide,
       rightSide,
     };
   })();
+
+  /*
+   * R53 competitive result authority.
+   * Strategy validity continues to govern points/contributions and row
+   * transparency. A forfeit, however, is a fixture-level result and must
+   * render 3-0 / 0-3 even when the forfeiting side has no valid strategy.
+   */
+  const fantacalcioForfeitScore = (() => {
+    if (!r40FantacalcioView) return null;
+
+    const authority =
+      r40FantacalcioView.fixture.result?.authority ?? null;
+
+    if (authority === "single_forfeit") {
+      const homeGoals = r40LiveNumber(
+        r40FantacalcioView.fixture.result?.home_goals ??
+          r40FantacalcioView.fixture.home.goals,
+      );
+      const awayGoals = r40LiveNumber(
+        r40FantacalcioView.fixture.result?.away_goals ??
+          r40FantacalcioView.fixture.away?.goals,
+      );
+
+      return r40FantacalcioView.viewedIsHome
+        ? { left: homeGoals, right: awayGoals }
+        : { left: awayGoals, right: homeGoals };
+    }
+
+    if (authority === "double_forfeit") {
+      // No shared winner exists; backend keeps both technical losses.
+      return { left: "—", right: "—" };
+    }
+
+    return null;
+  })();
+
+  const fantacalcioIsForfeit =
+    fantacalcioForfeitScore !== null;
+
   const displayedLeftPoints = canViewProfileContent
     ? r40FantacalcioView?.leftSide
       ? r40FantacalcioView.leftSide.strategy_valid === true
@@ -1766,29 +1820,33 @@ export default function FantacalcioLivePage() {
         : "—"
     : "—";
 
-  const displayedLeftGoals = canViewProfileContent
-    ? r40FantacalcioView?.leftSide
-      ? r40FantacalcioView.leftSide.strategy_valid === true
-        ? r40LiveNumber(
-            r40FantacalcioView.leftSide.goals,
-          )
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? leftGoals
-        : "—"
-    : "—";
+  const displayedLeftGoals = fantacalcioForfeitScore
+    ? fantacalcioForfeitScore.left
+    : canViewProfileContent
+      ? r40FantacalcioView?.leftSide
+        ? r40FantacalcioView.leftSide.strategy_valid === true
+          ? r40LiveNumber(
+              r40FantacalcioView.leftSide.goals,
+            )
+          : "—"
+        : isViewingSelf && !isLiveForSwipe
+          ? leftGoals
+          : "—"
+      : "—";
 
-  const displayedRightGoals = canViewProfileContent
-    ? r40FantacalcioView?.rightSide
-      ? r40FantacalcioView.rightSide.strategy_valid === true
-        ? r40LiveNumber(
-            r40FantacalcioView.rightSide.goals,
-          )
-        : "—"
-      : isViewingSelf && !isLiveForSwipe
-        ? rightGoals
-        : "—"
-    : "—";
+  const displayedRightGoals = fantacalcioForfeitScore
+    ? fantacalcioForfeitScore.right
+    : canViewProfileContent
+      ? r40FantacalcioView?.rightSide
+        ? r40FantacalcioView.rightSide.strategy_valid === true
+          ? r40LiveNumber(
+              r40FantacalcioView.rightSide.goals,
+            )
+          : "—"
+        : isViewingSelf && !isLiveForSwipe
+          ? rightGoals
+          : "—"
+      : "—";
 
   function completeProfileSwipe(nextIndex: number, direction: "next" | "prev") {
     const bounded = Math.min(Math.max(nextIndex, 0), swipeProfiles.length - 1);
@@ -2549,6 +2607,12 @@ export default function FantacalcioLivePage() {
                     {displayedRightGoals}
                   </span>
                 </div>
+
+                {fantacalcioIsForfeit && (
+                  <span className="mt-1 rounded-full border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-orange-300 sm:text-[8px]">
+                    A tavolino
+                  </span>
+                )}
               </div>
 
               <div className="flex min-w-0 flex-col items-center justify-self-center">

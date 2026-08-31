@@ -289,10 +289,21 @@ type R40OneToOneFixture = {
     display_name?: string | null;
   } | null;
   aggregate?: {
+    authority?: "normal" | "single_forfeit" | "double_forfeit" | string | null;
     home_wins?: number | null;
     away_wins?: number | null;
     draws?: number | null;
     winner?: string | null;
+    home_score?: number | null;
+    away_score?: number | null;
+  } | null;
+  forfeit?: {
+    type?: "single" | "double" | string | null;
+    winner?: string | null;
+    home_score?: string | null;
+    away_score?: string | null;
+    home_outcome?: string | null;
+    away_outcome?: string | null;
   } | null;
   matrix_home?: R40OneToOneMatrix | null;
   matrix_away?: R40OneToOneMatrix | null;
@@ -2279,9 +2290,48 @@ export default function OneToOneLivePage() {
     };
   })();
 
+  const oneToOneCompetitionScore = (() => {
+    if (!r40OneToOneView) return null;
+
+    const { fixture, viewedIsHome } = r40OneToOneView;
+    const authority = fixture.aggregate?.authority ?? null;
+
+    if (authority === "single_forfeit") {
+      const homeScore = Number(fixture.aggregate?.home_score);
+      const awayScore = Number(fixture.aggregate?.away_score);
+
+      if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) {
+        return null;
+      }
+
+      return viewedIsHome
+        ? { viewed: homeScore, opponent: awayScore }
+        : { viewed: awayScore, opponent: homeScore };
+    }
+
+    if (authority === "double_forfeit") {
+      // No shared winner exists; backend keeps both technical losses.
+      return { viewed: "—", opponent: "—" };
+    }
+
+    return null;
+  })();
+
+  const oneToOneForfeitBadge =
+    canViewProfileContent &&
+    r40OneToOneView &&
+    (
+      r40OneToOneView.fixture.aggregate?.authority === "single_forfeit" ||
+      r40OneToOneView.fixture.aggregate?.authority === "double_forfeit"
+    )
+      ? "A tavolino"
+      : null;
+
   const displayedLeftGoals = canViewProfileContent
     ? r40OneToOneView
-      ? liveMiniChallengeSummary?.viewedWins ?? 0
+      ? oneToOneCompetitionScore?.viewed ??
+        liveMiniChallengeSummary?.viewedWins ??
+        0
       : isViewingSelf && !isLiveForSwipe
         ? leftGoals
         : "—"
@@ -2289,7 +2339,9 @@ export default function OneToOneLivePage() {
 
   const displayedRightGoals = canViewProfileContent
     ? r40OneToOneView?.opponentMemberId
-      ? liveMiniChallengeSummary?.opponentWins ?? 0
+      ? oneToOneCompetitionScore?.opponent ??
+        liveMiniChallengeSummary?.opponentWins ??
+        0
       : isViewingSelf && !isLiveForSwipe
         ? rightGoals
         : "—"
@@ -2687,6 +2739,13 @@ export default function OneToOneLivePage() {
                     {displayedRightGoals}
                   </span>
                 </div>
+                {oneToOneForfeitBadge && (
+                  <div className="mt-1 flex justify-center">
+                    <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-200 sm:text-[9px]">
+                      {oneToOneForfeitBadge}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex min-w-0 flex-col items-center justify-self-center">

@@ -140,9 +140,21 @@ type OneToOneFixture = {
   home?: FixtureSide | null;
   away?: FixtureSide | null;
   aggregate?: {
+    authority?: "normal" | "single_forfeit" | "double_forfeit" | string | null;
+    winner?: "home" | "away" | "draw" | string | null;
     home_wins?: number | null;
     draws?: number | null;
     away_wins?: number | null;
+    home_score?: number | null;
+    away_score?: number | null;
+  } | null;
+  forfeit?: {
+    type?: "single" | "double" | string | null;
+    winner?: "home" | "away" | string | null;
+    home_score?: string | null;
+    away_score?: string | null;
+    home_outcome?: string | null;
+    away_outcome?: string | null;
   } | null;
   aggregate_result?: {
     home_wins?: number | null;
@@ -211,6 +223,7 @@ type DuelSummary = {
   secondaryLabel: string | null;
   pending: boolean;
   bye: boolean;
+  forfeit: boolean;
 };
 
 type LiveModeSummary = {
@@ -1262,18 +1275,35 @@ function buildDuelSummary({
         )} pt`;
   } else {
     const oneToOneFixture = fixture as OneToOneFixture;
-    homeScore = toFiniteNumber(
-      oneToOneFixture.home_wins ??
-        oneToOneFixture.aggregate_result?.home_wins ??
-        oneToOneFixture.aggregate?.home_wins ??
-        oneToOneFixture.mini_wins,
-    );
-    awayScore = toFiniteNumber(
-      oneToOneFixture.away_wins ??
-        oneToOneFixture.aggregate_result?.away_wins ??
-        oneToOneFixture.aggregate?.away_wins ??
-        oneToOneFixture.mini_losses,
-    );
+    const oneToOneAuthority = oneToOneFixture.aggregate?.authority ?? null;
+    const hasCompetitionForfeitAuthority =
+      oneToOneAuthority === "single_forfeit" ||
+      oneToOneAuthority === "double_forfeit";
+
+    if (hasCompetitionForfeitAuthority) {
+      if (oneToOneAuthority === "double_forfeit") {
+        // No shared winner exists. Backend technical losses stay authoritative;
+        // only the shared dashboard score is neutralized.
+        homeScore = Number.NaN;
+        awayScore = Number.NaN;
+      } else {
+        homeScore = toFiniteNumber(oneToOneFixture.aggregate?.home_score);
+        awayScore = toFiniteNumber(oneToOneFixture.aggregate?.away_score);
+      }
+    } else {
+      homeScore = toFiniteNumber(
+        oneToOneFixture.home_wins ??
+          oneToOneFixture.aggregate_result?.home_wins ??
+          oneToOneFixture.aggregate?.home_wins ??
+          oneToOneFixture.mini_wins,
+      );
+      awayScore = toFiniteNumber(
+        oneToOneFixture.away_wins ??
+          oneToOneFixture.aggregate_result?.away_wins ??
+          oneToOneFixture.aggregate?.away_wins ??
+          oneToOneFixture.mini_losses,
+      );
+    }
     const draws = toFiniteNumber(
       oneToOneFixture.draws ??
         oneToOneFixture.aggregate_result?.draws ??
@@ -1317,8 +1347,14 @@ function buildDuelSummary({
     leftScore: orientFromHome ? homeScore : awayScore,
     rightScore: orientFromHome ? awayScore : homeScore,
     secondaryLabel,
-    pending: fixture.fixture_phase !== "ready" && !bye,
+    pending:
+      !["ready", "forfeit", "double_forfeit"].includes(
+        fixture.fixture_phase ?? "",
+      ) && !bye,
     bye,
+    forfeit:
+      fixture.fixture_phase === "forfeit" ||
+      fixture.fixture_phase === "double_forfeit",
   };
 }
 function DuelAvatar({
@@ -1424,7 +1460,7 @@ function DashboardModeCard({
           <div className="min-w-[92px] text-center">
             <div className="flex items-center justify-center gap-2 text-4xl font-black leading-none">
               <span className={isBye ? "text-gray-600" : "text-[#A6E824]"}>
-                {isBye ? 0 : (duel?.leftScore ?? 0)}
+                {isBye ? 0 : Number.isFinite(duel?.leftScore) ? duel?.leftScore : "—"}
               </span>
               <span
                 className={`text-2xl ${isBye ? "text-gray-700" : "text-white"}`}
@@ -1432,9 +1468,17 @@ function DashboardModeCard({
                 -
               </span>
               <span className={isBye ? "text-gray-600" : "text-white"}>
-                {isBye ? 0 : (duel?.rightScore ?? 0)}
+                {isBye ? 0 : Number.isFinite(duel?.rightScore) ? duel?.rightScore : "—"}
               </span>
             </div>
+            {duel?.forfeit && (
+              <div className="mt-2 flex justify-center">
+                <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-200">
+                  A tavolino
+                </span>
+              </div>
+            )}
+
 
             <div className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">
               {duel?.bye
@@ -1964,7 +2008,10 @@ export default function LeagueDashboardPage() {
           ? {
               ...(compatibleOneToOnePreview || {}),
               ...(liveOneToOneCanonicalSummary || {}),
-              fixture_phase: scheduledOneToOneFixture.fixture_phase,
+              fixture_phase:
+                compatibleLiveOneToOneFixture?.fixture_phase ??
+                compatibleOneToOnePreview?.fixture_phase ??
+                scheduledOneToOneFixture.fixture_phase,
               is_bye: scheduledOneToOneFixture.is_bye,
               home_member_id: scheduledOneToOneFixture.home_member_id,
               home_display_name: scheduledOneToOneFixture.home_display_name,
