@@ -2264,10 +2264,15 @@ export default function FantacalcioLivePage() {
   })();
   function renderLiveDepartmentSplitCards(
     rows: FantacalcioDisplayRow[],
+    tone: "red" | "green",
   ) {
+    const macroCardClass =
+      tone === "red"
+        ? "border-red-500/55 ring-red-300/[0.08] shadow-[0_8px_0_rgba(69,10,10,0.42),0_14px_26px_rgba(0,0,0,0.52),0_0_20px_rgba(239,68,68,0.10)]"
+        : "border-[#A6E824]/50 ring-[#d9ff7a]/[0.08] shadow-[0_8px_0_rgba(38,61,5,0.42),0_14px_26px_rgba(0,0,0,0.52),0_0_20px_rgba(166,232,36,0.10)]";
     return (
       <div className="grid grid-cols-2 gap-2 p-2 sm:gap-4 sm:p-4">
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#081217]/95 shadow-xl shadow-black/30">
+        <section className={`min-w-0 overflow-hidden rounded-2xl border-2 bg-[#081217]/95 ring-1 ring-inset ${macroCardClass}`}>
           <div className="border-b border-white/10 px-2.5 py-2 sm:px-4 sm:py-2.5">
             <p className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white sm:text-xs">
               {viewedClubInfo.name}
@@ -2301,7 +2306,7 @@ export default function FantacalcioLivePage() {
           ))}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#081217]/95 shadow-xl shadow-black/30">
+        <section className={`min-w-0 overflow-hidden rounded-2xl border-2 bg-[#081217]/95 ring-1 ring-inset ${macroCardClass}`}>
           <div className="border-b border-white/10 px-2.5 py-2 text-right sm:px-4 sm:py-2.5">
             <p className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white sm:text-xs">
               {viewedOpponentClubInfo?.name || "Avversario"}
@@ -3059,7 +3064,7 @@ group.rows.map((displayRow, groupIndex) => {
                     </article>
                   );
                 })) : (
-                  renderLiveDepartmentSplitCards(group.rows)
+                  renderLiveDepartmentSplitCards(group.rows, group.tone as "red" | "green")
                 )}
               </section>
             ))}
