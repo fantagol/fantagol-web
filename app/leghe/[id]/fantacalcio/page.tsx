@@ -2023,14 +2023,22 @@ export default function FantacalcioLivePage() {
       }));
 
     /*
-     * Pre-live/self workspace remains completely untouched.
-     * liveRows is still the editable Strategy workspace authority.
+     * PRE-LIVE PRIVACY / OWNERSHIP CONTRACT:
+     *
+     * liveRows is the authenticated member's editable Strategy workspace.
+     * It is authoritative only while rendering that member's own card.
+     *
+     * Other swipe cards must never inherit SELF predictions before LIVE.
+     * Until the publication-backed cross-member projection becomes active,
+     * those cards remain neutral.
      */
     if (!isLiveForSwipe) {
-      return liveRows.map((match) => ({
-        leftMatch: match,
-        rightMatch: match,
-      }));
+      return isViewingSelf
+        ? liveRows.map((match) => ({
+            leftMatch: match,
+            rightMatch: match,
+          }))
+        : neutralRows();
     }
 
     if (!canViewProfileContent) {
