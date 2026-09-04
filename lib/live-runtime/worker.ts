@@ -14,6 +14,7 @@ import {
   claimLiveRuntimeJob,
   claimLiveRuntimeJobById,
   completeLiveRuntimeJob,
+  enqueueLiveRuntimeJob,
   failLiveRuntimeJob,
   type ClaimedLiveRuntimeJob,
   type LiveRuntimeJobType,
@@ -178,6 +179,60 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     correlationId: job.correlationId,
   });
 
+  const publicationChannel =
+    getString(job.payload, "publication_channel") ?? "realtime";
+
+  /*
+   * LIVE publication is intentionally separated from FINAL certification.
+   *
+   * Every healthy non-terminal Digital Twin snapshot gets a queued realtime
+   * publication handoff. A terminal snapshot is deliberately left to the
+   * existing certify_round -> certified_snapshot_publication path so the
+   * canonical terminal publication keeps its certification metadata.
+   */
+  const roundView = getObject(rebuilt.digitalTwin, "round");
+  const matchCount = roundView.match_count;
+  const finishedMatchCount = roundView.finished_match_count;
+  const pendingMatchCount = roundView.pending_match_count;
+
+  const terminalRound =
+    typeof matchCount === "number" &&
+    matchCount > 0 &&
+    typeof finishedMatchCount === "number" &&
+    finishedMatchCount === matchCount &&
+    typeof pendingMatchCount === "number" &&
+    pendingMatchCount === 0;
+
+  const livePublicationJob = terminalRound
+    ? null
+    : await enqueueLiveRuntimeJob(client, {
+        jobType: "publish_snapshot",
+        scopeType: "live_state_snapshot",
+        scopeId: snapshot.liveStateSnapshotId,
+        idempotencyKey: [
+          "live",
+          "publish-snapshot",
+          snapshot.liveStateSnapshotId,
+          publicationChannel,
+        ].join(":"),
+        priority: 40,
+        payload: {
+          live_state_snapshot_id: snapshot.liveStateSnapshotId,
+          channel: publicationChannel,
+          metadata: {
+            publication_type: "live_state",
+            source_job_id: job.jobId,
+            source_rebuild_job_id: job.jobId,
+            league_round_id: rebuilt.leagueRoundId,
+            calculation_run_id: rebuilt.calculationRunId,
+            ui_simulation_id: rebuilt.uiSimulationId,
+            live_state_snapshot_id: snapshot.liveStateSnapshotId,
+          },
+        },
+        correlationId: job.correlationId,
+        causationId: job.jobId,
+      });
+
   const certificationReadinessWorkflow =
     await launchRoundCertificationReadinessWorkflow({
       client,
@@ -185,8 +240,8 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
       calculationRunId: rebuilt.calculationRunId,
       uiSimulationId: rebuilt.uiSimulationId,
       liveStateSnapshotId: snapshot.liveStateSnapshotId,
-      publicationChannel:
-        getString(job.payload, "publication_channel") ?? "realtime",
+
+      publicationChannel,
       publicationMetadata: {
         source_rebuild_job_id: job.jobId,
         ui_simulation_id: rebuilt.uiSimulationId,
@@ -216,6 +271,12 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     standings_simulation_id: rebuilt.standingsSimulationId,
     ui_simulation_id: rebuilt.uiSimulationId,
     live_state_snapshot_id: snapshot.liveStateSnapshotId,
+    live_publication_job_id:
+      livePublicationJob?.jobId ?? null,
+    live_publication_job_inserted:
+      livePublicationJob?.inserted ?? false,
+    live_publication_skipped_terminal:
+      terminalRound,
     certification_readiness_workflow_id:
       certificationReadinessWorkflow.workflowId,
     certification_readiness_workflow_inserted:
