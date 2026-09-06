@@ -1,6 +1,7 @@
 import { FootballDataLiveAdapter } from "./football-data-live-adapter";
 import { ProviderRuntimeRegistry } from "./provider-runtime";
 import { TheOddsApiLiveAdapter } from "./the-odds-api-live-adapter";
+import { TuttoilcalcioLiveAdapter } from "./tuttoilcalcio-live-adapter";
 
 export type CreateDefaultProviderRuntimeRegistryOptions = {
   footballDataApiToken?: string;
@@ -19,6 +20,11 @@ export function createDefaultProviderRuntimeRegistry(
     new FootballDataLiveAdapter({
       apiToken: options.footballDataApiToken,
     }),
+  );
+
+  registry.register(
+    "tuttoilcalcio",
+    new TuttoilcalcioLiveAdapter(),
   );
 
   if (options.theOddsApiKey || process.env.THE_ODDS_API_KEY) {

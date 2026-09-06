@@ -7,6 +7,7 @@ import {
 import {
   loadFootballDataProductionTargets,
   loadMarketRoundProductionTargets,
+  loadTuttoilcalcioProductionTargets,
   resolveProductionRoundContext,
   type ProductionRoundContext,
 } from "./production-target-loader";
@@ -28,8 +29,10 @@ import {
 } from "./market-round-polling-policy";
 import {
   scheduleFootballDataAggregatedPolling,
+  scheduleLivePollingBatch,
   type LivePollingTarget,
   type ScheduledFootballDataAggregate,
+  type ScheduledLivePollingBatch,
 } from "./scheduler";
 import {
   scheduleMarketRoundPolling,
@@ -96,6 +99,8 @@ export type ProductionHeartbeatResult = {
   round: ProductionHeartbeatStep<ProductionRoundContext>;
   footballData:
     ProductionHeartbeatStep<ScheduledFootballDataAggregate[]>;
+  tuttoilcalcio:
+    ProductionHeartbeatStep<ScheduledLivePollingBatch>;
   market:
     ProductionHeartbeatStep<ScheduledMarketRoundPolling>;
   marketAdvanced:
@@ -140,6 +145,11 @@ export type ProductionHeartbeatDependencies = {
     fantagolRoundId: string,
   ) => Promise<LivePollingTarget[]>;
 
+  loadTuttoilcalcioTargets: (
+    client: SupabaseClient,
+    fantagolRoundId: string,
+  ) => Promise<LivePollingTarget[]>;
+
   loadMarketTargets: (
     client: SupabaseClient,
     fantagolRoundId: string,
@@ -174,6 +184,7 @@ export type ProductionHeartbeatDependencies = {
   resolveCommunityDecision: ResolveCommunityDecision;
 
   scheduleFootballData: typeof scheduleFootballDataAggregatedPolling;
+  scheduleTuttoilcalcio: typeof scheduleLivePollingBatch;
   scheduleMarket: typeof scheduleMarketRoundPolling;
 
   advancePredictionOpening: (input: {
@@ -440,6 +451,10 @@ function resolveDependencies(
       overrides.loadFootballDataTargets ??
       loadFootballDataProductionTargets,
 
+    loadTuttoilcalcioTargets:
+      overrides.loadTuttoilcalcioTargets ??
+      loadTuttoilcalcioProductionTargets,
+
     loadMarketTargets:
       overrides.loadMarketTargets ??
       loadMarketRoundProductionTargets,
@@ -475,6 +490,10 @@ function resolveDependencies(
     scheduleFootballData:
       overrides.scheduleFootballData ??
       scheduleFootballDataAggregatedPolling,
+
+    scheduleTuttoilcalcio:
+      overrides.scheduleTuttoilcalcio ??
+      scheduleLivePollingBatch,
 
     scheduleMarket:
       overrides.scheduleMarket ??
@@ -601,6 +620,7 @@ export async function runProductionHeartbeat(
       finishedAt: new Date().toISOString(),
       round: failed(error),
       footballData: skipped(),
+      tuttoilcalcio: skipped(),
       market: skipped(),
       marketAdvanced: skipped(),
       community: skipped(),
@@ -620,6 +640,7 @@ export async function runProductionHeartbeat(
         ),
       ),
       footballData: skipped(),
+      tuttoilcalcio: skipped(),
       market: skipped(),
       marketAdvanced: skipped(),
       community: skipped(),
@@ -652,6 +673,31 @@ export async function runProductionHeartbeat(
       completed(scheduled);
   } catch (error) {
     footballDataStep = failed(error);
+  }
+
+  let tuttoilcalcioStep:
+    ProductionHeartbeatStep<ScheduledLivePollingBatch>;
+
+  try {
+    const targets =
+      await deps.loadTuttoilcalcioTargets(
+        input.client,
+        round.fantagolRoundId,
+      );
+
+    tuttoilcalcioStep =
+      completed(
+        await deps.scheduleTuttoilcalcio({
+          client: input.client,
+          targets,
+          now,
+          correlationId,
+          priority: input.priority,
+        }),
+      );
+  } catch (error) {
+    tuttoilcalcioStep =
+      failed(error);
   }
 
   let marketStep:
@@ -1062,6 +1108,7 @@ export async function runProductionHeartbeat(
       new Date().toISOString(),
     round: roundStep,
     footballData: footballDataStep,
+    tuttoilcalcio: tuttoilcalcioStep,
     market: marketStep,
     marketAdvanced:
       marketAdvancedStep,

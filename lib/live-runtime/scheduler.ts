@@ -91,7 +91,7 @@ export async function scheduleLivePolling(
 ): Promise<ScheduledLivePolling> {
   const now = input.now ?? new Date();
 
-  const decision =
+  const baseDecision =
     input.target.providerCode === "the_odds_api"
       ? decideMarketPollingPolicy({
           status: input.target.status,
@@ -106,6 +106,26 @@ export async function scheduleLivePolling(
           postLiveStable: input.target.postLiveStable,
           roundCertified: input.target.roundCertified,
         });
+
+  const decision =
+    input.target.providerCode === "tuttoilcalcio"
+      ? (
+          (baseDecision.band === "live" ||
+            baseDecision.band === "halftime") &&
+          baseDecision.shouldPoll
+            ? {
+                ...baseDecision,
+                intervalSeconds: 60,
+                reason: "tuttoilcalcio_live_one_minute_per_match",
+              }
+            : {
+                band: "stopped" as const,
+                intervalSeconds: null,
+                shouldPoll: false,
+                reason: "tuttoilcalcio_primary_live_only",
+              }
+        )
+      : baseDecision;
 
   if (!decision.shouldPoll || decision.intervalSeconds === null) {
     return {

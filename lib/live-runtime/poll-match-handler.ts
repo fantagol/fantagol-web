@@ -2,6 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
 import {
+  recordPrimaryLiveObservation,
+  resolveLiveRuntimeAuthorityState,
+} from "./live-primary-authority";
+import {
+  enqueuePrimaryLiveLeagueRoundRebuildJobs,
+} from "./rebuild-enqueue";
+import {
   ingestFootballDataPollResult,
   sha256ProviderPayload,
 } from "./football-data-poll-ingestion";
@@ -13,6 +20,9 @@ import { persistCanonicalOddsSnapshot } from "./odds-snapshot-service";
 import { createDefaultProviderRuntimeRegistry } from "./provider-runtime-registry";
 import { executeProviderPoll } from "./provider-runtime-runner";
 import { normalizeTheOddsApiSnapshot } from "./the-odds-api-snapshot-normalizer";
+import {
+  normalizeTuttoilcalcioFixture,
+} from "./tuttoilcalcio-live-provider";
 
 function getRequiredString(
   payload: Record<string, unknown>,
@@ -240,7 +250,8 @@ export async function handlePollMatchJob(input: {
 
   if (
     providerCode !== "the_odds_api" &&
-    providerCode !== "football_data"
+    providerCode !== "football_data" &&
+    providerCode !== "tuttoilcalcio"
   ) {
     throw new LiveRuntimeError({
       code: "LIVE_RUNTIME_UNSUPPORTED_JOB",
@@ -252,6 +263,7 @@ export async function handlePollMatchJob(input: {
         supportedProviders: [
           "the_odds_api",
           "football_data",
+          "tuttoilcalcio",
         ],
       },
     });
@@ -403,6 +415,139 @@ export async function handlePollMatchJob(input: {
       valid_bookmakers: snapshot.quality.validBookmakers,
       has_consensus: snapshot.quality.hasConsensus,
       consensus_method: snapshot.consensus?.method ?? null,
+    };
+  }
+
+  if (providerCode === "tuttoilcalcio") {
+    const before =
+      await resolveLiveRuntimeAuthorityState(
+        client,
+        matchId,
+      );
+
+    const observation =
+      normalizeTuttoilcalcioFixture(
+        poll.payload,
+        new Date(poll.fetchedAt),
+      );
+
+    if (
+      observation.sourceFixtureId !==
+      externalMatchId
+    ) {
+      throw new LiveRuntimeError({
+        code: "LIVE_RUNTIME_INVALID_JOB_PAYLOAD",
+        message:
+          "Tuttoilcalcio fixture id does not match poll_match external_match_id",
+        details: {
+          jobId: job.jobId,
+          externalMatchId,
+          sourceFixtureId:
+            observation.sourceFixtureId,
+        },
+      });
+    }
+
+    const recorded =
+      await recordPrimaryLiveObservation(
+        client,
+        {
+          matchId,
+          observation,
+          correlationId: null,
+        },
+      );
+
+    const after =
+      await resolveLiveRuntimeAuthorityState(
+        client,
+        matchId,
+      );
+
+    if (!after) {
+      throw new Error(
+        `TUTTOILCALCIO_PRIMARY_AUTHORITY_STATE_MISSING:${matchId}`,
+      );
+    }
+
+    const changedFields: string[] = [];
+
+    if (
+      before?.authority !== after.authority ||
+      before?.source !== after.source
+    ) {
+      changedFields.push("authority");
+    }
+
+    if (before?.phase !== after.phase) {
+      changedFields.push("phase");
+    }
+
+    if (
+      before?.home_score !== after.home_score
+    ) {
+      changedFields.push("home_score");
+    }
+
+    if (
+      before?.away_score !== after.away_score
+    ) {
+      changedFields.push("away_score");
+    }
+
+    const shouldRebuild =
+      after.authority === "primary_live" &&
+      after.source === "tuttoilcalcio" &&
+      after.phase !== "PRE_MATCH" &&
+      changedFields.length > 0;
+
+    const rebuildJobs =
+      shouldRebuild
+        ? await enqueuePrimaryLiveLeagueRoundRebuildJobs({
+            client,
+            leagueRoundIds:
+              getStringArray(
+                job.payload,
+                "league_round_ids",
+              ),
+            observationId:
+              recorded.observation_id,
+            authorityVersion:
+              recorded.authority_state_version,
+            matchId,
+            fantagolRoundId:
+              getOptionalString(
+                job.payload,
+                "fantagol_round_id",
+              ),
+            changedFields,
+            correlationId: null,
+            causationId: job.jobId,
+          })
+        : [];
+
+    return {
+      branch: "primary_live_match",
+      provider_code: "tuttoilcalcio",
+      external_match_id: externalMatchId,
+      match_id: matchId,
+      fetched_at: poll.fetchedAt,
+      observation_id:
+        recorded.observation_id,
+      authority_state_version:
+        recorded.authority_state_version,
+      effective_phase:
+        recorded.effective_phase,
+      effective_minute:
+        recorded.effective_minute,
+      effective_home_score:
+        recorded.effective_home_score,
+      effective_away_score:
+        recorded.effective_away_score,
+      changed_fields: changedFields,
+      meaningful_change: shouldRebuild,
+      primary_live_rebuild_job_count:
+        rebuildJobs.length,
     };
   }
 

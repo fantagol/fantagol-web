@@ -5,7 +5,8 @@ import type { LivePollingTarget } from "./scheduler";
 
 export type ProductionProviderCode =
   | "football_data"
-  | "the_odds_api";
+  | "the_odds_api"
+  | "tuttoilcalcio";
 
 export type ProductionRoundContext = {
   fantagolRoundId: string;
@@ -241,6 +242,51 @@ async function loadProviderMatchMap(
   return byInternalId;
 }
 
+async function loadMappedProviderMatchMap(
+  client: SupabaseClient,
+  providerId: string,
+  providerCode: ProductionProviderCode,
+  matchIds: string[],
+): Promise<Map<string, string>> {
+  const { data, error } = await client
+    .from("provider_entity_maps")
+    .select("internal_id,external_id")
+    .eq("provider_id", providerId)
+    .eq("entity_type", "match")
+    .eq("active", true)
+    .in("internal_id", matchIds);
+
+  const rows = requireRows(
+    data as ProviderMapRow[] | null,
+    error,
+    `PRODUCTION_PROVIDER_MAP_LOAD_FAILED:${providerCode}`,
+  );
+
+  const byInternalId =
+    new Map<string, string>();
+
+  for (const row of rows) {
+    if (byInternalId.has(row.internal_id)) {
+      throw new Error(
+        `PRODUCTION_PROVIDER_MATCH_MAPPING_DUPLICATE:${providerCode}:${row.internal_id}`,
+      );
+    }
+
+    if (!row.external_id?.trim()) {
+      throw new Error(
+        `PRODUCTION_PROVIDER_EXTERNAL_ID_INVALID:${providerCode}:${row.internal_id}`,
+      );
+    }
+
+    byInternalId.set(
+      row.internal_id,
+      row.external_id.trim(),
+    );
+  }
+
+  return byInternalId;
+}
+
 export async function loadFootballDataProductionTargets(
   client: SupabaseClient,
   fantagolRoundId: string,
@@ -302,6 +348,84 @@ export async function loadFootballDataProductionTargets(
       leagueRoundIds,
     };
   });
+}
+
+export async function loadTuttoilcalcioProductionTargets(
+  client: SupabaseClient,
+  fantagolRoundId: string,
+): Promise<LivePollingTarget[]> {
+  const roundMatches =
+    await loadRequiredRoundMatches(
+      client,
+      fantagolRoundId,
+    );
+
+  const matchIds =
+    roundMatches.map((row) => row.match_id);
+
+  const [
+    matchesById,
+    leagueRoundIds,
+    providerId,
+  ] = await Promise.all([
+    loadCanonicalMatches(client, matchIds),
+    loadEnabledLeagueRoundIds(
+      client,
+      fantagolRoundId,
+    ),
+    loadActiveProviderId(
+      client,
+      "tuttoilcalcio",
+    ),
+  ]);
+
+  const providerMap =
+    await loadMappedProviderMatchMap(
+      client,
+      providerId,
+      "tuttoilcalcio",
+      matchIds,
+    );
+
+  if (providerMap.size === 0) {
+    throw new Error(
+      `PRODUCTION_TUTTOILCALCIO_BINDINGS_MISSING:${fantagolRoundId}`,
+    );
+  }
+
+  return roundMatches
+    .filter(
+      (roundMatch) =>
+        providerMap.has(roundMatch.match_id),
+    )
+    .map((roundMatch) => {
+      const match =
+        matchesById.get(roundMatch.match_id);
+
+      const externalMatchId =
+        providerMap.get(roundMatch.match_id);
+
+      if (!match || !externalMatchId) {
+        throw new Error(
+          `PRODUCTION_TUTTOILCALCIO_TARGET_INCOMPLETE:${roundMatch.match_id}`,
+        );
+      }
+
+      return {
+        matchId: match.id,
+        providerCode: "tuttoilcalcio",
+        externalMatchId,
+        kickoffAt: match.kickoff,
+        status:
+          match.status as LivePollingTarget["status"],
+        fantagolRoundId,
+        leagueRoundIds,
+        providerMetadata: {
+          live_authority: "primary_live",
+          cadence_seconds: 60,
+        },
+      };
+    });
 }
 
 export async function loadMarketRoundProductionTargets(

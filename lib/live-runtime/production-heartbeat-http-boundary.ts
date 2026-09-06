@@ -107,6 +107,7 @@ export function createProductionHeartbeatPostHandler(
             workerJobTypes:
               [
                 "poll_batch",
+                "poll_match",
                 "refresh_round",
                 "rebuild_league_round",
                 "evaluate_certification_readiness",
