@@ -58,7 +58,7 @@ export async function recordPrimaryLiveObservation(
   const { observation } = input;
 
   const { data, error } = await client.rpc(
-    "record_primary_live_observation_v2_internal",
+    "record_primary_live_observation_v3_internal",
     {
       p_match_id: input.matchId,
       p_source_fixture_id: observation.sourceFixtureId,

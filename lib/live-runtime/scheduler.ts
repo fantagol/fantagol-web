@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { resolveLiveRuntimeAuthorityState } from "./live-primary-authority";
 import {
   enqueueLiveRuntimeJob,
   type EnqueuedLiveRuntimeJob,
@@ -90,6 +91,34 @@ export async function scheduleLivePolling(
   input: ScheduleLivePollingInput,
 ): Promise<ScheduledLivePolling> {
   const now = input.now ?? new Date();
+
+  if (input.target.providerCode === "tuttoilcalcio") {
+    const primaryAuthority =
+      await resolveLiveRuntimeAuthorityState(
+        input.client,
+        input.target.matchId,
+      );
+
+    if (
+      primaryAuthority?.authority === "primary_live" &&
+      primaryAuthority.source === "tuttoilcalcio" &&
+      primaryAuthority.phase === "END_PENDING"
+    ) {
+      const decision: PollingPolicyDecision = {
+        band: "stopped",
+        intervalSeconds: null,
+        shouldPoll: false,
+        reason: "tuttoilcalcio_primary_end_pending",
+      };
+
+      return {
+        target: input.target,
+        decision,
+        nextPollAt: null,
+        job: null,
+      };
+    }
+  }
 
   const baseDecision =
     input.target.providerCode === "the_odds_api"
