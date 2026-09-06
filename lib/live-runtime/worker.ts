@@ -140,6 +140,14 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
     "versions",
   ) as Partial<SimulationPipelineVersions>;
 
+  // R112-R6: a primary_live rebuild is allowed to rebuild simulations,
+  // materialize a Live State Snapshot and publish realtime, but it must never
+  // enter the Football-Data certification-readiness workflow.
+  const rebuildProvenance =
+    getString(job.payload, "rebuild_provenance") ??
+    "football_data_receipt";
+  const primaryLiveRebuild = rebuildProvenance === "primary_live";
+
   const rebuilt = await rebuildLeagueRoundSimulation(client, {
     leagueRoundId: job.scopeId,
     createdByMemberId: getString(
@@ -152,7 +160,9 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
 
   const liveState = {
     schema_version: 1,
-    source: "LiveRuntimeWorker",
+    source: primaryLiveRebuild
+      ? "TuttoilcalcioPrimaryLive"
+      : "LiveRuntimeWorker",
     league_round_id: rebuilt.leagueRoundId,
     calculation_run_id: rebuilt.calculationRunId,
     ui_simulation_id: rebuilt.uiSimulationId,
@@ -223,6 +233,11 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
             publication_type: "live_state",
             source_job_id: job.jobId,
             source_rebuild_job_id: job.jobId,
+            rebuild_provenance: rebuildProvenance,
+            live_authority_source:
+              getString(job.payload, "live_authority_source"),
+            live_authority_observation_id:
+              getString(job.payload, "live_authority_observation_id"),
             league_round_id: rebuilt.leagueRoundId,
             calculation_run_id: rebuilt.calculationRunId,
             ui_simulation_id: rebuilt.uiSimulationId,
@@ -234,7 +249,9 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
       });
 
   const certificationReadinessWorkflow =
-    await launchRoundCertificationReadinessWorkflow({
+    primaryLiveRebuild
+      ? null
+      : await launchRoundCertificationReadinessWorkflow({
       client,
       leagueRoundId: rebuilt.leagueRoundId,
       calculationRunId: rebuilt.calculationRunId,
@@ -277,14 +294,16 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
       livePublicationJob?.inserted ?? false,
     live_publication_skipped_terminal:
       terminalRound,
+    certification_readiness_skipped_primary_live:
+      primaryLiveRebuild,
     certification_readiness_workflow_id:
-      certificationReadinessWorkflow.workflowId,
+      certificationReadinessWorkflow?.workflowId ?? null,
     certification_readiness_workflow_inserted:
-      certificationReadinessWorkflow.workflowInserted,
+      certificationReadinessWorkflow?.workflowInserted ?? false,
     certification_readiness_job_id:
-      certificationReadinessWorkflow.jobId,
+      certificationReadinessWorkflow?.jobId ?? null,
     certification_readiness_job_inserted:
-      certificationReadinessWorkflow.jobInserted,
+      certificationReadinessWorkflow?.jobInserted ?? false,
   };
 };
 

@@ -257,3 +257,292 @@ export async function enqueueLeagueRoundRebuildJobs(
 
   return jobs;
 }
+/**
+ * Full simulation pipeline admission.
+ *
+ * A league round is rebuildable only when its league owns an active schedule
+ * version and that active schedule contains BOTH Fantacalcio and One-to-One
+ * fixtures for the exact league round. This mirrors the downstream builders'
+ * structural prerequisites and prevents known ACTIVE_*_SCHEDULE_NOT_FOUND
+ * dead letters.
+ *
+ * Primary-live uses this stricter gate without changing the official
+ * Football-Data receipt fanout in this milestone.
+ */
+async function loadFullPipelineRebuildableLeagueRoundIds(
+  client: SupabaseClient,
+  leagueRoundIds: string[],
+): Promise<string[]> {
+  const calculableLeagueRoundIds =
+    await loadCalculableLeagueRoundIds(
+      client,
+      leagueRoundIds,
+    );
+
+  if (calculableLeagueRoundIds.length === 0) {
+    return [];
+  }
+
+  const { data: roundData, error: roundError } =
+    await client
+      .from("league_rounds")
+      .select("id,league_id")
+      .in("id", calculableLeagueRoundIds);
+
+  if (roundError) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message:
+        "Unable to resolve league round schedule ownership before primary-live rebuild enqueue",
+      details: {
+        code: roundError.code,
+        message: roundError.message,
+        details: roundError.details,
+        hint: roundError.hint,
+        leagueRoundIds: calculableLeagueRoundIds,
+      },
+      cause: roundError,
+    });
+  }
+
+  const roundRows = (roundData ?? []) as Array<{
+    id: string;
+    league_id: string;
+  }>;
+  const roundById = new Map(
+    roundRows.map((row) => [row.id, row]),
+  );
+
+  const missingRoundIds =
+    calculableLeagueRoundIds.filter(
+      (id) => !roundById.has(id),
+    );
+
+  if (missingRoundIds.length > 0) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_INVALID_RPC_RESPONSE",
+      message:
+        "Unable to resolve every league round schedule owner before primary-live rebuild enqueue",
+      details: {
+        leagueRoundIds: calculableLeagueRoundIds,
+        missingLeagueRoundIds: missingRoundIds,
+      },
+    });
+  }
+
+  const leagueIds = [
+    ...new Set(
+      roundRows.map((row) => row.league_id),
+    ),
+  ];
+
+  const { data: scheduleData, error: scheduleError } =
+    await client
+      .from("league_schedule_versions")
+      .select("id,league_id")
+      .in("league_id", leagueIds)
+      .eq("active", true);
+
+  if (scheduleError) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message:
+        "Unable to resolve active league schedules before primary-live rebuild enqueue",
+      details: {
+        code: scheduleError.code,
+        message: scheduleError.message,
+        details: scheduleError.details,
+        hint: scheduleError.hint,
+        leagueIds,
+      },
+      cause: scheduleError,
+    });
+  }
+
+  const scheduleRows = (scheduleData ?? []) as Array<{
+    id: string;
+    league_id: string;
+  }>;
+
+  const scheduleByLeagueId = new Map(
+    scheduleRows.map((row) => [
+      row.league_id,
+      row.id,
+    ]),
+  );
+
+  const activeScheduleIds = [
+    ...new Set(
+      scheduleRows.map((row) => row.id),
+    ),
+  ];
+
+  if (activeScheduleIds.length === 0) {
+    return [];
+  }
+
+  const { data: fixtureData, error: fixtureError } =
+    await client
+      .from("league_fixtures")
+      .select(
+        "schedule_version_id,league_round_id,mode",
+      )
+      .in("schedule_version_id", activeScheduleIds)
+      .in(
+        "league_round_id",
+        calculableLeagueRoundIds,
+      )
+      .in("mode", ["fantacalcio", "one_to_one"]);
+
+  if (fixtureError) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message:
+        "Unable to resolve active schedule fixtures before primary-live rebuild enqueue",
+      details: {
+        code: fixtureError.code,
+        message: fixtureError.message,
+        details: fixtureError.details,
+        hint: fixtureError.hint,
+        leagueRoundIds: calculableLeagueRoundIds,
+        activeScheduleIds,
+      },
+      cause: fixtureError,
+    });
+  }
+
+  const fixtureRows = (fixtureData ?? []) as Array<{
+    schedule_version_id: string;
+    league_round_id: string;
+    mode: string;
+  }>;
+
+  const modesByLeagueRoundId = new Map<
+    string,
+    Set<string>
+  >();
+
+  for (const fixture of fixtureRows) {
+    const round = roundById.get(
+      fixture.league_round_id,
+    );
+
+    if (!round) {
+      continue;
+    }
+
+    const activeScheduleId =
+      scheduleByLeagueId.get(round.league_id);
+
+    if (
+      !activeScheduleId ||
+      fixture.schedule_version_id !==
+        activeScheduleId
+    ) {
+      continue;
+    }
+
+    const modes =
+      modesByLeagueRoundId.get(
+        fixture.league_round_id,
+      ) ?? new Set<string>();
+
+    modes.add(fixture.mode);
+    modesByLeagueRoundId.set(
+      fixture.league_round_id,
+      modes,
+    );
+  }
+
+  return calculableLeagueRoundIds.filter(
+    (leagueRoundId) => {
+      const round = roundById.get(leagueRoundId);
+
+      if (!round) {
+        return false;
+      }
+
+      const activeScheduleId =
+        scheduleByLeagueId.get(round.league_id);
+
+      if (!activeScheduleId) {
+        return false;
+      }
+
+      const modes =
+        modesByLeagueRoundId.get(leagueRoundId);
+
+      return Boolean(
+        modes?.has("fantacalcio") &&
+          modes.has("one_to_one"),
+      );
+    },
+  );
+}
+// ---------------------------------------------------------------------------
+// R112-R6 - PRIMARY LIVE REBUILD PROVENANCE
+// ---------------------------------------------------------------------------
+
+export type EnqueuePrimaryLiveLeagueRoundRebuildJobsInput = {
+  client: SupabaseClient;
+  leagueRoundIds: string[];
+  observationId: string;
+  authorityVersion: number;
+  matchId: string;
+  fantagolRoundId: string | null;
+  changedFields: string[];
+  correlationId: string | null;
+  causationId: string | null;
+};
+
+/**
+ * Enqueue the normal simulation/snapshot/realtime-publication pipeline from a
+ * non-official LIVE authority observation.
+ *
+ * This path deliberately has NO receipt_id. receipt_id belongs exclusively to
+ * the Football-Data canonical evidence chain.
+ */
+export async function enqueuePrimaryLiveLeagueRoundRebuildJobs(
+  input: EnqueuePrimaryLiveLeagueRoundRebuildJobsInput,
+): Promise<EnqueuedLiveRuntimeJob[]> {
+  const leagueRoundIds =
+    await loadFullPipelineRebuildableLeagueRoundIds(
+      input.client,
+      input.leagueRoundIds,
+    );
+
+  const jobs: EnqueuedLiveRuntimeJob[] = [];
+
+  for (const leagueRoundId of leagueRoundIds) {
+    const rebuildJob = await enqueueLiveRuntimeJob(input.client, {
+      jobType: "rebuild_league_round",
+      scopeType: "league_round",
+      scopeId: leagueRoundId,
+      idempotencyKey: [
+        "live",
+        "rebuild-league-round",
+        "primary-live",
+        leagueRoundId,
+        input.observationId,
+      ].join(":"),
+      priority: 30,
+      payload: {
+        rebuild_provenance: "primary_live",
+        live_authority_source: "tuttoilcalcio",
+        live_authority_observation_id: input.observationId,
+        live_authority_version: input.authorityVersion,
+        match_id: input.matchId,
+        fantagol_round_id: input.fantagolRoundId,
+        league_round_id: leagueRoundId,
+        change_type: "PRIMARY_LIVE_STATE_CHANGED",
+        changed_fields: input.changedFields,
+      },
+      correlationId: input.correlationId,
+      causationId: input.causationId,
+    });
+
+    jobs.push(rebuildJob);
+  }
+
+  return jobs;
+}
