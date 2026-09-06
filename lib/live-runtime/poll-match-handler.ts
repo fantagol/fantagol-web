@@ -419,6 +419,13 @@ export async function handlePollMatchJob(input: {
   }
 
   if (providerCode === "tuttoilcalcio") {
+    /*
+     * R114-R5 R22-R1
+     * LIVE change detection must be based on Tutto evidence, not on the stale
+     * Football-Data canonical match.  The authority row is mutable and polls
+     * may overlap, so meaningful changes are compared against the immutable
+     * previous Tutto observation referenced by source_observation_id.
+     */
     const before =
       await resolveLiveRuntimeAuthorityState(
         client,
@@ -469,32 +476,13 @@ export async function handlePollMatchJob(input: {
         `TUTTOILCALCIO_PRIMARY_AUTHORITY_STATE_MISSING:${matchId}`,
       );
     }
-
-    const changedFields: string[] = [];
-
-    if (
-      before?.authority !== after.authority ||
-      before?.source !== after.source
-    ) {
-      changedFields.push("authority");
-    }
-
-    if (before?.phase !== after.phase) {
-      changedFields.push("phase");
-    }
-
-    if (
-      before?.home_score !== after.home_score
-    ) {
-      changedFields.push("home_score");
-    }
-
-    if (
-      before?.away_score !== after.away_score
-    ) {
-      changedFields.push("away_score");
-    }
-
+    /*
+     * R114-R5 R24
+     * Meaningful Tutto LIVE changes are classified atomically by M305 under
+     * the same per-match advisory transaction lock that mutates authority.
+     * Minute-only observations intentionally return an empty changed_fields.
+     */
+    const changedFields = recorded.changed_fields;
     const shouldRebuild =
       after.authority === "primary_live" &&
       after.source === "tuttoilcalcio" &&

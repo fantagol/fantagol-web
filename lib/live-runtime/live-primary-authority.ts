@@ -53,11 +53,12 @@ export async function recordPrimaryLiveObservation(
   effective_minute: number | null;
   effective_home_score: number;
   effective_away_score: number;
+  changed_fields: string[];
 }> {
   const { observation } = input;
 
   const { data, error } = await client.rpc(
-    "record_primary_live_observation_internal",
+    "record_primary_live_observation_v2_internal",
     {
       p_match_id: input.matchId,
       p_source_fixture_id: observation.sourceFixtureId,
