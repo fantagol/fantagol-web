@@ -2314,7 +2314,16 @@ export default function OneToOneLivePage() {
       return { viewed: "—", opponent: "—" };
     }
 
-    return null;
+    const homeWins = Number(fixture.aggregate?.home_wins);
+    const awayWins = Number(fixture.aggregate?.away_wins);
+
+    if (!Number.isFinite(homeWins) || !Number.isFinite(awayWins)) {
+      return null;
+    }
+
+    return viewedIsHome
+      ? { viewed: homeWins, opponent: awayWins }
+      : { viewed: awayWins, opponent: homeWins };
   })();
 
   const oneToOneForfeitBadge =
