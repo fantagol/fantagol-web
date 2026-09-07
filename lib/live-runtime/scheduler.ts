@@ -136,23 +136,49 @@ export async function scheduleLivePolling(
           roundCertified: input.target.roundCertified,
         });
 
+  const tuttoKickoffAtMs =
+    input.target.providerCode === "tuttoilcalcio"
+      ? Date.parse(input.target.kickoffAt)
+      : Number.NaN;
+
+  // Tutto is the operational LIVE authority from kickoff onward.
+  // Do not wait for Football-Data to flip the canonical match to LIVE:
+  // during the bounded kickoff cold-start window we poll Tutto every minute.
+  // A pre-live Tutto response does not promote primary_live authority; it only
+  // keeps observation active until the provider itself reports actual LIVE.
+  const tuttoKickoffColdStart =
+    input.target.providerCode === "tuttoilcalcio" &&
+    input.target.status === "scheduled" &&
+    Number.isFinite(tuttoKickoffAtMs) &&
+    now.getTime() >= tuttoKickoffAtMs &&
+    now.getTime() <= tuttoKickoffAtMs + 30 * 60 * 1000;
+
   const decision =
     input.target.providerCode === "tuttoilcalcio"
       ? (
-          (baseDecision.band === "live" ||
-            baseDecision.band === "halftime") &&
-          baseDecision.shouldPoll
+          tuttoKickoffColdStart
             ? {
-                ...baseDecision,
+                band: "live" as const,
                 intervalSeconds: 60,
-                reason: "tuttoilcalcio_live_one_minute_per_match",
+                shouldPoll: true,
+                reason: "tuttoilcalcio_kickoff_cold_start",
               }
-            : {
-                band: "stopped" as const,
-                intervalSeconds: null,
-                shouldPoll: false,
-                reason: "tuttoilcalcio_primary_live_only",
-              }
+            : (
+                (baseDecision.band === "live" ||
+                  baseDecision.band === "halftime") &&
+                baseDecision.shouldPoll
+                  ? {
+                      ...baseDecision,
+                      intervalSeconds: 60,
+                      reason: "tuttoilcalcio_live_one_minute_per_match",
+                    }
+                  : {
+                      band: "stopped" as const,
+                      intervalSeconds: null,
+                      shouldPoll: false,
+                      reason: "tuttoilcalcio_primary_live_only",
+                    }
+              )
         )
       : baseDecision;
 
