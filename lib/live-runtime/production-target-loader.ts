@@ -1,3 +1,4 @@
+import { ensureTuttoilcalcioRoundBindings } from "./tuttoilcalcio-fixture-binding-bootstrap";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { MarketRoundPollingTarget } from "./market-round-scheduler";
@@ -378,6 +379,26 @@ export async function loadTuttoilcalcioProductionTargets(
       "tuttoilcalcio",
     ),
   ]);
+
+  /*
+
+   * R114-R5 R56
+
+   * Materialize missing Tutto fixture bindings before production targets
+
+   * are derived. Discovery is pre-kickoff capable and fail-closed;
+
+   * LIVE authority is still promoted only by accepted Tutto observations.
+
+   */
+
+  await ensureTuttoilcalcioRoundBindings({
+
+    client: client,
+
+    fantagolRoundId: fantagolRoundId,
+
+  });
 
   const providerMap =
     await loadMappedProviderMatchMap(
