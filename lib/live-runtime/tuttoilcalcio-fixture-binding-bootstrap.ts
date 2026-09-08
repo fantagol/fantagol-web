@@ -62,10 +62,11 @@ export function normalizeTuttoTeamName(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/\b(?:fc|ac|ssc|as|us|calcio|1909)\b/g, " ")
+    .replace(/\b(?:fc|ac|ssc|as|us|calcio|1909|cfc|bc|acf|ss|1907|1913)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .replace(/^internazionale milano$/, "inter");
 }
 
 function normalizeCode(value: string | null): string {
