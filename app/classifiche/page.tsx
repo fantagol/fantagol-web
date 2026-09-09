@@ -78,6 +78,7 @@ type StandingRow = {
   pending: boolean;
   score_phase: string;
   round_stats: StandingStats;
+  cumulative_stats?: StandingStats;
 };
 
 type ModePayload = {
@@ -143,6 +144,10 @@ function normalizeStandingRow(value: unknown): StandingRow | null {
     row.round_stats && typeof row.round_stats === "object"
       ? (row.round_stats as Record<string, unknown>)
       : {};
+  const cumulativeStats =
+    row.cumulative_stats && typeof row.cumulative_stats === "object"
+      ? (row.cumulative_stats as Record<string, unknown>)
+      : {};
 
   return {
     league_member_id: memberId,
@@ -178,6 +183,21 @@ function normalizeStandingRow(value: unknown): StandingRow | null {
       mini_losses: toNumber(stats.mini_losses),
       mini_difference: toNumber(stats.mini_difference),
     },
+    cumulative_stats:
+      row.cumulative_stats && typeof row.cumulative_stats === "object"
+        ? {
+            wins: toNumber(cumulativeStats.wins),
+            draws: toNumber(cumulativeStats.draws),
+            losses: toNumber(cumulativeStats.losses),
+            goals_for: toNumber(cumulativeStats.goals_for),
+            goals_against: toNumber(cumulativeStats.goals_against),
+            goal_difference: toNumber(cumulativeStats.goal_difference),
+            mini_wins: toNumber(cumulativeStats.mini_wins),
+            mini_draws: toNumber(cumulativeStats.mini_draws),
+            mini_losses: toNumber(cumulativeStats.mini_losses),
+            mini_difference: toNumber(cumulativeStats.mini_difference),
+          }
+        : undefined,
   };
 }
 
@@ -554,10 +574,6 @@ setMode((currentMode) =>
 
         <h1 className="mt-3 text-4xl font-black sm:text-5xl">Classifiche</h1>
 
-        <p className="mt-4 max-w-3xl text-sm leading-6 text-gray-400 sm:text-base">
-          Le graduatorie vengono lette direttamente dallo Standings Engine e
-          seguono il ruleset attivo della lega.
-        </p>
 
         <div className="mt-7 grid grid-cols-1 gap-3">
           {(
@@ -700,6 +716,7 @@ setMode((currentMode) =>
                   <tbody>
                     {activeRanking.map((club) => {
                       const stats = club.round_stats;
+                      const cumulativeStats = club.cumulative_stats ?? stats;
 
                       return (
                         <tr
@@ -785,47 +802,49 @@ setMode((currentMode) =>
                           ) : mode === "fantacalcio" ? (
                             <>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {(stats.wins ?? 0) +
-                                  (stats.draws ?? 0) +
-                                  (stats.losses ?? 0)}
+                                {roundNumber ??
+                                  (stats.wins ?? 0) +
+                                    (stats.draws ?? 0) +
+                                    (stats.losses ?? 0)}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.wins ?? 0}
+                                {cumulativeStats.wins ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.draws ?? 0}
+                                {cumulativeStats.draws ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.losses ?? 0}
+                                {cumulativeStats.losses ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.goals_for ?? 0}
+                                {cumulativeStats.goals_for ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.goals_against ?? 0}
+                                {cumulativeStats.goals_against ?? 0}
                               </td>
                             </>
                           ) : (
                             <>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {(stats.wins ?? 0) +
-                                  (stats.draws ?? 0) +
-                                  (stats.losses ?? 0)}
+                                {roundNumber ??
+                                  (stats.wins ?? 0) +
+                                    (stats.draws ?? 0) +
+                                    (stats.losses ?? 0)}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.wins ?? 0}
+                                {cumulativeStats.wins ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.draws ?? 0}
+                                {cumulativeStats.draws ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.losses ?? 0}
+                                {cumulativeStats.losses ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.mini_wins ?? 0}
+                                {cumulativeStats.mini_wins ?? 0}
                               </td>
                               <td className="px-2 py-3 text-right sm:px-3 sm:py-4">
-                                {stats.mini_losses ?? 0}
+                                {cumulativeStats.mini_losses ?? 0}
                               </td>
                             </>
                           )}
