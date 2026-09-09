@@ -107,6 +107,8 @@ export type ProductionHeartbeatResult = {
     ProductionHeartbeatStep<ScheduledAdvancedMarketEvents>;
   community:
     ProductionHeartbeatStep<unknown>;
+  loyaltyRewards:
+    ProductionHeartbeatStep<unknown>;
   worker:
     ProductionHeartbeatStep<ProductionHeartbeatWorkerDrain>;
 };
@@ -226,6 +228,12 @@ export type ProductionHeartbeatDependencies = {
     correlationId: string | null;
   }) => Promise<unknown>;
 
+  dispatchLoyaltyRewards: (input: {
+    client: SupabaseClient;
+    workerId: string;
+    limit: number;
+  }) => Promise<unknown>;
+
   runWorkerOnce: typeof runLiveRuntimeWorkerOnce;
 };
 
@@ -238,6 +246,7 @@ export type RunProductionHeartbeatInput = {
   priority?: number;
   workerJobTypes?: LiveRuntimeJobType[] | null;
   maxWorkerJobs?: number;
+  maxLoyaltyRewards?: number;
   dependencies?: Partial<ProductionHeartbeatDependencies>;
 };
 
@@ -436,6 +445,28 @@ async function freezeCommunityDefault(input: {
   return data;
 }
 
+async function dispatchLoyaltyRewardsDefault(input: {
+  client: SupabaseClient;
+  workerId: string;
+  limit: number;
+}): Promise<unknown> {
+  const { data, error } = await input.client.rpc(
+    "dispatch_loyalty_reward_runtime_batch_internal",
+    {
+      p_worker_id: `${input.workerId}:loyalty`,
+      p_limit: input.limit,
+      p_lease_seconds: 120,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `LOYALTY_REWARD_RUNTIME_DISPATCH_FAILED:${error.message}`,
+    );
+  }
+
+  return data;
+}
 function resolveDependencies(
   input: RunProductionHeartbeatInput,
 ): ProductionHeartbeatDependencies {
@@ -529,6 +560,10 @@ function resolveDependencies(
     freezeCommunity:
       overrides.freezeCommunity ??
       freezeCommunityDefault,
+
+    dispatchLoyaltyRewards:
+      overrides.dispatchLoyaltyRewards ??
+      dispatchLoyaltyRewardsDefault,
 
     runWorkerOnce:
       overrides.runWorkerOnce ??
@@ -624,6 +659,7 @@ export async function runProductionHeartbeat(
       market: skipped(),
       marketAdvanced: skipped(),
       community: skipped(),
+      loyaltyRewards: skipped(),
       worker: skipped(),
     };
   }
@@ -644,6 +680,7 @@ export async function runProductionHeartbeat(
       market: skipped(),
       marketAdvanced: skipped(),
       community: skipped(),
+      loyaltyRewards: skipped(),
       worker: skipped(),
     };
   }
@@ -1075,6 +1112,33 @@ export async function runProductionHeartbeat(
     communityStep = failed(error);
   }
 
+  let loyaltyRewardsStep:
+    ProductionHeartbeatStep<unknown>;
+
+  try {
+    loyaltyRewardsStep =
+      completed(
+        await deps.dispatchLoyaltyRewards({
+          client: input.client,
+          workerId: input.workerId,
+          limit: Math.max(
+            1,
+            Math.min(
+              input.maxLoyaltyRewards ?? 100,
+              200,
+            ),
+          ),
+        }),
+      );
+  } catch (error) {
+    /*
+     * Loyalty reward drainage is independent from provider/lifecycle work.
+     * M310 makes Round Certification authority fail closed in the DB.
+     * A transport/runtime failure is retried by the next heartbeat.
+     */
+    loyaltyRewardsStep = failed(error);
+  }
+
   let workerStep:
     ProductionHeartbeatStep<ProductionHeartbeatWorkerDrain>;
 
@@ -1113,6 +1177,7 @@ export async function runProductionHeartbeat(
     marketAdvanced:
       marketAdvancedStep,
     community: communityStep,
+    loyaltyRewards: loyaltyRewardsStep,
     worker: workerStep,
   };
 }
