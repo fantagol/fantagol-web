@@ -225,7 +225,10 @@ const rebuildLeagueRoundHandler: LiveRuntimeWorkerHandler = async ({
           snapshot.liveStateSnapshotId,
           publicationChannel,
         ].join(":"),
-        priority: 40,
+        // R114-R5-R95: realtime publication is a hot-path handoff.
+        // It must outrank rebuild/readiness backlog once the coherent UI
+        // Digital Twin snapshot already exists.
+        priority: primaryLiveRebuild ? 11 : 40,
         payload: {
           live_state_snapshot_id: snapshot.liveStateSnapshotId,
           channel: publicationChannel,

@@ -514,32 +514,59 @@ export async function enqueuePrimaryLiveLeagueRoundRebuildJobs(
   const jobs: EnqueuedLiveRuntimeJob[] = [];
 
   for (const leagueRoundId of leagueRoundIds) {
-    const rebuildJob = await enqueueLiveRuntimeJob(input.client, {
-      jobType: "rebuild_league_round",
-      scopeType: "league_round",
-      scopeId: leagueRoundId,
-      idempotencyKey: [
-        "live",
-        "rebuild-league-round",
-        "primary-live",
-        leagueRoundId,
-        input.observationId,
-      ].join(":"),
-      priority: 30,
-      payload: {
-        rebuild_provenance: "primary_live",
-        live_authority_source: "tuttoilcalcio",
-        live_authority_observation_id: input.observationId,
-        live_authority_version: input.authorityVersion,
-        match_id: input.matchId,
-        fantagol_round_id: input.fantagolRoundId,
-        league_round_id: leagueRoundId,
-        change_type: "PRIMARY_LIVE_STATE_CHANGED",
-        changed_fields: input.changedFields,
+    /*
+     * R114-R5-R95: primary-live rebuilds use a dedicated atomic DB enqueue.
+     * The RPC serializes per league_round, coalesces stale queued versions,
+     * preserves claimed/running work, and fixes the hot rebuild priority at 12.
+     * Football-Data continues through enqueueLiveRuntimeJob unchanged.
+     */
+    const { data, error } = await input.client.rpc(
+      "enqueue_primary_live_rebuild_job_rpc",
+      {
+        p_league_round_id: leagueRoundId,
+        p_observation_id: input.observationId,
+        p_authority_version: input.authorityVersion,
+        p_match_id: input.matchId,
+        p_fantagol_round_id: input.fantagolRoundId,
+        p_changed_fields: input.changedFields,
+        p_correlation_id: input.correlationId,
+        p_causation_id: input.causationId,
       },
-      correlationId: input.correlationId,
-      causationId: input.causationId,
-    });
+    );
+
+    if (error) {
+      throw new Error(
+        `enqueue_primary_live_rebuild_job_rpc failed: ${error.message}`,
+      );
+    }
+
+    const rpcRows = data as
+      | Array<{
+          job_id: string;
+          job_status: string;
+          inserted: boolean;
+          scheduled_at: string;
+          attempt_count: number;
+          correlation_id: string;
+        }>
+      | null;
+
+    const row = rpcRows?.[0];
+
+    if (!row) {
+      throw new Error(
+        "enqueue_primary_live_rebuild_job_rpc returned no row",
+      );
+    }
+
+    const rebuildJob: EnqueuedLiveRuntimeJob = {
+      jobId: row.job_id,
+      jobStatus: row.job_status as EnqueuedLiveRuntimeJob["jobStatus"],
+      inserted: row.inserted,
+      scheduledAt: row.scheduled_at,
+      attemptCount: row.attempt_count,
+      correlationId: row.correlation_id,
+    };
 
     jobs.push(rebuildJob);
   }

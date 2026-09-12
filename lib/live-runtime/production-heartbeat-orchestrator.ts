@@ -584,30 +584,59 @@ async function drainWorker(input: {
   let claimed = 0;
   let completedCount = 0;
 
+  /*
+   * R114-R5-R95: the DB claim RPC already uses FOR UPDATE SKIP LOCKED.
+   * Drain a small bounded batch concurrently so independent jobs do not
+   * serialize behind one long-running rebuild. Keep the batch deliberately
+   * small to stay inside the heartbeat/serverless execution budget.
+   */
+  const parallelism = Math.min(4, input.maxJobs);
+
   for (
-    let index = 0;
-    index < input.maxJobs;
-    index += 1
+    let offset = 0;
+    offset < input.maxJobs;
+    offset += parallelism
   ) {
-    attempted += 1;
+    const batchSize =
+      Math.min(
+        parallelism,
+        input.maxJobs - offset,
+      );
 
-    const result =
-      await input.runWorkerOnce({
-        client: input.client,
-        workerId: input.workerId,
-        jobTypes: input.jobTypes ?? null,
-      });
+    attempted += batchSize;
 
-    results.push(result);
+    const batch =
+      await Promise.all(
+        Array.from(
+          { length: batchSize },
+          (_, index) =>
+            input.runWorkerOnce({
+              client: input.client,
+              workerId: `${input.workerId}-${offset + index + 1}`,
+              jobTypes: input.jobTypes ?? null,
+            }),
+        ),
+      );
 
-    if (!result.claimed) {
-      break;
+    results.push(...batch);
+
+    let batchClaimed = 0;
+
+    for (const result of batch) {
+      if (!result.claimed) {
+        continue;
+      }
+
+      batchClaimed += 1;
+      claimed += 1;
+
+      if (result.completed) {
+        completedCount += 1;
+      }
     }
 
-    claimed += 1;
-
-    if (result.completed) {
-      completedCount += 1;
+    if (batchClaimed < batchSize) {
+      break;
     }
   }
 
