@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   decideTheOddsRoundBootstrap,
-} from "./the-odds-round-bootstrap-policy.ts";
+} from "./the-odds-round-bootstrap-policy";
 
 function baseInput(
   overrides: Partial<
