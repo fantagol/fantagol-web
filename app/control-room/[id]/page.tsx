@@ -365,7 +365,7 @@ type MarketContext = {
 type ControlRoomMatch = {
   match_id: string;
   fantagol_round_id: string;
-  community_snapshot_id: string;
+  community_snapshot_id: string | null;
   market_snapshot_id: string | null;
   slot_number: number;
   kickoff: string | null;
@@ -414,7 +414,7 @@ type ControlRoomMatch = {
 
 type ControlRoomOverview = {
   fantagol_round_id: string;
-  community_snapshot_id: string;
+  community_snapshot_id: string | null;
   round_name: string;
   round_sequence: number;
   round_status: string;
@@ -2287,6 +2287,10 @@ function MatchCard({
       match.away_team_name,
   );
 
+  const communityAvailable = Boolean(
+    match.community_snapshot_id,
+  );
+
   const topExact =
     match.exact_distribution?.[0];
 
@@ -2405,58 +2409,58 @@ function MatchCard({
               Community
             </p>
 
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              <CompactSignal
-                tone="community"
-                label="Exact"
-                value={
-                  topExact
-                    ? `${topExact.home_prediction}-${topExact.away_prediction}`
-                    : "—"
-                }
-                detail={
-                  topExact
-                    ? `${topExact.prediction_count} persone`
-                    : "N/D"
-                }
-              />
+            {communityAvailable ? (
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <CompactSignal
+                  tone="community"
+                  label="Exact"
+                  value={
+                    topExact
+                      ? `${topExact.home_prediction}-${topExact.away_prediction}`
+                      : "—"
+                  }
+                  detail={
+                    topExact
+                      ? `${topExact.prediction_count} persone`
+                      : "N/D"
+                  }
+                />
 
-              <CompactSignal
-                tone="community"
-                label="Segno"
-                value={
-                  communityOutcome.label
-                }
-                detail={`${countFromPercent(
-                  match,
-                  communityOutcome.percent,
-                )} persone`}
-              />
+                <CompactSignal
+                  tone="community"
+                  label="Segno"
+                  value={communityOutcome.label}
+                  detail={`${countFromPercent(
+                    match,
+                    communityOutcome.percent,
+                  )} persone`}
+                />
 
-              <CompactSignal
-                tone="community"
-                label="U/O"
-                value={
-                  communityOver.value
-                }
-                detail={`${countFromPercent(
-                  match,
-                  communityOver.percent,
-                )} persone`}
-              />
+                <CompactSignal
+                  tone="community"
+                  label="U/O"
+                  value={communityOver.value}
+                  detail={`${countFromPercent(
+                    match,
+                    communityOver.percent,
+                  )} persone`}
+                />
 
-              <CompactSignal
-                tone="community"
-                label="G/NG"
-                value={
-                  communityGoal.value
-                }
-                detail={`${countFromPercent(
-                  match,
-                  communityGoal.percent,
-                )} persone`}
-              />
-            </div>
+                <CompactSignal
+                  tone="community"
+                  label="G/NG"
+                  value={communityGoal.value}
+                  detail={`${countFromPercent(
+                    match,
+                    communityGoal.percent,
+                  )} persone`}
+                />
+              </div>
+            ) : (
+              <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-5 text-sm font-bold leading-6 text-gray-400">
+                Community in attesa dei primi pronostici ufficiali.
+              </p>
+            )}
           </section>
 
           <section className="rounded-3xl border border-sky-400/20 bg-sky-500/[0.055] p-4">
@@ -2524,9 +2528,9 @@ function MatchCard({
 
         <div className="mt-4 flex items-center justify-between gap-4">
           <div className="text-[11px] font-bold text-gray-600">
-            {match.prediction_count} pronostici
-            {" · "}
-            {match.member_count} utenti
+            {communityAvailable
+              ? `${match.prediction_count} pronostici · ${match.member_count} utenti`
+              : "Community in attesa · Bookmakers disponibili"}
           </div>
 
           <button
@@ -2547,19 +2551,32 @@ function MatchCard({
             <LoadingPanel label="Caricamento trend partita" />
           ) : (
             <div className="grid gap-4">
-              <CommunityTrendPanel
-                trends={trends}
-                heatmap={heatmap}
-              />
+              {communityAvailable ? (
+                <CommunityTrendPanel
+                  trends={trends}
+                  heatmap={heatmap}
+                />
+              ) : (
+                <section className="rounded-3xl border border-[#A6E824]/20 bg-[#A6E824]/[0.045] p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A6E824]">
+                    Community
+                  </p>
+                  <p className="mt-3 text-sm font-bold leading-6 text-gray-400">
+                    Trend e distribuzioni appariranno dopo i primi pronostici ufficiali.
+                  </p>
+                </section>
+              )}
 
               <MarketTrendPanel
                 match={match}
                 movements={detail?.market?.movements ?? []}
               />
 
-              <CommunityBookmakersComparison
-                match={match}
-              />
+              {communityAvailable && (
+                <CommunityBookmakersComparison
+                  match={match}
+                />
+              )}
             </div>
           )}
 
@@ -2924,6 +2941,9 @@ export default function ControlRoomDetailPage() {
   }, [loadControlRoom, premiumAccessReady]);
 
   const overview = payload?.overview;
+  const communityAvailable = Boolean(
+    overview?.community_snapshot_id,
+  );
   const sourceMatches = useMemo(
     () => payload?.matches ?? [],
     [payload?.matches],
@@ -3029,7 +3049,7 @@ export default function ControlRoomDetailPage() {
   }, [filterBy, sortBy, sourceMatches]);
 
   const summary = useMemo(() => {
-    if (!sourceMatches.length) {
+    if (!communityAvailable || !sourceMatches.length) {
       return {
         avgConsensus: 0,
         avgChaos: 0,
@@ -3077,12 +3097,12 @@ export default function ControlRoomDetailPage() {
         ),
       ).length,
     };
-  }, [sourceMatches]);
+  }, [communityAvailable, sourceMatches]);
 
   const DAILY_UNCERTAINTY_MINIMUM = 20;
 
   const communityMaturity = useMemo(() => {
-    if (!overview) return 0;
+    if (!communityAvailable || !overview) return 0;
 
     const requiredMatches = Math.max(
       sourceMatches.length,
@@ -3131,6 +3151,7 @@ export default function ControlRoomDetailPage() {
       0.10 * coverageComponent
     );
   }, [
+    communityAvailable,
     dailyIntelligenceMetrics?.eligible_member_count,
     overview,
     sourceMatches.length,
@@ -3219,7 +3240,7 @@ export default function ControlRoomDetailPage() {
   }, [communityWeight, sourceMatches]);
 
   const dailyAnalysisCoverage = useMemo(() => {
-    if (!dailyIntelligenceMetrics?.available) {
+    if (!communityAvailable || !dailyIntelligenceMetrics?.available) {
       return {
         requiredMatches: Math.max(
           sourceMatches.length,
@@ -3259,12 +3280,13 @@ export default function ControlRoomDetailPage() {
         (jointCovered / requiredMatches) * 100,
     };
   }, [
+    communityAvailable,
     dailyIntelligenceMetrics,
     sourceMatches.length,
   ]);
 
   const dailySolidity = useMemo(() => {
-    if (!overview) return null;
+    if (!communityAvailable || !overview) return null;
 
     const communityQuality =
       Math.max(
@@ -3319,6 +3341,7 @@ export default function ControlRoomDetailPage() {
       100
     );
   }, [
+    communityAvailable,
     communityMaturity,
     communityWeight,
     dailyAnalysisCoverage.percent,
@@ -3327,7 +3350,7 @@ export default function ControlRoomDetailPage() {
   ]);
 
   const dailyConvergence = useMemo(() => {
-    if (!dailyIntelligenceMetrics?.available) {
+    if (!communityAvailable || !dailyIntelligenceMetrics?.available) {
       return null;
     }
 
@@ -3440,13 +3463,14 @@ export default function ControlRoomDetailPage() {
         (rawConvergence - 50)
     );
   }, [
+    communityAvailable,
     communityMaturity,
     dailyIntelligenceMetrics?.available,
     sourceMatches,
   ]);
 
   const globalDistribution = useMemo(() => {
-    if (!sourceMatches.length) {
+    if (!communityAvailable || !sourceMatches.length) {
       return { home: 0, draw: 0, away: 0, over: 0, goal: 0 };
     }
 
@@ -3479,7 +3503,7 @@ export default function ControlRoomDetailPage() {
           0,
         ) / divisor,
     };
-  }, [sourceMatches]);
+  }, [communityAvailable, sourceMatches]);
 
   const topExactAcrossRound = useMemo(
     () =>
@@ -3803,8 +3827,16 @@ export default function ControlRoomDetailPage() {
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
                     label="Pronostici"
-                    value={overview.prediction_count.toLocaleString("it-IT")}
-                    detail={`${overview.member_count} utenti · ${overview.league_count} leghe`}
+                    value={
+                      communityAvailable
+                        ? overview.prediction_count.toLocaleString("it-IT")
+                        : "—"
+                    }
+                    detail={
+                      communityAvailable
+                        ? `${overview.member_count} utenti · ${overview.league_count} leghe`
+                        : "Community in attesa dei primi pronostici"
+                    }
                     emphasis
                   />
                   <MetricCard
@@ -3815,9 +3847,11 @@ export default function ControlRoomDetailPage() {
                         : `${dailyAnalysisCoverage.percent.toFixed(0)}%`
                     }
                     detail={
-                      dailyAnalysisCoverage.percent === null
-                        ? "Dati di analisi in caricamento"
-                        : `${dailyAnalysisCoverage.jointCovered}/${dailyAnalysisCoverage.requiredMatches} partite · Community + BM`
+                      !communityAvailable
+                        ? "Bookmakers disponibili · Community in attesa"
+                        : dailyAnalysisCoverage.percent === null
+                          ? "Dati di analisi in caricamento"
+                          : `${dailyAnalysisCoverage.jointCovered}/${dailyAnalysisCoverage.requiredMatches} partite · Community + BM`
                     }
                   />
                   <MetricCard
@@ -3828,15 +3862,17 @@ export default function ControlRoomDetailPage() {
                         : `${dailySolidity.toFixed(0)}/100`
                     }
                     detail={
-                      dailySolidity === null
-                        ? "Dati di analisi in caricamento"
-                        : communityMaturity < 0.25
-                        ? "Community embrionale · BM prevalente"
-                        : communityMaturity < 0.45
-                          ? "Community in crescita · quadro combinato"
-                          : communityMaturity < 0.7
-                            ? "Community consistente · quadro combinato"
-                            : "Community matura · quadro combinato"
+                      !communityAvailable
+                        ? "Disponibile quando iniziano i pronostici Community"
+                        : dailySolidity === null
+                          ? "Dati di analisi in caricamento"
+                          : communityMaturity < 0.25
+                            ? "Community embrionale · BM prevalente"
+                            : communityMaturity < 0.45
+                              ? "Community in crescita · quadro combinato"
+                              : communityMaturity < 0.7
+                                ? "Community consistente · quadro combinato"
+                                : "Community matura · quadro combinato"
                     }
                   />
                   <MetricCard
@@ -3847,15 +3883,17 @@ export default function ControlRoomDetailPage() {
                         : `${dailyConvergence.toFixed(0)}%`
                     }
                     detail={
-                      dailyConvergence === null
-                        ? "Dati insufficienti"
-                        : dailyConvergence >= 65
-                          ? "Letture fortemente allineate"
-                          : dailyConvergence >= 55
-                            ? "Letture abbastanza allineate"
-                            : dailyConvergence >= 45
-                              ? "Quadro ancora misto"
-                              : "Letture divergenti"
+                      !communityAvailable
+                        ? "Confronto disponibile dopo i primi pronostici"
+                        : dailyConvergence === null
+                          ? "Dati insufficienti"
+                          : dailyConvergence >= 65
+                            ? "Letture fortemente allineate"
+                            : dailyConvergence >= 55
+                              ? "Letture abbastanza allineate"
+                              : dailyConvergence >= 45
+                                ? "Quadro ancora misto"
+                                : "Letture divergenti"
                     }
                   />
                 </div>
@@ -3863,7 +3901,7 @@ export default function ControlRoomDetailPage() {
                 <div className="mt-4 grid gap-4 lg:grid-cols-3">
                   <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Segnale più forte</p>
-                    {summary.strongest && (
+                    {summary.strongest ? (
                       <>
                         <p className="mt-3 text-xl font-black">
                           {cleanTeamName(summary.strongest.home_team_short_name || summary.strongest.home_team_name)} – {cleanTeamName(summary.strongest.away_team_short_name || summary.strongest.away_team_name)}
@@ -3872,6 +3910,10 @@ export default function ControlRoomDetailPage() {
                           Consenso <strong className="text-[#A6E824]">{summary.strongest.consensus_outcome} · {pct(summary.strongest.consensus_percent)}</strong>
                         </p>
                       </>
+                    ) : (
+                      <p className="mt-3 text-sm font-bold text-gray-500">
+                        Community in attesa dei primi pronostici
+                      </p>
                     )}
                   </div>
 
@@ -3914,33 +3956,53 @@ export default function ControlRoomDetailPage() {
 
                   <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5 shadow-xl shadow-black/30">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500">Profilo giornata</p>
-                    <p className="mt-3 text-xl font-black">
-                      {summary.compactCount} compatte · {summary.dividedCount} incerte
-                    </p>
-                    <p className="mt-2 text-sm text-gray-400">
-                      Media gol prevista <strong className="text-white">{toNumber(summary.avgGoals).toFixed(1)}</strong>
-                    </p>
+                    {communityAvailable ? (
+                      <>
+                        <p className="mt-3 text-xl font-black">
+                          {summary.compactCount} compatte · {summary.dividedCount} incerte
+                        </p>
+                        <p className="mt-2 text-sm text-gray-400">
+                          Media gol prevista <strong className="text-white">{toNumber(summary.avgGoals).toFixed(1)}</strong>
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-3 text-sm font-bold text-gray-500">
+                        Profilo Community non ancora disponibile
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-3">
                   <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
                     <h3 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">Orientamento 1-X-2</h3>
-                    <div className="mt-4 space-y-3">
-                      <PercentBar label="1" value={globalDistribution.home} />
-                      <PercentBar label="X" value={globalDistribution.draw} />
-                      <PercentBar label="2" value={globalDistribution.away} />
-                    </div>
+                    {communityAvailable ? (
+                      <div className="mt-4 space-y-3">
+                        <PercentBar label="1" value={globalDistribution.home} />
+                        <PercentBar label="X" value={globalDistribution.draw} />
+                        <PercentBar label="2" value={globalDistribution.away} />
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm font-bold text-gray-500">
+                        Community in attesa
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
                     <h3 className="text-sm font-black uppercase tracking-[0.14em] text-gray-400">Profilo gol</h3>
-                    <div className="mt-4 space-y-3">
-                      <PercentBar label="Over 2.5" value={globalDistribution.over} />
-                      <PercentBar label="Under 2.5" value={100 - globalDistribution.over} />
-                      <PercentBar label="Goal" value={globalDistribution.goal} />
-                      <PercentBar label="No Goal" value={100 - globalDistribution.goal} />
-                    </div>
+                    {communityAvailable ? (
+                      <div className="mt-4 space-y-3">
+                        <PercentBar label="Over 2.5" value={globalDistribution.over} />
+                        <PercentBar label="Under 2.5" value={100 - globalDistribution.over} />
+                        <PercentBar label="Goal" value={globalDistribution.goal} />
+                        <PercentBar label="No Goal" value={100 - globalDistribution.goal} />
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm font-bold text-gray-500">
+                        Community in attesa
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-3xl border border-white/10 bg-[#0b1419] p-5">
@@ -3954,12 +4016,13 @@ export default function ControlRoomDetailPage() {
               </section>
 
               <section className="mt-8 rounded-3xl border border-white/10 bg-[#0b1419] p-5 text-sm leading-6 text-gray-400">
-                <strong className="text-white">Nota metodologica:</strong> la
-                Control Room elabora esclusivamente pronostici ufficialmente
-                inviati o bloccati, aggregati in forma anonima. Non legge bozze,
-                non mostra dati personali. Le
-                differenze con il mercato descrivono soltanto divergenze
-                statistiche.
+                <strong className="text-white">Nota metodologica:</strong> i
+                Bookmakers sono disponibili dall&apos;apertura canonica della
+                giornata. La componente Community usa esclusivamente pronostici
+                ufficialmente inviati o bloccati, aggregati in forma anonima:
+                non legge bozze e non mostra dati personali. Quando la Community
+                non è ancora disponibile, la Control Room resta operativa con
+                i soli segnali di mercato.
               </section>
             </>
           )}

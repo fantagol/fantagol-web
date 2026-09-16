@@ -4,9 +4,6 @@ import type {
   ProductionRoundContext,
 } from "./production-target-loader";
 
-export const THE_ODDS_BOOTSTRAP_DELAY_MS =
-  24 * 60 * 60 * 1000;
-
 export type TheOddsRoundBootstrapDecision =
   | {
       action: "complete";
@@ -23,6 +20,7 @@ export type TheOddsRoundBootstrapDecision =
         | "the_odds_previous_round_not_certified"
         | "the_odds_previous_round_end_missing"
         | "the_odds_round_bootstrap_not_due"
+        | "the_odds_round_opening_missing"
         | "the_odds_first_round_opening_missing"
         | "the_odds_first_round_bootstrap_not_due";
       eligibleAt: string | null;
@@ -104,28 +102,20 @@ function parseIsoMs(
   return parsed;
 }
 
-function previousStatusIsCertified(
-  status: string,
-): boolean {
-  return (
-    status === "final_calculable" ||
-    status === "final_official" ||
-    status === "recalculated"
-  );
-}
-
 /**
  * Pure temporal/mapping decision.
  *
  * New-round rule:
  *
- * previous canonical Round certified
- *       +
- * previous ends_at + 24h reached
+ * current Round opens_at reached
  *       +
  * current Round Odds mapping incomplete
  *       =
  * bootstrap required
+ *
+ * Previous-Round terminal state is intentionally NOT part of this authority.
+ * FantaGol Round windows may overlap, so Market bootstrap must not wait for
+ * the previous Round to finish or certify.
  *
  * Once mapping is complete this authority permanently exits and normal
  * PACKAGE cadence remains governed by the existing Market policy.
@@ -179,84 +169,24 @@ export function decideTheOddsRoundBootstrap(
   }
 
   /*
-   * Edition Round 1 has no previous Round.
-   * This fallback is deliberately conservative and does not affect
-   * the generic N -> N+1 authority.
+   * R21-R12 Market-first round authority.
+   *
+   * Odds mapping belongs to the CURRENT Round lifecycle.
+   * It must be available at the nominal prediction-opening target so the
+   * first PACKAGE can materialize Surprise Reference and unlock the Round.
+   *
+   * The previous Round may still be LIVE or awaiting terminal certification:
+   * that state must never delay mapping/bootstrap for the next Round.
+   *
+   * Once mapping is complete this authority permanently exits and normal
+   * PACKAGE cadence remains governed by the existing Market policy.
    */
-  if (
-    input.previousRoundStatus === null &&
-    input.previousRoundEndsAt === null
-  ) {
-    if (!input.currentRoundOpensAt) {
-      return {
-        action:
-          "wait",
-        reason:
-          "the_odds_first_round_opening_missing",
-        eligibleAt:
-          null,
-        requiredMatchCount:
-          input.requiredMatchCount,
-        mappedMatchCount:
-          input.mappedMatchCount,
-        missingMatchCount,
-      };
-    }
-
-    const openingMs =
-      parseIsoMs(
-        input.currentRoundOpensAt,
-        "THE_ODDS_BOOTSTRAP_FIRST_ROUND_OPENING",
-      );
-
-    const eligibleAt =
-      new Date(
-        openingMs,
-      ).toISOString();
-
-    if (
-      input.now.getTime() <
-      openingMs
-    ) {
-      return {
-        action:
-          "wait",
-        reason:
-          "the_odds_first_round_bootstrap_not_due",
-        eligibleAt,
-        requiredMatchCount:
-          input.requiredMatchCount,
-        mappedMatchCount:
-          input.mappedMatchCount,
-        missingMatchCount,
-      };
-    }
-
-    return {
-      action:
-        "bootstrap",
-      reason:
-        "the_odds_first_round_bootstrap_due",
-      eligibleAt,
-      requiredMatchCount:
-        input.requiredMatchCount,
-      mappedMatchCount:
-        input.mappedMatchCount,
-      missingMatchCount,
-    };
-  }
-
-  if (
-    !input.previousRoundStatus ||
-    !previousStatusIsCertified(
-      input.previousRoundStatus,
-    )
-  ) {
+  if (!input.currentRoundOpensAt) {
     return {
       action:
         "wait",
       reason:
-        "the_odds_previous_round_not_certified",
+        "the_odds_round_opening_missing",
       eligibleAt:
         null,
       requiredMatchCount:
@@ -267,40 +197,20 @@ export function decideTheOddsRoundBootstrap(
     };
   }
 
-  if (!input.previousRoundEndsAt) {
-    return {
-      action:
-        "wait",
-      reason:
-        "the_odds_previous_round_end_missing",
-      eligibleAt:
-        null,
-      requiredMatchCount:
-        input.requiredMatchCount,
-      mappedMatchCount:
-        input.mappedMatchCount,
-      missingMatchCount,
-    };
-  }
-
-  const previousEndsAtMs =
+  const openingMs =
     parseIsoMs(
-      input.previousRoundEndsAt,
-      "THE_ODDS_BOOTSTRAP_PREVIOUS_END",
+      input.currentRoundOpensAt,
+      "THE_ODDS_BOOTSTRAP_CURRENT_ROUND_OPENING",
     );
-
-  const eligibleAtMs =
-    previousEndsAtMs +
-    THE_ODDS_BOOTSTRAP_DELAY_MS;
 
   const eligibleAt =
     new Date(
-      eligibleAtMs,
+      openingMs,
     ).toISOString();
 
   if (
     input.now.getTime() <
-    eligibleAtMs
+    openingMs
   ) {
     return {
       action:
