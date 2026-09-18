@@ -1048,7 +1048,6 @@ export default function FantacalcioLivePage() {
   const [hasUnconfirmedChanges, setHasUnconfirmedChanges] = useState(false);
   const [strategyLocked, setStrategyLocked] = useState(false);
 
-  const [strategySubmittable, setStrategySubmittable] = useState(false);
   const [isByeRound, setIsByeRound] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(true);
   const [strategyError, setStrategyError] = useState<string | null>(null);
@@ -1498,7 +1497,6 @@ export default function FantacalcioLivePage() {
         Boolean(strategyStatus?.has_unconfirmed_changes),
       );
       setStrategyLocked(strategyStatus?.is_editable !== true);
-      setStrategySubmittable(strategyStatus?.is_submittable === true);
       setStrategyLoading(false);
     }
 
@@ -2434,9 +2432,7 @@ export default function FantacalcioLivePage() {
   }
 
   async function submitStrategy() {
-    if (
-      !strategySubmittable ||
-      strategyPendingSchedule) {
+    if (strategyPendingSchedule) {
       setStrategyAvailabilityModalOpen(true);
       return;
     }
