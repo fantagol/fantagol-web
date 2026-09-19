@@ -1342,6 +1342,7 @@ export default function OneToOneLivePage() {
         .map((row) => {
           const isFinished = ["finished", "awarded"].includes(row.match_status);
           const isLive =
+            row.match_status === "live" ||
             row.match_status.startsWith("live_") ||
             ["halftime", "extra_time", "penalties"].includes(row.match_status);
           const homeName = getTeamCode(

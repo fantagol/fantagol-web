@@ -866,6 +866,7 @@ export default function GiornataPage() {
           const kickoff = formatKickoff(row.kickoff);
           const isFinished = ["finished", "awarded"].includes(row.match_status);
           const isLive =
+            row.match_status === "live" ||
             row.match_status.startsWith("live_") ||
             ["halftime", "extra_time", "penalties"].includes(row.match_status);
 
@@ -1873,6 +1874,7 @@ export default function GiornataPage() {
                 ["finished", "awarded"].includes(matchStatus) ||
                 match.minute === "FT";
               const isLiveMatch =
+                matchStatus === "live" ||
                 matchStatus.startsWith("live_") ||
                 ["halftime", "extra_time", "penalties"].includes(matchStatus);
               const matchStatusLabel = isFinishedMatch
