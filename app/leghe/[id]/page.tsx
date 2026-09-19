@@ -76,6 +76,21 @@ type DashboardMatch = {
   awayLogoUrl: string | null;
 };
 
+type DashboardLiveProjectionMatch = {
+  match_id: string;
+  status?: string | null;
+  result_phase?: string | null;
+  score?: {
+    home?: number | null;
+    away?: number | null;
+  } | null;
+  minute?: number | string | null;
+};
+
+type DashboardLiveProjectionRow = {
+  matches?: DashboardLiveProjectionMatch[] | null;
+};
+
 type LeagueMemberRow = {
   membership_id: string;
   user_id?: string | null;
@@ -1901,6 +1916,108 @@ export default function LeagueDashboardPage() {
           target_league_id: leagueId,
         }),
       ]);
+
+      /*
+       * R116-R22
+       * The dashboard's base match roster comes from get_my_round_predictions_rpc,
+       * but LIVE status/score authority is the versioned realtime publication.
+       * Overlay only the canonical published match fields by match_id; keep team,
+       * crest and kickoff presentation data from the already-loaded base roster.
+       */
+      const liveProjection =
+        (
+          (oneToOneLiveProjectionResult.data || []) as
+            DashboardLiveProjectionRow[]
+        )[0] ?? null;
+      const publishedMatches =
+        Array.isArray(liveProjection?.matches)
+          ? liveProjection.matches
+          : [];
+
+      if (publishedMatches.length > 0) {
+        const publishedMatchesById = new Map(
+          publishedMatches.map((publishedMatch) => [
+            publishedMatch.match_id,
+            publishedMatch,
+          ]),
+        );
+
+        setMatches((currentMatches) =>
+          currentMatches.map((match) => {
+            const publishedMatch =
+              publishedMatchesById.get(match.id);
+
+            if (!publishedMatch) {
+              return match;
+            }
+
+            const rawPublishedStatus =
+              normalizeDashboardLiveStatus(
+                publishedMatch.status,
+              );
+            const publishedResultPhase =
+              normalizeDashboardLiveStatus(
+                publishedMatch.result_phase,
+              );
+            const publishedStatusIsLiveLike =
+              isDashboardActivelyPlaying(
+                rawPublishedStatus,
+              ) ||
+              rawPublishedStatus === "halftime" ||
+              rawPublishedStatus === "paused";
+
+            let publishedStatus =
+              rawPublishedStatus ||
+              normalizeDashboardLiveStatus(
+                match.match_status || match.status,
+              );
+
+            if (
+              publishedResultPhase === "live" &&
+              !publishedStatusIsLiveLike
+            ) {
+              publishedStatus = "live";
+            } else if (
+              (
+                publishedResultPhase === "post_live" ||
+                publishedResultPhase === "certified"
+              ) &&
+              publishedStatus !== "awarded"
+            ) {
+              publishedStatus = "finished";
+            }
+
+            const publishedMinuteRaw =
+              publishedMatch.minute;
+            const publishedMinute =
+              typeof publishedMinuteRaw === "number"
+                ? publishedMinuteRaw
+                : typeof publishedMinuteRaw === "string" &&
+                    publishedMinuteRaw.trim().length > 0 &&
+                    Number.isFinite(
+                      Number(publishedMinuteRaw),
+                    )
+                  ? Number(publishedMinuteRaw)
+                  : null;
+
+            return {
+              ...match,
+              match_status: publishedStatus,
+              status: publishedStatus,
+              minute:
+                publishedMinute ??
+                match.minute ??
+                null,
+              homeScore:
+                publishedMatch.score?.home ??
+                match.homeScore,
+              awayScore:
+                publishedMatch.score?.away ??
+                match.awayScore,
+            };
+          }),
+        );
+      }
 
       if (matchupResult.error) {
         if (!background) {

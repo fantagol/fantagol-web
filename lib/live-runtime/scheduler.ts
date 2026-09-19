@@ -95,6 +95,8 @@ export async function scheduleLivePolling(
   input: ScheduleLivePollingInput,
 ): Promise<ScheduledLivePolling> {
   const now = input.now ?? new Date();
+  let tuttoPrimaryAuthorityActive = false;
+  let tuttoPrimaryAuthorityHalftime = false;
 
   if (input.target.providerCode === "tuttoilcalcio") {
     const primaryAuthority =
@@ -102,6 +104,16 @@ export async function scheduleLivePolling(
         input.client,
         input.target.matchId,
       );
+
+    tuttoPrimaryAuthorityActive =
+      primaryAuthority?.authority === "primary_live" &&
+      primaryAuthority.source === "tuttoilcalcio" &&
+      ["FIRST_HALF", "HALFTIME", "SECOND_HALF"].includes(
+        primaryAuthority.phase,
+      );
+    tuttoPrimaryAuthorityHalftime =
+      tuttoPrimaryAuthorityActive &&
+      primaryAuthority?.phase === "HALFTIME";
 
     if (
       primaryAuthority?.authority === "primary_live" &&
@@ -160,8 +172,17 @@ export async function scheduleLivePolling(
   const decision =
     input.target.providerCode === "tuttoilcalcio"
       ? (
-          tuttoKickoffColdStart
+          tuttoPrimaryAuthorityActive
             ? {
+                band: tuttoPrimaryAuthorityHalftime
+                  ? "halftime" as const
+                  : "live" as const,
+                intervalSeconds: 60,
+                shouldPoll: true,
+                reason: "tuttoilcalcio_live_one_minute_per_match",
+              }
+            : tuttoKickoffColdStart
+              ? {
                 band: "live" as const,
                 intervalSeconds: 60,
                 shouldPoll: true,
