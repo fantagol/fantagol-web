@@ -45,7 +45,14 @@ assert.equal(
   false,
 );
 
-const live =
+/*
+ * The LIVE endpoint primitive remains available only as transport for
+ * Football-Data terminal verification after Tutto END_PENDING.
+ *
+ * This adapter test does not grant Football-Data operational LIVE authority.
+ * Production admission is governed by football-data-authority-policy.ts.
+ */
+const terminalVerificationTransport =
   buildFootballDataBatchEndpoint({
     providerCode: "football_data",
     externalMatchIds: [
@@ -57,12 +64,14 @@ const live =
   });
 
 assert.equal(
-  live,
+  terminalVerificationTransport,
   "/matches?competitions=SA&status=LIVE",
 );
 
 assert.equal(
-  live.includes("ids="),
+  terminalVerificationTransport.includes(
+    "ids=",
+  ),
   false,
 );
 
@@ -139,7 +148,7 @@ assert.throws(
 
 console.log("");
 console.log(
-  "[PASS] A8D.6.1 FOOTBALL DATA EXACT-ID PREMATCH CONTRACT",
+  "[PASS] A8D.6.1 FOOTBALL DATA EXACT-ID PREMATCH + TERMINAL TRANSPORT CONTRACT",
 );
 console.log("");
 console.log(
@@ -155,7 +164,7 @@ console.log(
   "[PASS] PREMATCH has no LIVE status filter",
 );
 console.log(
-  "[PASS] LIVE aggregate contract unchanged",
+  "[PASS] status=LIVE endpoint retained only as terminal-verification transport primitive",
 );
 console.log(
   "[PASS] malformed PREMATCH Match IDs fail closed",

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  resolveFootballDataAuthorityWindow,
+  type FootballDataAuthorityWindow,
+} from "./football-data-authority-policy";
 import { resolveLiveRuntimeAuthorityState } from "./live-primary-authority";
 import {
   enqueueLiveRuntimeJob,
@@ -332,8 +336,8 @@ function earliestFutureKickoff(
  *
  * One FantaGol Round becomes at most:
  *
- *   1 aggregate LIVE job
- *   1 aggregate PREMATCH job
+ *   1 terminal-verification LIVE transport job
+ *   1 exact-ID PREMATCH job
  *
  * instead of N poll_match jobs.
  */
@@ -356,6 +360,68 @@ export async function scheduleFootballDataAggregatedPolling(
     return [];
   }
 
+  /*
+   * R114-R11B - EXCLUSIVE FOOTBALL-DATA WINDOW
+   *
+   * Every target is classified by one shared pure policy:
+   *
+   *   pre_live          -> exact-ID PREMATCH transport
+   *   awaiting_official -> terminal-verification LIVE transport
+   *   blocked           -> no Football-Data provider call
+   *
+   * Once kickoff is reached, Football-Data is blocked even if Tutto has not
+   * produced its first LIVE observation yet. Tutto owns the kickoff cold-start
+   * window. Football-Data re-enters only after Tutto END_PENDING.
+   */
+  const footballDataWindowByMatchId =
+    new Map<
+      string,
+      FootballDataAuthorityWindow
+    >();
+
+  const footballDataAuthorityEligibleTargets =
+    (
+      await Promise.all(
+        footballDataTargets.map(
+          async (target) => {
+            const authority =
+              await resolveLiveRuntimeAuthorityState(
+                input.client,
+                target.matchId,
+              );
+
+            const window =
+              resolveFootballDataAuthorityWindow({
+                authority,
+                kickoffAt:
+                  target.kickoffAt,
+                now,
+              });
+
+            footballDataWindowByMatchId.set(
+              target.matchId,
+              window,
+            );
+
+            return (
+              window === "blocked"
+                ? null
+                : target
+            );
+          },
+        ),
+      )
+    ).filter(
+      (target): target is LivePollingTarget =>
+        target !== null,
+    );
+
+  if (
+    footballDataAuthorityEligibleTargets.length === 0
+  ) {
+    return [];
+  }
+
   const byRound =
     new Map<
       string,
@@ -364,7 +430,7 @@ export async function scheduleFootballDataAggregatedPolling(
 
   for (
     const target of
-    footballDataTargets
+    footballDataAuthorityEligibleTargets
   ) {
     const fantagolRoundId =
       target.fantagolRoundId;
@@ -407,16 +473,36 @@ export async function scheduleFootballDataAggregatedPolling(
         now,
         targets:
           roundTargets.map(
-            (target) => ({
-              providerCode:
-                target.providerCode,
-              externalMatchId:
-                target.externalMatchId,
-              kickoffAt:
-                target.kickoffAt,
-              matchStatus:
-                target.status,
-            }),
+            (target) => {
+              const authorityWindow =
+                footballDataWindowByMatchId.get(
+                  target.matchId,
+                ) ?? "blocked";
+
+              const terminalVerification =
+                authorityWindow ===
+                "awaiting_official";
+
+              return {
+                providerCode:
+                  target.providerCode,
+                externalMatchId:
+                  target.externalMatchId,
+                kickoffAt:
+                  target.kickoffAt,
+
+                /*
+                 * END_PENDING must not fall back to a potentially stale
+                 * canonical scheduled/live_first_half status. Force it into
+                 * the aggregate LIVE cadence, but the ingestion barrier below
+                 * will accept only the official terminal state.
+                 */
+                matchStatus:
+                  terminalVerification
+                    ? "live_second_half"
+                    : "scheduled",
+              };
+            },
           ),
       });
 

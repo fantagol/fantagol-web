@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ingestFootballDataPollResult } from "./football-data-poll-ingestion";
+import {
+  isTuttoTerminalPendingAuthority,
+} from "./football-data-authority-policy";
+import { resolveLiveRuntimeAuthorityState } from "./live-primary-authority";
 import type { ClaimedLiveRuntimeJob } from "./job-service";
 import {
   persistMarketBatchIntelligence,
@@ -32,14 +36,7 @@ type BatchMatchTarget = {
   leagueRoundIds: string[];
 };
 
-const FOOTBALL_DATA_TERMINAL_VERIFICATION_LIVE_STATUSES =
-  new Set([
-    "live_first_half",
-    "halftime",
-    "live_second_half",
-    "extra_time",
-    "penalties",
-  ]);
+
 function getBatchMatchTargets(
   payload: Record<string, unknown>,
 ): BatchMatchTarget[] {
@@ -515,48 +512,39 @@ export async function handlePollBatchJob(input: {
       BatchMatchTarget[] = [];
 
     if (missingTargets.length > 0) {
-      const {
-        data: canonicalStatusData,
-        error: canonicalStatusError,
-      } = await input.client
-        .from("matches")
-        .select("id,status")
-        .in(
-          "id",
+      /*
+       * R114-R11B - OFFICIAL TERMINAL POINT VERIFICATION ONLY
+       *
+       * A Football-Data LIVE aggregate transport is allowed only because an
+       * END_PENDING match can disappear from status=LIVE as soon as FD marks
+       * it FINISHED. If that happens, one exact point poll retrieves the
+       * official terminal evidence.
+       *
+       * Canonical matches.status is deliberately irrelevant here: during
+       * operational LIVE it may remain scheduled by design.
+       */
+      const terminalFlags =
+        await Promise.all(
           missingTargets.map(
-            (target) => target.matchId,
+            async (target) => ({
+              target,
+              authority:
+                await resolveLiveRuntimeAuthorityState(
+                  input.client,
+                  target.matchId,
+                ),
+            }),
           ),
         );
 
-      if (canonicalStatusError) {
-        throw new Error(
-          `FOOTBALL_DATA_TERMINAL_STATUS_LOOKUP_FAILED: ${canonicalStatusError.message}`,
-        );
-      }
-
-      const canonicalLiveMatchIds =
-        new Set(
-          (
-            (canonicalStatusData ?? []) as Array<{
-              id: string;
-              status: string;
-            }>
-          )
-            .filter((row) =>
-              FOOTBALL_DATA_TERMINAL_VERIFICATION_LIVE_STATUSES.has(
-                row.status,
-              ),
-            )
-            .map((row) => row.id),
-        );
-
       terminalVerificationTargets =
-        missingTargets.filter(
-          (target) =>
-            canonicalLiveMatchIds.has(
-              target.matchId,
+        terminalFlags
+          .filter(({ authority }) =>
+            isTuttoTerminalPendingAuthority(
+              authority,
             ),
-        );
+          )
+          .map(({ target }) => target);
     }
 
     const terminalVerificationExternalIds:

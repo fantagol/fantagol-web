@@ -31,32 +31,40 @@ assert.deepEqual(prematch, {
   dateTo: "2026-08-25",
 });
 
-const live =
+/*
+ * Generic planner coverage for the transport shape used only after Tutto
+ * END_PENDING. Production scheduler admission is separately governed by the
+ * exclusive authority policy.
+ */
+const terminalVerificationTransport =
   buildAggregatedPollingPlan({
     providerCode: "football_data",
-    now: new Date("2026-08-22T16:31:00Z"),
+    now: new Date("2026-08-22T18:46:00Z"),
     targets: [
       {
         providerCode: "football_data",
         externalMatchId: "1001",
         kickoffAt: "2026-08-22T16:30:00Z",
-        matchStatus: "live",
+        matchStatus: "live_second_half",
       },
       {
         providerCode: "football_data",
         externalMatchId: "1002",
         kickoffAt: "2026-08-22T18:45:00Z",
-        matchStatus: "live",
+        matchStatus: "live_second_half",
       },
     ],
   });
 
-assert.deepEqual(live, {
-  mode: "live",
-  providerCode: "football_data",
-  externalMatchIds: ["1001", "1002"],
-  competitionCode: "SA",
-});
+assert.deepEqual(
+  terminalVerificationTransport,
+  {
+    mode: "live",
+    providerCode: "football_data",
+    externalMatchIds: ["1001", "1002"],
+    competitionCode: "SA",
+  },
+);
 
 const deduped =
   buildAggregatedPollingPlan({
@@ -92,14 +100,14 @@ assert.equal(empty, null);
 
 console.log("");
 console.log(
-  "[PASS] A8D.6.2 AGGREGATED SCHEDULER CONTRACT",
+  "[PASS] A8D.6.2 AGGREGATED TRANSPORT PLANNER CONTRACT",
 );
 console.log("");
 console.log(
   "[PASS] N prematch Match targets -> 1 prematch provider plan",
 );
 console.log(
-  "[PASS] started Match set -> 1 live provider plan",
+  "[PASS] terminal-verification projection -> 1 LIVE transport plan",
 );
 console.log(
   "[PASS] external Match IDs deduplicated",
