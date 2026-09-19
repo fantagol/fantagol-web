@@ -84,6 +84,58 @@ export async function recordPrimaryLiveObservation(
   return firstRow(data);
 }
 
+export async function recordPrimaryLiveObservationAndEnqueueRebuilds(
+  client: RpcClient,
+  input: {
+    matchId: string;
+    observation: TuttoilcalcioLiveObservation;
+    leagueRoundIds: string[];
+    fantagolRoundId: string | null;
+    correlationId?: string | null;
+    causationId?: string | null;
+  },
+): Promise<{
+  observation_id: string;
+  authority_state_version: number;
+  effective_phase: string;
+  effective_minute: number | null;
+  effective_home_score: number;
+  effective_away_score: number;
+  changed_fields: string[];
+  meaningful_change: boolean;
+  primary_live_rebuild_job_count: number;
+}> {
+  const { observation } = input;
+
+  const { data, error } = await client.rpc(
+    "record_primary_live_observation_fanout_v1_internal",
+    {
+      p_match_id: input.matchId,
+      p_source_fixture_id: observation.sourceFixtureId,
+      p_observed_at: observation.observedAt,
+      p_source_status: observation.sourceStatus,
+      p_phase: observation.phase,
+      p_minute: observation.minute,
+      p_home_score: observation.homeScore,
+      p_away_score: observation.awayScore,
+      p_terminal_hint: observation.terminalHint,
+      p_payload_hash: observation.payloadHash,
+      p_payload: observation.payload,
+      p_league_round_ids: input.leagueRoundIds,
+      p_fantagol_round_id: input.fantagolRoundId,
+      p_correlation_id: input.correlationId ?? null,
+      p_causation_id: input.causationId ?? null,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `LIVE_PRIMARY_ATOMIC_FANOUT_FAILED:${error.message}`,
+    );
+  }
+
+  return firstRow(data);
+}
 export async function activateFootballDataDegradedLive(
   client: RpcClient,
   input: {

@@ -2,12 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LiveRuntimeError } from "./errors";
 import {
-  recordPrimaryLiveObservation,
+  recordPrimaryLiveObservationAndEnqueueRebuilds,
   resolveLiveRuntimeAuthorityState,
 } from "./live-primary-authority";
-import {
-  enqueuePrimaryLiveLeagueRoundRebuildJobs,
-} from "./rebuild-enqueue";
 import {
   ingestFootballDataPollResult,
   sha256ProviderPayload,
@@ -455,65 +452,36 @@ export async function handlePollMatchJob(input: {
       });
     }
 
+    /*
+     * R115-R19 / M318
+     * The observation/classification and primary-live rebuild fanout share one
+     * PostgreSQL transaction. If admission or enqueue fails, the observation
+     * and authority mutation roll back too, so a worker retry cannot consume
+     * changed_fields without creating the required rebuild jobs.
+     */
     const recorded =
-      await recordPrimaryLiveObservation(
+      await recordPrimaryLiveObservationAndEnqueueRebuilds(
         client,
         {
           matchId,
           observation,
+          leagueRoundIds:
+            getStringArray(
+              job.payload,
+              "league_round_ids",
+            ),
+          fantagolRoundId:
+            getOptionalString(
+              job.payload,
+              "fantagol_round_id",
+            ),
           correlationId: null,
+          causationId: job.jobId,
         },
       );
 
-    const after =
-      await resolveLiveRuntimeAuthorityState(
-        client,
-        matchId,
-      );
-
-    if (!after) {
-      throw new Error(
-        `TUTTOILCALCIO_PRIMARY_AUTHORITY_STATE_MISSING:${matchId}`,
-      );
-    }
-    /*
-     * R114-R5 R24
-     * Meaningful Tutto LIVE changes are classified atomically by M305 under
-     * the same per-match advisory transaction lock that mutates authority.
-     * Minute-only observations intentionally return an empty changed_fields.
-     */
     const changedFields = recorded.changed_fields;
-    const shouldRebuild =
-      after.authority === "primary_live" &&
-      after.source === "tuttoilcalcio" &&
-      after.phase !== "PRE_MATCH" &&
-      changedFields.length > 0;
-
-    const rebuildJobs =
-      shouldRebuild
-        ? await enqueuePrimaryLiveLeagueRoundRebuildJobs({
-            client,
-            leagueRoundIds:
-              getStringArray(
-                job.payload,
-                "league_round_ids",
-              ),
-            observationId:
-              recorded.observation_id,
-            authorityVersion:
-              recorded.authority_state_version,
-            matchId,
-            fantagolRoundId:
-              getOptionalString(
-                job.payload,
-                "fantagol_round_id",
-              ),
-            changedFields,
-            correlationId: null,
-            causationId: job.jobId,
-          })
-        : [];
-
+    const shouldRebuild = recorded.meaningful_change;
     return {
       branch: "primary_live_match",
       provider_code: "tuttoilcalcio",
@@ -535,7 +503,7 @@ export async function handlePollMatchJob(input: {
       changed_fields: changedFields,
       meaningful_change: shouldRebuild,
       primary_live_rebuild_job_count:
-        rebuildJobs.length,
+        recorded.primary_live_rebuild_job_count,
     };
   }
 
