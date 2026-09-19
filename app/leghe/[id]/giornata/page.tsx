@@ -11,6 +11,7 @@ import KitPreview from "../../../../components/club/KitPreview";
 import TeamCrest from "../../../../components/app/TeamCrest";
 import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import { supabase } from "../../../../lib/supabaseClient";
+import { installLiveFrontendRefresh } from "../../../../lib/live-runtime/live-frontend-refresh";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
 
 type Prediction = { home: string; away: string };
@@ -898,63 +899,6 @@ export default function GiornataPage() {
       setSubmitted(rows.some((row) => row.has_official_submission));
       setHasUnconfirmedChanges(rows.some((row) => row.has_unconfirmed_changes));
 
-      if (nextRound.isLive || nextRound.isFinished) {
-        const {
-          data: liveProjectionData,
-          error: liveProjectionError,
-        } = await supabase.rpc(
-          "get_league_live_frontend_projection_rpc",
-          {
-            p_league_round_id:
-              currentRound.league_round_id,
-          },
-        );
-
-        if (cancelled) return;
-
-        if (liveProjectionError) {
-          console.error(
-            "LIVE_FRONTEND_PROJECTION_ERROR",
-            liveProjectionError,
-          );
-
-          setCrossMemberPredictions([]);
-          setLivePredictionResults([]);
-          setLivePointsMembers([]);
-        } else {
-          const projection =
-            (((liveProjectionData || [])[0] ||
-              null) as unknown as
-              LeagueLiveFrontendProjectionRow | null);
-
-          const results =
-            projection?.points_preview?.prediction_results ??
-            [];
-
-          const members =
-            projection?.points_preview?.members ??
-            [];
-
-          setLivePredictionResults(results);
-          setLivePointsMembers(members);
-
-          setCrossMemberPredictions(
-            results.map((row) => ({
-              league_member_id:
-                row.league_member_id,
-              match_id: row.match_id,
-              home_prediction:
-                row.home_prediction,
-              away_prediction:
-                row.away_prediction,
-            })),
-          );
-        }
-      } else {
-        setCrossMemberPredictions([]);
-        setLivePredictionResults([]);
-        setLivePointsMembers([]);
-      }
 
       setRoundLoading(false);
     }
@@ -1051,7 +995,128 @@ export default function GiornataPage() {
       )
     : 0;
 
-  const isLiveForSwipe = round?.isLive === true || round?.isFinished === true;
+  /*
+   * R115-R3 LIVE FRONTEND REFRESH - PUNTI PURI
+   *
+   * Keep live publication reads completely separate from prediction drafts.
+   * The timer is installed as soon as a round exists, but the callback does
+   * not hit the projection RPC until the canonical lock/kickoff boundary has
+   * been reached (or the round is already LIVE/finished).
+   *
+   * This allows a page opened before kickoff to discover the first LIVE
+   * publication without ever reloading editable predictions.
+   */
+  useEffect(() => {
+    if (!round?.id) {
+      setCrossMemberPredictions([]);
+      setLivePredictionResults([]);
+      setLivePointsMembers([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLiveProjection = async () => {
+      const lockAtMs =
+        Date.parse(round.lockAt);
+
+      const refreshEligible =
+        round.isLive ||
+        round.isFinished ||
+        (
+          Number.isFinite(lockAtMs) &&
+          Date.now() >= lockAtMs
+        );
+
+      if (!refreshEligible) {
+        return;
+      }
+
+      const {
+        data: liveProjectionData,
+        error: liveProjectionError,
+      } = await supabase.rpc(
+        "get_league_live_frontend_projection_rpc",
+        {
+          p_league_round_id:
+            round.id,
+        },
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      if (liveProjectionError) {
+        /*
+         * Preserve the last good LIVE snapshot during a transient read error.
+         * Draft state is intentionally untouched.
+         */
+        console.error(
+          "LIVE_FRONTEND_PROJECTION_ERROR",
+          liveProjectionError,
+        );
+        return;
+      }
+
+      const projection =
+        (((liveProjectionData || [])[0] || null) as unknown as
+          LeagueLiveFrontendProjectionRow | null);
+
+      const results =
+        projection
+          ?.points_preview
+          ?.prediction_results ?? [];
+      const members =
+        projection
+          ?.points_preview
+          ?.members ?? [];
+
+      setLivePredictionResults(results);
+      setLivePointsMembers(members);
+      setCrossMemberPredictions(
+        results.map((row) => ({
+          league_member_id:
+            row.league_member_id,
+          match_id:
+            row.match_id,
+          home_prediction:
+            row.home_prediction,
+          away_prediction:
+            row.away_prediction,
+        })),
+      );
+    };
+
+    /*
+     * Initial call is self-gated by round.lockAt; after that, the shared
+     * installer supplies interval + resume/focus/network recovery.
+     */
+    void loadLiveProjection();
+
+    const disposeLiveRefresh =
+      installLiveFrontendRefresh({
+        refresh:
+          loadLiveProjection,
+        intervalMs: 30_000,
+      });
+
+    return () => {
+      cancelled = true;
+      disposeLiveRefresh();
+    };
+  }, [
+    round?.id,
+    round?.isLive,
+    round?.isFinished,
+    round?.lockAt,
+  ]);
+
+  const isLiveForSwipe =
+    round?.isLive === true ||
+    round?.isFinished === true ||
+    livePredictionResults.length > 0 ||
+    livePointsMembers.length > 0;
   const swipeProfiles = useMemo(
     () =>
       leagueMembers.map((member) => ({

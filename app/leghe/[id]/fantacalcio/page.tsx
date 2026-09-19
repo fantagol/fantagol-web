@@ -12,6 +12,7 @@ import TeamCrest from "../../../../components/app/TeamCrest";
 import FantaGolModeIcon from "../../../../components/app/FantaGolModeIcon";
 import KitPreview from "../../../../components/club/KitPreview";
 import { supabase } from "../../../../lib/supabaseClient";
+import { installLiveFrontendRefresh } from "../../../../lib/live-runtime/live-frontend-refresh";
 import { leaguePath } from "../../../../lib/navigation/league-paths";
 import ClubAvatar from "@/components/app/ClubAvatar";
 import {
@@ -1645,16 +1646,22 @@ export default function FantacalcioLivePage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadLeagueLiveProjection() {
-      if (!leagueRoundId || !isLiveForSwipe) {
-        setLeagueLiveProjection(null);
-        return;
-      }
+    if (!leagueRoundId) {
+      setLeagueLiveProjection(null);
 
-      const {
-        data,
-        error,
-      } = await supabase.rpc(
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    /*
+     * R115-R3 LIVE FRONTEND REFRESH - PROJECTION ONLY.
+     *
+     * Never invoke the strategy loader here: it owns editable draft state.
+     * Only the publication-backed read model is refreshed.
+     */
+    async function loadLeagueLiveProjection() {
+      const { data, error } = await supabase.rpc(
         "get_league_live_frontend_projection_rpc",
         {
           p_league_round_id: leagueRoundId,
@@ -1664,12 +1671,28 @@ export default function FantacalcioLivePage() {
       if (cancelled) return;
 
       if (error) {
+        /*
+         * Before lock the backend deliberately rejects this read with
+         * LIVE_FRONTEND_PROJECTION_NOT_VISIBLE. That response is our
+         * authoritative pre-LIVE gate and is expected while a page remains
+         * open across kickoff.
+         */
+        if (
+          typeof error.message === "string" &&
+          error.message.includes(
+            "LIVE_FRONTEND_PROJECTION_NOT_VISIBLE",
+          )
+        ) {
+          return;
+        }
+
+        /*
+         * Keep the last good projection on unexpected transient failures.
+         */
         console.error(
           "LIVE_FRONTEND_PROJECTION_ERROR",
           error,
         );
-
-        setLeagueLiveProjection(null);
         return;
       }
 
@@ -1677,13 +1700,35 @@ export default function FantacalcioLivePage() {
         (((data || [])[0] || null) as unknown as
           R40LeagueLiveFrontendProjection | null);
 
-      setLeagueLiveProjection(projection);
+      if (projection !== null) {
+        setLeagueLiveProjection(
+          projection,
+        );
+
+        /*
+         * A visible publication is authoritative proof that the round has
+         * crossed the backend lock barrier. Promote the local view into LIVE
+         * even when the strategy status was loaded before kickoff and stayed
+         * stale in this mounted page.
+         */
+        if (!isLiveForSwipe) {
+          setStrategyLocked(true);
+        }
+      }
     }
 
     void loadLeagueLiveProjection();
 
+    const disposeLiveRefresh =
+      installLiveFrontendRefresh({
+        refresh:
+          loadLeagueLiveProjection,
+        intervalMs: 30_000,
+      });
+
     return () => {
       cancelled = true;
+      disposeLiveRefresh();
     };
   }, [leagueRoundId, isLiveForSwipe]);
 

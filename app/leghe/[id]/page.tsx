@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
+import { installLiveFrontendRefresh } from "../../../lib/live-runtime/live-frontend-refresh";
 import { leaguePath } from "../../../lib/navigation/league-paths";
 import { resolveDashboardLiveDisplayClock } from "../../../lib/live-runtime/dashboard-live-display-clock";
 
@@ -1697,7 +1698,11 @@ export default function LeagueDashboardPage() {
   });
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function loadDashboard(options?: {
+      background?: boolean;
+    }) {
+      const background =
+        options?.background === true;
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -1710,8 +1715,10 @@ export default function LeagueDashboardPage() {
       const { data, error } = await supabase.rpc("get_my_leagues_rpc");
 
       if (error) {
-        alert(error.message);
-        setLoading(false);
+        if (!background) {
+          alert(error.message);
+          setLoading(false);
+        }
         return;
       }
 
@@ -1720,7 +1727,9 @@ export default function LeagueDashboardPage() {
       );
 
       if (!current) {
-        window.location.href = "/leghe";
+        if (!background) {
+          window.location.href = "/leghe";
+        }
         return;
       }
 
@@ -1740,16 +1749,20 @@ export default function LeagueDashboardPage() {
         });
 
       if (currentRoundError) {
-        setRoundError(currentRoundError.message);
-        setLoading(false);
+        if (!background) {
+          setRoundError(currentRoundError.message);
+          setLoading(false);
+        }
         return;
       }
 
       const currentRound = (currentRoundData || [])[0];
 
       if (!currentRound?.league_round_id) {
-        setRoundError("Nessuna giornata disponibile per questa lega.");
-        setLoading(false);
+        if (!background) {
+          setRoundError("Nessuna giornata disponibile per questa lega.");
+          setLoading(false);
+        }
         return;
       }
 
@@ -1763,8 +1776,10 @@ export default function LeagueDashboardPage() {
         });
 
       if (predictionError) {
-        setRoundError(predictionError.message);
-        setLoading(false);
+        if (!background) {
+          setRoundError(predictionError.message);
+          setLoading(false);
+        }
         return;
       }
 
@@ -1888,8 +1903,10 @@ export default function LeagueDashboardPage() {
       ]);
 
       if (matchupResult.error) {
-        setRoundError(matchupResult.error.message);
-        setLoading(false);
+        if (!background) {
+          setRoundError(matchupResult.error.message);
+          setLoading(false);
+        }
         return;
       }
 
@@ -2063,10 +2080,35 @@ setLiveModeSummary({
         }),
       });
 
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
 
     loadDashboard();
+
+    /*
+     * R115-R5 DASHBOARD RECOVERY.
+     *
+     * The dashboard loader is read-only but broad (membership, round,
+     * predictions, recovery and all mode previews). Keep it as the safest
+     * canonical recovery path, but run the background interval once per
+     * minute instead of every 30s. Foreground/focus/online still refresh
+     * immediately through the shared installer.
+     */
+    const disposeLiveRefresh =
+      installLiveFrontendRefresh({
+        refresh: async () => {
+          await loadDashboard({
+            background: true,
+          });
+        },
+        intervalMs: 60_000,
+      });
+
+    return () => {
+      disposeLiveRefresh();
+    };
   }, [leagueId]);
 
   useEffect(() => {
