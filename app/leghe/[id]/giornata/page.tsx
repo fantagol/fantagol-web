@@ -99,10 +99,23 @@ type LivePointsMemberRow = {
   provisional?: boolean | null;
 };
 
+type LiveFrontendMatchRow = {
+  match_id: string;
+  status?: string | null;
+  result_phase?: string | null;
+  score?: {
+    home?: number | null;
+    away?: number | null;
+  } | null;
+  minute?: number | string | null;
+  period?: string | null;
+};
+
 type LeagueLiveFrontendProjectionRow = {
   simulation_id: string;
   simulation_version: number;
   simulation_status: string;
+  matches?: LiveFrontendMatchRow[] | null;
   points_preview?: {
     members?: LivePointsMemberRow[];
     prediction_results?: LivePredictionResultRow[];
@@ -1064,6 +1077,88 @@ export default function GiornataPage() {
         (((liveProjectionData || [])[0] || null) as unknown as
           LeagueLiveFrontendProjectionRow | null);
 
+      const publishedMatches =
+        projection?.matches ?? [];
+
+      if (publishedMatches.length > 0) {
+        const publishedMatchesById =
+          new Map(
+            publishedMatches.map((publishedMatch) => [
+              publishedMatch.match_id,
+              publishedMatch,
+            ]),
+          );
+
+        setMatches((currentMatches) =>
+          currentMatches.map((match) => {
+            const publishedMatch =
+              publishedMatchesById.get(match.id);
+
+            if (!publishedMatch) {
+              return match;
+            }
+
+            const publishedStatus =
+              (publishedMatch.status ?? match.status)
+                .trim()
+                .toLowerCase();
+            const publishedResultPhase =
+              (publishedMatch.result_phase ?? "")
+                .trim()
+                .toLowerCase();
+
+            const publishedIsFinished =
+              [
+                "finished",
+                "awarded",
+                "post_live",
+                "certified",
+              ].includes(publishedStatus) ||
+              [
+                "post_live",
+                "certified",
+              ].includes(publishedResultPhase);
+
+            const publishedIsLive =
+              publishedStatus === "live" ||
+              publishedStatus.startsWith("live_") ||
+              [
+                "halftime",
+                "extra_time",
+                "penalties",
+              ].includes(publishedStatus) ||
+              publishedResultPhase === "live";
+
+            const publishedMinute =
+              publishedMatch.minute;
+
+            const nextMinute =
+              publishedIsFinished
+                ? "FT"
+                : typeof publishedMinute === "number"
+                  ? `${publishedMinute}'`
+                  : typeof publishedMinute === "string" &&
+                      publishedMinute.trim().length > 0
+                    ? publishedMinute.trim()
+                    : publishedIsLive
+                      ? "LIVE"
+                      : undefined;
+
+            return {
+              ...match,
+              status: publishedStatus,
+              liveHome:
+                publishedMatch.score?.home ??
+                match.liveHome,
+              liveAway:
+                publishedMatch.score?.away ??
+                match.liveAway,
+              minute: nextMinute,
+            };
+          }),
+        );
+      }
+
       const results =
         projection
           ?.points_preview
@@ -1866,17 +1961,21 @@ export default function GiornataPage() {
               const recoveryMatchEditable =
                 !predictionRecoveryActive ||
                 predictionRecoveryEditableMatchIds.has(match.id);
-              const showLiveScore =
-                round?.isLive === true ||
-                round?.isFinished === true;
               const matchStatus = (match.status ?? "").trim().toLowerCase();
               const isFinishedMatch =
-                ["finished", "awarded"].includes(matchStatus) ||
+                ["finished", "awarded", "post_live", "certified"].includes(
+                  matchStatus,
+                ) ||
                 match.minute === "FT";
               const isLiveMatch =
                 matchStatus === "live" ||
                 matchStatus.startsWith("live_") ||
                 ["halftime", "extra_time", "penalties"].includes(matchStatus);
+              const showLiveScore =
+                round?.isLive === true ||
+                round?.isFinished === true ||
+                isLiveMatch ||
+                isFinishedMatch;
               const matchStatusLabel = isFinishedMatch
                 ? "FT"
                 : isLiveMatch
