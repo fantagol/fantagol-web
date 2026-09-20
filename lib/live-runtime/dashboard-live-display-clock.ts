@@ -51,7 +51,21 @@ export function resolveDashboardLiveDisplayClock(
   }
 
   if (status === "halftime" || status === "paused") {
-    return { status, minute: 45, label: "HT", source: "status" };
+    const hasProviderMinute =
+      Number.isInteger(input.providerMinute) &&
+      Number(input.providerMinute) >= 45;
+
+    const halftimeMinute =
+      hasProviderMinute
+        ? Number(input.providerMinute)
+        : 45;
+
+    return {
+      status,
+      minute: halftimeMinute,
+      label: formatMinute(halftimeMinute, 1),
+      source: hasProviderMinute ? "provider" : "status",
+    };
   }
 
   const activelyPlaying =
