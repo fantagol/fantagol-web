@@ -34,6 +34,7 @@ type BatchMatchTarget = {
   fantagolRoundId: string | null;
   slotNumber: number | null;
   leagueRoundIds: string[];
+  currentStatus: string | null;
 };
 
 
@@ -65,6 +66,21 @@ function getBatchMatchTargets(
     const matchId = record.match_id;
     const externalMatchId =
       record.external_match_id;
+    const currentStatus =
+      record.current_status;
+
+    if (
+      currentStatus !== undefined &&
+      currentStatus !== null &&
+      (
+        typeof currentStatus !== "string" ||
+        currentStatus.trim() === ""
+      )
+    ) {
+      throw new Error(
+        `poll_batch match_targets[${index}] has invalid current_status`,
+      );
+    }
 
     if (
       typeof matchId !== "string" ||
@@ -148,6 +164,12 @@ function getBatchMatchTargets(
                 (item as string).trim(),
             )
           : [],
+      currentStatus:
+        typeof currentStatus === "string"
+          ? currentStatus
+              .trim()
+              .toLowerCase()
+          : null,
     };
   });
 }
@@ -539,7 +561,9 @@ export async function handlePollBatchJob(input: {
 
       terminalVerificationTargets =
         terminalFlags
-          .filter(({ authority }) =>
+          .filter(({ target, authority }) =>
+            target.currentStatus !== "finished" &&
+            target.currentStatus !== "awarded" &&
             isTuttoTerminalPendingAuthority(
               authority,
             ),

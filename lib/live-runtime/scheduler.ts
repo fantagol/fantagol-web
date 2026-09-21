@@ -405,6 +405,29 @@ export async function scheduleFootballDataAggregatedPolling(
       await Promise.all(
         footballDataTargets.map(
           async (target) => {
+            const canonicalStatus =
+              String(target.status ?? "")
+                .trim()
+                .toLowerCase();
+
+            /*
+             * R116-R41 - TERMINAL VERIFICATION RETIREMENT GUARD
+             *
+             * Tutto END_PENDING lineage can remain after canonical finalization.
+             * A canonical FINISHED/AWARDED match must not re-enter
+             * Football-Data terminal verification because of that residue.
+             */
+            if (
+              canonicalStatus === "finished" ||
+              canonicalStatus === "awarded"
+            ) {
+              footballDataWindowByMatchId.set(
+                target.matchId,
+                "blocked",
+              );
+              return null;
+            }
+
             const authority =
               await resolveLiveRuntimeAuthorityState(
                 input.client,
