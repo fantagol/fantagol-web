@@ -19,7 +19,8 @@
 -- Non-goals:
 --   - no job mutation
 --   - no workflow/job state vocabulary change
---   - no trigger/constraint changes
+--   - no trigger changes
+--   - no constraint changes except the timeline event_type vocabulary alignment
 --   - no data rewrite
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.record_live_runtime_workflow_event_rpc(p_workflow_instance_id uuid, p_workflow_key text, p_event_type text, p_workflow_status text DEFAULT NULL::text, p_workflow_version integer DEFAULT 1, p_workflow_name text DEFAULT NULL::text, p_idempotency_key text DEFAULT NULL::text, p_correlation_id uuid DEFAULT NULL::uuid, p_causation_id uuid DEFAULT NULL::uuid, p_parent_workflow_instance_id uuid DEFAULT NULL::uuid, p_aggregate_type text DEFAULT NULL::text, p_aggregate_id uuid DEFAULT NULL::uuid, p_league_id uuid DEFAULT NULL::uuid, p_league_round_id uuid DEFAULT NULL::uuid, p_match_id uuid DEFAULT NULL::uuid, p_step_instance_id uuid DEFAULT NULL::uuid, p_step_key text DEFAULT NULL::text, p_step_name text DEFAULT NULL::text, p_step_index integer DEFAULT NULL::integer, p_step_status text DEFAULT NULL::text, p_attempt_no integer DEFAULT NULL::integer, p_job_id uuid DEFAULT NULL::uuid, p_occurred_at timestamp with time zone DEFAULT clock_timestamp(), p_scheduled_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_error_code text DEFAULT NULL::text, p_error_message text DEFAULT NULL::text, p_error_details jsonb DEFAULT NULL::jsonb, p_input_payload jsonb DEFAULT '{}'::jsonb, p_output_payload jsonb DEFAULT NULL::jsonb, p_payload jsonb DEFAULT '{}'::jsonb, p_metadata jsonb DEFAULT '{}'::jsonb)
