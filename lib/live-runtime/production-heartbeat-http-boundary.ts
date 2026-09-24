@@ -13,6 +13,18 @@ type ServiceClientFactory =
     "../supabase/service"
   ).getSupabaseServiceClient;
 
+type ProductionHeartbeatRequestBody = {
+  source?: string;
+  leaseToken?: string;
+};
+
+type FinalizeHeartbeatResult = {
+  finalized?: boolean;
+  success?: boolean;
+  next_wakeup_at?: string;
+  next_wakeup_reason?: string;
+};
+
 export type ProductionHeartbeatHttpDependencies = {
   readCronSecret:
     () => string | undefined;
@@ -23,6 +35,72 @@ export type ProductionHeartbeatHttpDependencies = {
   runHeartbeat:
     HeartbeatRunner;
 };
+
+async function readHeartbeatRequestBody(
+  request: NextRequest,
+): Promise<ProductionHeartbeatRequestBody> {
+  try {
+    const parsed = await request.json();
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return {};
+    }
+
+    const body =
+      parsed as Record<string, unknown>;
+
+    return {
+      source:
+        typeof body.source === "string"
+          ? body.source
+          : undefined,
+      leaseToken:
+        typeof body.leaseToken === "string" &&
+        body.leaseToken.trim().length > 0
+          ? body.leaseToken.trim()
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function finalizeHeartbeatLease(input: {
+  client: ReturnType<ServiceClientFactory>;
+  leaseToken: string;
+  success: boolean;
+  reason: string;
+}): Promise<FinalizeHeartbeatResult> {
+  const { data, error } =
+    await input.client.rpc(
+      "finalize_production_heartbeat_wakeup_rpc",
+      {
+        p_lease_token: input.leaseToken,
+        p_success: input.success,
+        p_reason: input.reason,
+      },
+    );
+
+  if (error) {
+    throw new Error(
+      `PRODUCTION_HEARTBEAT_FINALIZE_FAILED:${error.message}`,
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data)
+  ) {
+    return {};
+  }
+
+  return data as FinalizeHeartbeatResult;
+}
 
 function bearerAuthorized(
   input: {
@@ -79,6 +157,11 @@ export function createProductionHeartbeatPostHandler(
       );
     }
 
+    const body =
+      await readHeartbeatRequestBody(
+        request,
+      );
+
     try {
       const client =
         dependencies
@@ -120,12 +203,36 @@ export function createProductionHeartbeatPostHandler(
               ],
           });
 
+      let heartbeatFinalize:
+        FinalizeHeartbeatResult | null =
+          null;
+
+      if (body.leaseToken) {
+        heartbeatFinalize =
+          await finalizeHeartbeatLease({
+            client,
+            leaseToken:
+              body.leaseToken,
+            success:
+              !result.retryRecommended,
+            reason:
+              result.retryRecommended
+                ? `retry:${result.retryReasons.join(",")}`
+                : "heartbeat_completed",
+          });
+      }
+
       return NextResponse.json(
         {
           ok: true,
 
           workerExecutionEnabled:
             true,
+
+          leaseManaged:
+            Boolean(body.leaseToken),
+
+          heartbeatFinalize,
 
           result,
         },
@@ -138,6 +245,28 @@ export function createProductionHeartbeatPostHandler(
         "Production heartbeat execution failed",
         error,
       );
+
+      if (body.leaseToken) {
+        try {
+          const client =
+            dependencies
+              .getServiceClient();
+
+          await finalizeHeartbeatLease({
+            client,
+            leaseToken:
+              body.leaseToken,
+            success: false,
+            reason:
+              "heartbeat_http_boundary_failed",
+          });
+        } catch (finalizeError) {
+          console.error(
+            "Production heartbeat failure finalize failed",
+            finalizeError,
+          );
+        }
+      }
 
       return NextResponse.json(
         {

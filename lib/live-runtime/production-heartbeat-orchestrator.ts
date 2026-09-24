@@ -111,6 +111,8 @@ export type ProductionHeartbeatResult = {
     ProductionHeartbeatStep<unknown>;
   worker:
     ProductionHeartbeatStep<ProductionHeartbeatWorkerDrain>;
+  retryRecommended: boolean;
+  retryReasons: string[];
 };
 
 export type LoadMarketPolicyInput = (input: {
@@ -667,6 +669,7 @@ export async function runProductionHeartbeat(
   const correlationId =
     input.correlationId ?? null;
   const deps = resolveDependencies(input);
+  const retryReasons: string[] = [];
 
   let roundStep:
     ProductionHeartbeatStep<ProductionRoundContext>;
@@ -690,6 +693,8 @@ export async function runProductionHeartbeat(
       community: skipped(),
       loyaltyRewards: skipped(),
       worker: skipped(),
+      retryRecommended: true,
+      retryReasons: ["round_context_failed"],
     };
   }
 
@@ -711,6 +716,8 @@ export async function runProductionHeartbeat(
       community: skipped(),
       loyaltyRewards: skipped(),
       worker: skipped(),
+      retryRecommended: true,
+      retryReasons: ["round_unavailable"],
     };
   }
 
@@ -992,6 +999,7 @@ export async function runProductionHeartbeat(
      * Opening advancement failure must not reclassify Market or
      * ADVANCED execution. The next heartbeat retries.
      */
+    retryReasons.push("prediction_opening_failed");
   }
 
   /*
@@ -1012,6 +1020,7 @@ export async function runProductionHeartbeat(
      * A lock-authority failure must not stop provider polling.
      * The next heartbeat retries the idempotent authority.
      */
+    retryReasons.push("prediction_lock_failed");
   }
 
   /*
@@ -1036,6 +1045,7 @@ export async function runProductionHeartbeat(
      * A lifecycle-authority failure must not stop provider polling or
      * worker drainage. The next heartbeat retries the idempotent authority.
      */
+    retryReasons.push("round_live_advance_failed");
   }
 
   /*
@@ -1080,6 +1090,7 @@ export async function runProductionHeartbeat(
      * Fail open at transport/orchestration level.
      * The DB authority itself fails closed and the next heartbeat retries.
      */
+    retryReasons.push("round_final_reconciliation_failed");
   }
 
 
@@ -1093,6 +1104,7 @@ export async function runProductionHeartbeat(
      * Recovery expiry failure must not stop provider polling or
      * worker drainage. The next heartbeat retries the idempotent sweep.
      */
+    retryReasons.push("prediction_recovery_expiry_failed");
   }
 
   let communityStep:
@@ -1195,6 +1207,31 @@ export async function runProductionHeartbeat(
     workerStep = failed(error);
   }
 
+  if (footballDataStep.status === "failed") {
+    retryReasons.push("football_data_failed");
+  }
+  if (tuttoilcalcioStep.status === "failed") {
+    retryReasons.push("tuttoilcalcio_failed");
+  }
+  if (marketStep.status === "failed") {
+    retryReasons.push("market_failed");
+  }
+  if (marketAdvancedStep.status === "failed") {
+    retryReasons.push("market_advanced_failed");
+  }
+  if (communityStep.status === "failed") {
+    retryReasons.push("community_failed");
+  }
+  if (loyaltyRewardsStep.status === "failed") {
+    retryReasons.push("loyalty_rewards_failed");
+  }
+  if (workerStep.status === "failed") {
+    retryReasons.push("worker_drain_failed");
+  }
+
+  const uniqueRetryReasons =
+    [...new Set(retryReasons)];
+
   return {
     startedAt,
     finishedAt:
@@ -1208,5 +1245,8 @@ export async function runProductionHeartbeat(
     community: communityStep,
     loyaltyRewards: loyaltyRewardsStep,
     worker: workerStep,
+    retryRecommended:
+      uniqueRetryReasons.length > 0,
+    retryReasons: uniqueRetryReasons,
   };
 }
