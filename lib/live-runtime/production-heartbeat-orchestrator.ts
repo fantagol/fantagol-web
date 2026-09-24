@@ -292,6 +292,58 @@ function failed<T>(
   };
 }
 
+function failedStepRequiresImmediateRetry(input: {
+  step:
+    | "football_data"
+    | "tuttoilcalcio"
+    | "market"
+    | "market_advanced"
+    | "community"
+    | "loyalty_rewards"
+    | "worker_drain";
+  error: string | null;
+  roundStatus: string;
+}): boolean {
+  const error =
+    input.error ?? "";
+
+  /*
+   * These are deliberately exact, narrow exceptions.
+   *
+   * They remain visible as failed heartbeat steps, but they do not
+   * justify waking the entire production heartbeat again in one minute.
+   * Every other failed step remains an immediate-retry condition.
+   */
+  if (
+    input.step === "tuttoilcalcio" &&
+    input.roundStatus === "scheduled" &&
+    error.startsWith(
+      "PRODUCTION_TUTTOILCALCIO_BINDINGS_MISSING:",
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    input.step === "market" &&
+    /^THE_ODDS_BOOTSTRAP_GENERATION_EXHAUSTED:\d+:(dead_letter|cancelled)$/.test(
+      error,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    input.step === "community" &&
+    error ===
+      "COMMUNITY_REFRESH_FAILED:COMMUNITY_NO_ELIGIBLE_PREDICTIONS"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 async function advancePredictionOpeningDefault(input: {
   client: SupabaseClient;
   fantagolRoundId: string;
@@ -1207,25 +1259,80 @@ export async function runProductionHeartbeat(
     workerStep = failed(error);
   }
 
-  if (footballDataStep.status === "failed") {
+  if (
+    footballDataStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "football_data",
+      error: footballDataStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("football_data_failed");
   }
-  if (tuttoilcalcioStep.status === "failed") {
+
+  if (
+    tuttoilcalcioStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "tuttoilcalcio",
+      error: tuttoilcalcioStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("tuttoilcalcio_failed");
   }
-  if (marketStep.status === "failed") {
+
+  if (
+    marketStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "market",
+      error: marketStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("market_failed");
   }
-  if (marketAdvancedStep.status === "failed") {
+
+  if (
+    marketAdvancedStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "market_advanced",
+      error: marketAdvancedStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("market_advanced_failed");
   }
-  if (communityStep.status === "failed") {
+
+  if (
+    communityStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "community",
+      error: communityStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("community_failed");
   }
-  if (loyaltyRewardsStep.status === "failed") {
+
+  if (
+    loyaltyRewardsStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "loyalty_rewards",
+      error: loyaltyRewardsStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("loyalty_rewards_failed");
   }
-  if (workerStep.status === "failed") {
+
+  if (
+    workerStep.status === "failed" &&
+    failedStepRequiresImmediateRetry({
+      step: "worker_drain",
+      error: workerStep.error,
+      roundStatus: round.status,
+    })
+  ) {
     retryReasons.push("worker_drain_failed");
   }
 
