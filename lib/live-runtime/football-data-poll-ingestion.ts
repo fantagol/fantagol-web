@@ -222,6 +222,42 @@ export async function ingestFootballDataPollResult(input: {
     };
   }
 
+  /*
+   * R184 - PROVIDER MAP METADATA CONTINUITY
+   *
+   * Canonical change detection intentionally compares against Match state.
+   * Therefore a Football-Data poll can be a legitimate NO_CHANGE while the
+   * mutable provider_entity_maps metadata is stale (for example after another
+   * schedule authority already reconciled the canonical kickoff).
+   *
+   * Keep the provider map synchronized independently from rebuild semantics.
+   * This RPC never mutates canonical Match state and never enqueues rebuilds.
+   */
+  const { error: providerMapSyncError } = await input.client.rpc(
+    "sync_provider_match_metadata_internal",
+    {
+      p_provider_code: input.poll.providerCode,
+      p_match_id: input.scope.matchId,
+      p_external_id: input.poll.externalMatchId,
+      p_kickoff_at: providerMatch.utcDate,
+      p_status: normalizedMatch.status,
+      p_provider_updated_at: providerMatch.lastUpdated,
+    },
+  );
+
+  if (providerMapSyncError) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_CONFIGURATION_ERROR",
+      message:
+        "Football-Data provider map metadata continuity sync failed",
+      details: {
+        matchId: input.scope.matchId,
+        externalMatchId: input.poll.externalMatchId,
+        providerCode: input.poll.providerCode,
+        cause: providerMapSyncError.message,
+      },
+    });
+  }
   const ingestion =
     await ingestLiveProviderUpdate({
       client: input.client,
