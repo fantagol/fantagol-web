@@ -2453,7 +2453,7 @@ setLiveModeSummary({
               Giornata {roundNumber ?? "-"}
             </p>
 
-            <Badge variant="success">{roundLabel}</Badge>
+            <Badge variant="success">{recoveryWorkspaceOpen ? "Pronostici Recovery aperti" : roundLabel}</Badge>
           </div>
 
           {roundError && (
@@ -2559,12 +2559,14 @@ setLiveModeSummary({
           <DashboardQuickAction
             icon="target"
             label={
-              dashboardRoundHasEnteredLive
+              dashboardRoundHasEnteredLive && !recoveryWorkspaceOpen
                 ? "🔒 Pronostici"
-                : "Pronostici"
+                : recoveryWorkspaceOpen
+                  ? "Pronostici Recovery"
+                  : "Pronostici"
             }
             href={`/leghe/${leagueId}/giornata`}
-            disabled={dashboardRoundHasEnteredLive}
+            disabled={dashboardRoundHasEnteredLive && !recoveryWorkspaceOpen}
           />
           <DashboardQuickAction
             icon="live"

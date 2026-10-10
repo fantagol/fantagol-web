@@ -2097,16 +2097,20 @@ export default function GiornataPage() {
             </div>
             <div>
               <p className="text-sm font-black uppercase sm:text-lg">
-                {locked
-                  ? round?.label
-                  : submitted
+                {predictionRecoveryActive
+                  ? "Pronostici Recovery aperti"
+                  : locked
+                    ? round?.label
+                    : submitted
                     ? "Pronostici inviati"
                     : round?.label}
               </p>
               <p className="text-xs text-gray-300 sm:text-sm">
-                {locked
-                  ? round?.helper
-                  : submitted
+                {predictionRecoveryActive
+                  ? "Completa e invia i pronostici delle sole partite ancora recuperabili"
+                  : locked
+                    ? round?.helper
+                    : submitted
                     ? "Puoi modificare e reinviare fino al lock ufficiale"
                     : round?.helper}
               </p>
