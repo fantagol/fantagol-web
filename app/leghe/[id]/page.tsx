@@ -2235,6 +2235,59 @@ setLiveModeSummary({
 
     return () => window.clearInterval(timer);
   }, []);
+  /* R9-R33 DASHBOARD RECOVERY SYNC
+   * Reconcile the member's Recovery authority separately from the broad
+   * dashboard loader; this is read-only, fail-closed and does not open windows.
+   */
+  useEffect(() => {
+    if (!currentLeagueRoundId || predictionWindowState === "open") return;
+    let disposed = false;
+    let checking = false;
+    const checkRecovery = async () => {
+      if (disposed || checking || document.visibilityState === "hidden") return;
+      checking = true;
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_my_prediction_recovery_workspace_rpc",
+          { p_league_round_id: currentLeagueRoundId },
+        );
+        if (disposed) return;
+        if (error) {
+          // Database authorization is always authoritative: never bypass it.
+          console.warn("Recovery workspace refresh failed:", error.message);
+
+          return;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        const now = Date.now();
+        const active = rows.some((row) =>
+          row.editable === true &&
+          typeof row.authorization_expires_at === "string" &&
+          Date.parse(row.authorization_expires_at) > now
+        );
+        setRecoveryWorkspaceOpen(active);
+      } catch (error) {
+        if (!disposed) {
+          console.warn("Recovery workspace refresh exception:", error);
+
+        }
+      } finally {
+        checking = false;
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void checkRecovery(); };
+    const onFocus = () => { void checkRecovery(); };
+    void checkRecovery();
+    const timer = window.setInterval(() => { void checkRecovery(); }, 30_000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [currentLeagueRoundId, predictionWindowState]);
   const matchGroups = useMemo(
     () => buildDashboardMatchGroups(matches),
     [matches],

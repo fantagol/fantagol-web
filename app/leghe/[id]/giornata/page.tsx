@@ -634,6 +634,7 @@ export default function GiornataPage() {
   >([]);
   const predictionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const predictionSaveTimersRef = useRef<Array<number | null>>([]);
+  const predictionSaveInFlightRef = useRef<Set<Promise<void>>>(new Set());
 
   useEffect(() => {
     async function loadLeagueInfo() {
@@ -942,6 +943,67 @@ export default function GiornataPage() {
     setPredictionRecoveryEditableMatchIds,
   ] = useState<Set<string>>(() => new Set());
 
+  /* R9-R33 GIORNATA RECOVERY SYNC
+   * A later Recovery opening must enable eligible match inputs on an already
+   * mounted page. Never reinitialize predictions or pending draft saves here.
+   */
+  useEffect(() => {
+    const leagueRoundId = round?.id;
+    if (!leagueRoundId) return;
+    let disposed = false;
+    let checking = false;
+    const checkRecovery = async () => {
+      if (disposed || checking || document.visibilityState === "hidden") return;
+      checking = true;
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_my_prediction_recovery_workspace_rpc",
+          { p_league_round_id: leagueRoundId },
+        );
+        if (disposed) return;
+        if (error) {
+          console.warn("Recovery page refresh failed:", error.message);
+
+          return;
+        }
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        const now = Date.now();
+        const editableIds = new Set<string>();
+        for (const row of rows) {
+          if (
+            row.editable === true &&
+            typeof row.match_id === "string" &&
+            typeof row.authorization_expires_at === "string" &&
+            Date.parse(row.authorization_expires_at) > now &&
+            Date.parse(row.kickoff) > now
+          ) {
+            editableIds.add(row.match_id);
+          }
+        }
+        setPredictionRecoveryActive(editableIds.size > 0);
+        setPredictionRecoveryEditableMatchIds(editableIds);
+      } catch (error) {
+        if (!disposed) {
+          console.warn("Recovery page refresh exception:", error);
+
+        }
+      } finally {
+        checking = false;
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void checkRecovery(); };
+    const onFocus = () => { void checkRecovery(); };
+    void checkRecovery();
+    const timer = window.setInterval(() => { void checkRecovery(); }, 30_000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [round?.id]);
   const submittedCount = useMemo(
     () =>
       predictions.filter(
@@ -958,7 +1020,11 @@ export default function GiornataPage() {
       if (!predictionRecoveryEditableMatchIds.has(match.id)) return true;
 
       const prediction = predictions[index];
-      return prediction?.home !== "" && prediction?.away !== "";
+      return (
+        prediction !== undefined &&
+        prediction.home !== "" &&
+        prediction.away !== ""
+      );
     });
   const submissionComplete =
     predictionRecoveryActive ? recoveryComplete : allComplete;
@@ -1513,7 +1579,10 @@ export default function GiornataPage() {
 
     setPredictionSaveState(index, "saving");
 
-    predictionSaveTimersRef.current[index] = window.setTimeout(async () => {
+    predictionSaveTimersRef.current[index] = window.setTimeout(() => {
+      predictionSaveTimersRef.current[index] = null;
+
+      const saveTask = (async () => {
       const { error } =
         predictionRecoveryActive
           ? await supabase.rpc(
@@ -1549,6 +1618,19 @@ export default function GiornataPage() {
           ),
         );
       }, 1400);
+      })().catch((failure: unknown) => {
+        const message =
+          failure instanceof Error
+            ? failure.message
+            : "Errore di salvataggio";
+        setPredictionSaveState(index, "error", message);
+      });
+
+      predictionSaveInFlightRef.current.add(saveTask);
+
+      void saveTask.finally(() => {
+        predictionSaveInFlightRef.current.delete(saveTask);
+      });
     }, 450);
   }
 
@@ -1557,7 +1639,7 @@ export default function GiornataPage() {
     field: keyof Prediction,
     value: string,
   ) {
-    if (!canEdit) return;
+    if (!canEdit || submitting) return;
 
     const match = matches[index];
     if (
@@ -1638,6 +1720,164 @@ export default function GiornataPage() {
 
     setSubmitting(true);
 
+    if (predictionRecoveryActive) {
+      try {
+        // Cancel debounce timers; already running requests must finish.
+        for (const timer of predictionSaveTimersRef.current) {
+          if (timer !== null && timer !== undefined) {
+            window.clearTimeout(timer);
+          }
+        }
+
+        predictionSaveTimersRef.current = [];
+
+        await Promise.all(
+          Array.from(predictionSaveInFlightRef.current),
+        );
+
+        const readWorkspace = async () => {
+          const { data, error } = await supabase.rpc(
+            "get_my_prediction_recovery_workspace_rpc",
+            { p_league_round_id: round.id },
+          );
+
+          if (error) throw new Error(error.message);
+
+          return Array.isArray(data) ? data : data ? [data] : [];
+        };
+
+        const expectedMatches = matches.filter((match) =>
+          predictionRecoveryEditableMatchIds.has(match.id),
+        );
+
+        if (
+          expectedMatches.length === 0 ||
+          expectedMatches.length !==
+            predictionRecoveryEditableMatchIds.size
+        ) {
+          throw new Error("RECOVERY_SCOPE_INVALID");
+        }
+
+        const workspace = await readWorkspace();
+        const workspaceByMatch = new Map(
+          workspace.map((row) => [row.match_id, row]),
+        );
+
+        for (const match of expectedMatches) {
+          const row = workspaceByMatch.get(match.id);
+
+          if (!row || row.editable !== true) {
+            throw new Error("RECOVERY_MATCH_NO_LONGER_EDITABLE");
+          }
+        }
+
+        for (let index = 0; index < matches.length; index += 1) {
+          const match = matches[index];
+
+          if (!predictionRecoveryEditableMatchIds.has(match.id)) {
+            continue;
+          }
+
+          const prediction = predictions[index];
+
+          if (
+            !prediction ||
+            prediction.home === "" ||
+            prediction.away === ""
+          ) {
+            throw new Error("RECOVERY_PREDICTION_INCOMPLETE");
+          }
+
+          const home = Number(prediction.home);
+          const away = Number(prediction.away);
+
+          if (
+            !Number.isInteger(home) ||
+            !Number.isInteger(away) ||
+            home < 0 || home > 9 ||
+            away < 0 || away > 9
+          ) {
+            throw new Error("RECOVERY_PREDICTION_INVALID");
+          }
+
+          const persisted = workspaceByMatch.get(match.id);
+
+          // Already saved with the intended score: do not
+          // generate an unnecessary prediction version.
+          if (
+            persisted &&
+            persisted.home_prediction === home &&
+            persisted.away_prediction === away &&
+            persisted.prediction_id
+          ) {
+            continue;
+          }
+
+          setPredictionSaveState(index, "saving");
+
+          const { data: savedData, error: saveError } =
+            await supabase.rpc("save_prediction_recovery_draft_rpc", {
+              p_league_round_id: round.id,
+              p_match_id: match.id,
+              p_home_prediction: home,
+              p_away_prediction: away,
+            });
+
+          const saved = Array.isArray(savedData)
+            ? savedData[0]
+            : savedData;
+
+          if (saveError || !saved || saved.match_id !== match.id) {
+            const message =
+              saveError?.message ??
+              "RECOVERY_SAVE_NOT_CONFIRMED";
+
+            setPredictionSaveState(index, "error", message);
+            throw new Error(message);
+          }
+
+          setPredictionSaveState(index, "saved");
+        }
+
+        // Independent read after all Save RPCs.
+        const verifiedRows = await readWorkspace();
+        const verifiedByMatch = new Map(
+          verifiedRows.map((row) => [row.match_id, row]),
+        );
+
+        for (let index = 0; index < matches.length; index += 1) {
+          const match = matches[index];
+
+          if (!predictionRecoveryEditableMatchIds.has(match.id)) {
+            continue;
+          }
+
+          const prediction = predictions[index];
+          const persisted = verifiedByMatch.get(match.id);
+
+          if (
+            !prediction ||
+            !persisted ||
+            persisted.editable !== true ||
+            !persisted.prediction_id ||
+            persisted.home_prediction !== Number(prediction.home) ||
+            persisted.away_prediction !== Number(prediction.away)
+          ) {
+            throw new Error("RECOVERY_PERSISTENCE_VERIFICATION_FAILED");
+          }
+        }
+      } catch (failure) {
+        const message =
+          failure instanceof Error
+            ? failure.message
+            : "Errore durante il salvataggio Recovery";
+
+        setSubmitting(false);
+        alert(message);
+        return;
+      }
+    }
+
     const { data, error } =
       predictionRecoveryActive
         ? await supabase.rpc(
@@ -1663,7 +1903,10 @@ export default function GiornataPage() {
 
     if (
       !result ||
-      result.submitted_prediction_count !== result.required_prediction_count
+      result.submitted_prediction_count !==
+        (predictionRecoveryActive
+          ? result.current_recoverable_match_count
+          : result.required_prediction_count)
     ) {
       setSubmitting(false);
       alert(
