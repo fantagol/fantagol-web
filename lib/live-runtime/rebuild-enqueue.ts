@@ -163,7 +163,52 @@ async function loadFinalCalculableLeagueRounds(
     });
   }
 
-  return (data ?? []) as FinalCalculableLeagueRoundRow[];
+  const candidates = (data ?? []) as FinalCalculableLeagueRoundRow[];
+  if (candidates.length === 0) return [];
+
+  // R94A: league_round.enabled is historical state, not league eligibility.
+  // Fail closed if a parent league cannot be resolved; never enqueue deleted leagues.
+  const { data: parentRounds, error: parentError } = await client
+    .from("league_rounds")
+    .select("id,league_id")
+    .in("id", candidates.map((round) => round.id));
+  const candidateIds = candidates.map((round) => round.id);
+  const ownerIds = (parentRounds ?? []).map((round) => round.id);
+  const ownerIdSet = new Set(ownerIds);
+  const candidateIdSet = new Set(candidateIds);
+  const ownerMappingValid =
+    ownerIds.length === candidateIds.length &&
+    ownerIdSet.size === candidateIdSet.size &&
+    ownerIds.every((id) => candidateIdSet.has(id));
+  if (parentError || !parentRounds || !ownerMappingValid) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message: "Unable to resolve league ownership for FINAL_CALCULABLE enqueue",
+      details: { error: parentError?.message ?? null, candidateCount: candidates.length },
+    });
+  }
+  const parentIds = [...new Set(parentRounds.map((round) => round.league_id))];
+  const { data: leagues, error: leagueError } = await client
+    .from("leagues")
+    .select("id,status")
+    .in("id", parentIds);
+  const returnedLeagueIds = (leagues ?? []).map((league) => league.id);
+  const returnedLeagueIdSet = new Set(returnedLeagueIds);
+  const expectedLeagueIdSet = new Set(parentIds);
+  const leagueMappingValid =
+    returnedLeagueIds.length === parentIds.length &&
+    returnedLeagueIdSet.size === expectedLeagueIdSet.size &&
+    returnedLeagueIds.every((id) => expectedLeagueIdSet.has(id));
+  if (leagueError || !leagues || !leagueMappingValid) {
+    throw new LiveRuntimeError({
+      code: "LIVE_RUNTIME_RPC_ERROR",
+      message: "Unable to resolve parent league lifecycle for FINAL_CALCULABLE enqueue",
+      details: { error: leagueError?.message ?? null, expectedLeagueCount: parentIds.length },
+    });
+  }
+  const activeIds = new Set(leagues.filter((league) => league.status === "active").map((league) => league.id));
+  const roundLeague = new Map(parentRounds.map((round) => [round.id, round.league_id]));
+  return candidates.filter((round) => activeIds.has(roundLeague.get(round.id)));
 }
 
 export async function enqueueFinalCalculableLeagueRoundRebuildJobs(
