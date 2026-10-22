@@ -966,6 +966,7 @@ export async function runProductionHeartbeat(
      * the already completed PACKAGE result.
      */
     if (
+      process.env.FANTAGOL_ODDS_ADVANCED_ENABLED === "true" &&
       policyDecision.advancedWindow !==
       null
     ) {
