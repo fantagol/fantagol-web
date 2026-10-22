@@ -1,3 +1,4 @@
+import { runIsolatedTerminalSweep } from "./terminal-sweep-isolated";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -722,6 +723,23 @@ export async function runProductionHeartbeat(
     input.correlationId ?? null;
   const deps = resolveDependencies(input);
   const retryReasons: string[] = [];
+  // R79 DB-owned terminal sweep: SQL owns durable intents and job enqueue.
+  // DO NOT enable until DB authority and bounded durable retry are certified.
+  const r79Sweep = await runIsolatedTerminalSweep({
+    enabled: process.env.FANTAGOL_TERMINAL_SWEEP_ENABLED === "true",
+    dependencies: {
+      sweep: async () => {
+        const { data, error } = await input.client.rpc(
+          "sweep_terminal_round_reconciliation_rpc",
+          { p_max_rounds: 2 },
+        );
+        if (error) throw new Error(`TERMINAL_SWEEP_RPC_FAILED:${error.message}`);
+        return data;
+      },
+},
+  });
+  retryReasons.push(...r79Sweep.retryReasons);
+
 
   let roundStep:
     ProductionHeartbeatStep<ProductionRoundContext>;
@@ -746,7 +764,7 @@ export async function runProductionHeartbeat(
       loyaltyRewards: skipped(),
       worker: skipped(),
       retryRecommended: true,
-      retryReasons: ["round_context_failed"],
+      retryReasons: [...new Set([...retryReasons, "round_context_failed"])],
     };
   }
 
@@ -769,7 +787,7 @@ export async function runProductionHeartbeat(
       loyaltyRewards: skipped(),
       worker: skipped(),
       retryRecommended: true,
-      retryReasons: ["round_unavailable"],
+      retryReasons: [...new Set([...retryReasons, "round_unavailable"])],
     };
   }
 
@@ -1159,6 +1177,7 @@ export async function runProductionHeartbeat(
     retryReasons.push("prediction_recovery_expiry_failed");
   }
 
+  // R79 executes before round selection; no duplicate sweep here.
   let communityStep:
     ProductionHeartbeatStep<unknown>;
 
