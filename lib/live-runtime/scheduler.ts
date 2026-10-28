@@ -91,6 +91,27 @@ function buildPollIdempotencyKey(input: {
   ].join(":");
 }
 
+/**
+ * A bounded recovery interval permits provider observation when the canonical
+ * match is still scheduled and the first kickoff poll was missed. The provider
+ * remains the sole source of LIVE/terminal evidence; clock time cannot promote
+ * authority. END_PENDING is stopped by the authority gate in scheduleLivePolling.
+ * Four hours covers regulation, stoppage and operational heartbeat disruption,
+ * while forbidding unlimited replay of historical scheduled matches.
+ */
+export function isTuttoKickoffColdStart(input: {
+  providerCode: string;
+  status: string;
+  kickoffAt: string;
+  now: Date;
+}): boolean {
+  const kickoffAtMs = Date.parse(input.kickoffAt);
+  return input.providerCode === "tuttoilcalcio" &&
+    input.status === "scheduled" &&
+    Number.isFinite(kickoffAtMs) &&
+    input.now.getTime() >= kickoffAtMs &&
+    input.now.getTime() <= kickoffAtMs + 4 * 60 * 60 * 1000;
+}
 export async function scheduleLivePolling(
   input: ScheduleLivePollingInput,
 ): Promise<ScheduledLivePolling> {
@@ -152,23 +173,14 @@ export async function scheduleLivePolling(
           roundCertified: input.target.roundCertified,
         });
 
-  const tuttoKickoffAtMs =
-    input.target.providerCode === "tuttoilcalcio"
-      ? Date.parse(input.target.kickoffAt)
-      : Number.NaN;
-
-  // Tutto is the operational LIVE authority from kickoff onward.
-  // Do not wait for Football-Data to flip the canonical match to LIVE:
-  // during the bounded kickoff cold-start window we poll Tutto every minute.
-  // A pre-live Tutto response does not promote primary_live authority; it only
-  // keeps observation active until the provider itself reports actual LIVE.
-  const tuttoKickoffColdStart =
-    input.target.providerCode === "tuttoilcalcio" &&
-    input.target.status === "scheduled" &&
-    Number.isFinite(tuttoKickoffAtMs) &&
-    now.getTime() >= tuttoKickoffAtMs &&
-    now.getTime() <= tuttoKickoffAtMs + 30 * 60 * 1000;
-
+  // Recovery is bounded to four hours after kickoff, never historical polling.
+  // Neither time nor a provider PRE_MATCH reply establishes live authority.
+  const tuttoKickoffColdStart = isTuttoKickoffColdStart({
+    providerCode: input.target.providerCode,
+    status: input.target.status,
+    kickoffAt: input.target.kickoffAt,
+    now,
+  });
   const decision =
     input.target.providerCode === "tuttoilcalcio"
       ? (
