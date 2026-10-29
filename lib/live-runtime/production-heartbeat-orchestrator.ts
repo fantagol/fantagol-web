@@ -1,3 +1,4 @@
+import { reconcileOrdinaryLiveClosures } from "./ordinary-live-closure-reconciler";
 import { runIsolatedTerminalSweep } from "./terminal-sweep-isolated";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -723,6 +724,16 @@ export async function runProductionHeartbeat(
     input.correlationId ?? null;
   const deps = resolveDependencies(input);
   const retryReasons: string[] = [];
+  // R41-R5J-R25: optional independent ordinary-live closure producer.
+  // OFF by default. Enable only after the SQL authority is deployed and certified.
+  if (process.env.FANTAGOL_ORDINARY_LIVE_CLOSURE_ENABLED === "true") {
+    const ordinaryClosure = await reconcileOrdinaryLiveClosures({
+      client: input.client,
+      now,
+      enabled: true,
+    });
+    retryReasons.push(...ordinaryClosure.retryReasons);
+  }
   // R79 DB-owned terminal sweep: SQL owns durable intents and job enqueue.
   // DO NOT enable until DB authority and bounded durable retry are certified.
   const r79Sweep = await runIsolatedTerminalSweep({
