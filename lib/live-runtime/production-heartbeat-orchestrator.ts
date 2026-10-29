@@ -1,5 +1,6 @@
 import { reconcileOrdinaryLiveClosures } from "./ordinary-live-closure-reconciler";
 import { runIsolatedTerminalSweep } from "./terminal-sweep-isolated";
+import { runR27DailyCalendarSync } from "./r27-daily-calendar-sync";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
@@ -750,6 +751,16 @@ export async function runProductionHeartbeat(
 },
   });
   retryReasons.push(...r79Sweep.retryReasons);
+  // R27-B daily calendar producer, OFF unless explicitly enabled.
+  // R35 diagnostic preview is never write authority.
+  if (process.env.FANTAGOL_R27_DAILY_CALENDAR_ENABLED === "true") {
+    try {
+      await runR27DailyCalendarSync(input.client, now);
+    } catch (error) {
+      console.error("R27_DAILY_CALENDAR_FAILED", error);
+      retryReasons.push("r27_daily_calendar_failed");
+    }
+  }
 
 
   let roundStep:
