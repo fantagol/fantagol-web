@@ -1,5 +1,6 @@
 import { reconcileOrdinaryLiveClosures } from "./ordinary-live-closure-reconciler";
 import { runIsolatedTerminalSweep } from "./terminal-sweep-isolated";
+import { classifyTerminalSweepRetryReasons } from "./terminal-sweep-retry-policy";
 import { runR27DailyCalendarSync } from "./r27-daily-calendar-sync";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -1380,6 +1381,12 @@ export async function runProductionHeartbeat(
 
   const uniqueRetryReasons =
     [...new Set(retryReasons)];
+  const terminalReview = classifyTerminalSweepRetryReasons(uniqueRetryReasons);
+  if (terminalReview.reviewReasons.length > 0) {
+    console.warn("TERMINAL_SWEEP_MANUAL_REVIEW_REQUIRED", {
+      reviewReasons: terminalReview.reviewReasons,
+    });
+  }
 
   return {
     startedAt,
@@ -1395,7 +1402,7 @@ export async function runProductionHeartbeat(
     loyaltyRewards: loyaltyRewardsStep,
     worker: workerStep,
     retryRecommended:
-      uniqueRetryReasons.length > 0,
+      terminalReview.retryRecommended,
     retryReasons: uniqueRetryReasons,
   };
 }
