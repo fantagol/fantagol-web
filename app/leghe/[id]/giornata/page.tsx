@@ -1881,13 +1881,13 @@ export default function GiornataPage() {
     const { data, error } =
       predictionRecoveryActive
         ? await supabase.rpc(
-            "submit_prediction_recovery_rpc",
+            "submit_prediction_recovery_manual_rpc",
             {
               p_league_round_id: round.id,
             },
           )
         : await supabase.rpc(
-            "submit_round_predictions_rpc",
+            "submit_round_predictions_manual_rpc",
             {
               p_league_round_id: round.id,
             },
