@@ -65,7 +65,20 @@ BEGIN
        AND NOT admin_option AND inherit_option AND NOT set_option) THEN
    RAISE EXCEPTION 'PUSH358_MEMBERSHIP_FAIL';
  END IF;
- IF EXISTS(SELECT 1 FROM pg_auth_members WHERE roleid='fantagol_push_api_login'::regrole) THEN
+ -- Supabase may attach the creating postgres role as an incoming admin member.
+ -- Incoming membership is only accepted in that exact direction and option set.
+ -- This does not confer postgres privileges on the new Push LOGIN role.
+ IF EXISTS (
+   SELECT 1 FROM pg_auth_members m
+   JOIN pg_roles incoming_member ON incoming_member.oid=m.member
+   WHERE m.roleid='fantagol_push_api_login'::regrole
+     AND NOT (
+       incoming_member.rolname='postgres'
+       AND m.admin_option
+       AND NOT m.inherit_option
+       AND NOT m.set_option
+     )
+ ) THEN
    RAISE EXCEPTION 'PUSH358_UNEXPECTED_INCOMING_MEMBERSHIP';
  END IF;
  IF EXISTS (SELECT 1 FROM (VALUES
