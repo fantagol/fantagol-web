@@ -11,6 +11,7 @@ import {
   storeLeagueId,
 } from "../../lib/league-identity";
 import KitPreview from "../club/KitPreview";
+import WebPushDrawerEntry from "../push/WebPushDrawerEntry";
 
 type HamburgerDrawerProps = {
   open: boolean;
@@ -1543,6 +1544,8 @@ export default function HamburgerDrawer({
             subtitle="Regole ufficiali e modalità di gioco"
             onClick={() => goTo("/regolamento")}
           />
+
+          {!isNativeApp && <WebPushDrawerEntry />}
 
           {!isNativeApp && (
             <DrawerMenuItem
