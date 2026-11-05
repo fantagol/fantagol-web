@@ -64,12 +64,24 @@ export async function sendFantagolWebPush(input: DeliveryInput): Promise<PushDel
     throw new Error("PUSH_DELIVERY_DISABLED");
   }
   const { subject, publicKey, privateKey } = vapidConfig();
-  const plaintext = decryptPushCredential({
-    userId: input.userId,
-    channel: input.channel,
-    fingerprint: input.endpointFingerprint,
-    envelope: input.encryptedCredentials,
-  });
+  let plaintext: string;
+  try {
+    plaintext = decryptPushCredential({
+      userId: input.userId,
+      channel: input.channel,
+      fingerprint: input.endpointFingerprint,
+      envelope: input.encryptedCredentials,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error && [
+      "PUSH_KEY_NOT_CONFIGURED",
+      "PUSH_CONTEXT_INVALID",
+      "PUSH_ENVELOPE_INVALID",
+    ].includes(error.message)) {
+      throw error;
+    }
+    throw new Error("PUSH_DECRYPT_FAILED");
+  }
   const subscription = readSubscription(plaintext);
   // Avoid leaking endpoints, keys and payload in errors or logs.
   const payload = JSON.stringify({

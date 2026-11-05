@@ -51,7 +51,28 @@ export async function POST(request: NextRequest) {
     if (result.kind === "RATE_LIMITED") return response(429, "PUSH_TEST_RATE_LIMITED");
     if (result.kind === "GONE") return response(410, "SUBSCRIPTION_GONE");
     return response(503, "PUSH_DELIVERY_UNAVAILABLE");
-  } catch {
+  } catch (error: unknown) {
+    // Operator diagnostic: fixed safe codes only.
+    // Never log tokens, secrets, recipients or raw exceptions.
+    const safeCodes = new Set([
+      "PUSH_TEST_DISABLED",
+      "PUSH_TEST_DEVICE_RPC_FAILED",
+      "PUSH_TEST_DEVICE_PAYLOAD_INVALID",
+      "PUSH_TEST_QUOTA_RPC_FAILED",
+      "PUSH_VAPID_CONFIG_UNAVAILABLE",
+      "PUSH_KEY_NOT_CONFIGURED",
+      "PUSH_CONTEXT_INVALID",
+      "PUSH_ENVELOPE_INVALID",
+      "PUSH_DECRYPT_FAILED",
+      "PUSH_SUBSCRIPTION_INVALID",
+      "PUSH_CHANNEL_NOT_SUPPORTED",
+      "PUSH_DELIVERY_DISABLED",
+    ]);
+    const message = error instanceof Error ? error.message : "";
+    const code = safeCodes.has(message)
+      ? message
+      : "PUSH_TEST_UNCLASSIFIED_EXCEPTION";
+    console.error("[FANTAGOL_PUSH_TEST_DIAGNOSTIC]", code);
     return response(503, "PUSH_TEST_UNAVAILABLE");
   }
 }
