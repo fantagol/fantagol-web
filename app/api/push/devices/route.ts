@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServiceClient();
 
     const { data, error } = await supabase.rpc(
-      "push_server_register_device_rpc",
+      "push_server_register_device_with_preference_rpc",
       {
         p_user_id: userId,
         p_channel: device.channel,
