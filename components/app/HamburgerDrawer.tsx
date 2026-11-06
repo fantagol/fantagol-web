@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { leaguePath } from "../../lib/navigation/league-paths";
+import { Capacitor } from "@capacitor/core";
 import { useNativeAppMode } from "../../lib/platform/app-mode";
 import {
   buildLeagueScopedClubPath,
@@ -1545,7 +1546,7 @@ export default function HamburgerDrawer({
             onClick={() => goTo("/regolamento")}
           />
 
-          {!isNativeApp && <WebPushDrawerEntry />}
+          {!Capacitor.isNativePlatform() && <WebPushDrawerEntry />}
 
           {!isNativeApp && (
             <DrawerMenuItem
