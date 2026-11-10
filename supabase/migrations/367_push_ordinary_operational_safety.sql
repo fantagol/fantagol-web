@@ -1,5 +1,7 @@
--- FANTAGOL S11-R22-R19 / M367 ORDINARY SAFETY -- SOURCE MIGRATION; NOT DEPLOYED (after M365 + M366)
--- NOT approved for deployment. No delivery, scheduler or public grants.
+-- FANTAGOL S11-R22-R19 / M367 ORDINARY SAFETY -- SOURCE MIGRATION; DEPLOYMENT GOVERNED (after M365 + M366)
+-- PRODUCTION INSTALLATION: passive M367 only, after certified persistent M365/M366 and dedicated R6-I preflight.
+-- No scheduler or API route activation, function invocation, provider delivery, or new client RPC grants.
+-- Push activation requires separate runtime certification and authorization after post-commit M367 verification.
 -- Current-round logic is a scoped *read-only projection* of Production resolver
 -- definition MD5=1f48cb21c9ffa59ccd2ef872f184229b, observed S11-R22-R18.
 -- If Production authority changes, the predicate returns FALSE (fail closed).
