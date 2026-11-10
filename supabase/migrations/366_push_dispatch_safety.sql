@@ -1,7 +1,8 @@
--- FANTAGOL S11-R22-R15 / M366 DISPATCH SAFETY -- SOURCE MIGRATION; NOT DEPLOYED
--- NOT DEPLOYED. No scheduler, API route, grants or provider calls.
--- Must be canaried in SAME TRANSACTION after candidate M365 (taxonomy extension).
--- All functions are deliberately inaccessible to anon/authenticated/service_role.
+-- FANTAGOL S11-R22-R15 / M366 DISPATCH SAFETY -- SOURCE MIGRATION; DEPLOYMENT GOVERNED
+-- PRODUCTION INSTALLATION: passive M366 only, after certified persistent M365 and dedicated R6-H preflight.
+-- M365/M366 integrated canary is certified; deploy M366 separately with post-commit verification.
+-- No scheduler or API route activation, function invocation, provider delivery, or new client RPC grants.
+-- All server functions remain inaccessible to anon/authenticated/service_role; M367 requires separate certification.
 
 DO $pre$
 BEGIN
