@@ -50,6 +50,21 @@ export async function dispatchOneWebPushTest(userId: string): Promise<TestDispat
   }
   if (!quota.data) return { kind: "RATE_LIMITED" };
 
+  // M368 enforces the current user preference at device selection time.
+  // Re-select after quota reservation, minimizing the opt-out race window.
+  // This cannot atomically serialize revocation with an external HTTP send.
+  const finalSelection = await supabase.rpc("push_server_select_test_device_rpc", {
+    p_user_id: userId,
+  });
+  if (finalSelection.error) throw new Error("PUSH_TEST_DEVICE_RPC_FAILED");
+  if (finalSelection.data === null) return { kind: "NO_SUBSCRIPTION" };
+  const currentDevice = parseDevicePayload(finalSelection.data);
+  if (!currentDevice) throw new Error("PUSH_TEST_DEVICE_PAYLOAD_INVALID");
+  if (currentDevice.endpoint_fingerprint !== device.endpoint_fingerprint ||
+      currentDevice.encrypted_credentials_hex !== device.encrypted_credentials_hex) {
+    return { kind: "NO_SUBSCRIPTION" };
+  }
+
   const result = await sendFantagolWebPush({
     userId,
     channel: "web_push",
