@@ -1,6 +1,7 @@
--- FANTAGOL S11-R22-R12 / M365 RECOVERY PRODUCER -- SOURCE MIGRATION; NOT DEPLOYED
--- DO NOT APPLY TO PRODUCTION. No scheduler, no delivery, no grants.
--- Requires separately audited claim/ACK changes before activation.
+-- FANTAGOL S11-R22-R12 / M365 RECOVERY PRODUCER -- SOURCE MIGRATION; DEPLOYMENT GOVERNED
+-- PRODUCTION INSTALLATION: passive M365 only, after certified R6-F and dedicated R6-G preflight.
+-- No scheduler activation, enqueue invocation, provider delivery, or new RPC grants.
+-- M366 claim/ACK and M367 Ordinary require separate deployment and certification before Push activation.
 -- Each authorization UUID is the member-scoped immutable recovery window_key.
 -- A previously USED authorization is never retried as a new window.
 BEGIN;
