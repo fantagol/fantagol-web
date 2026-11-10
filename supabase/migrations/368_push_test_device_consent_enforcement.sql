@@ -1,7 +1,7 @@
--- FANTAGOL S11-R22-R7-I — CANDIDATE ONLY / NOT AUTHORIZED FOR PRODUCTION.
--- Repairs the M362 test-device selector, preserving signature and service_role boundary.
--- IMPORTANT: This gates selection, but does not atomically serialize opt-out with provider delivery.
--- Require isolated-clone transactional canary and separate production approval.
+-- FANTAGOL S11-R22-R7-I-J — CONTROLLED PRODUCTION MIGRATION AUTHORIZATION.
+-- M368 SQL execution is permitted only by a separate reviewed deployment runner and postcheck.
+-- Preserves the M362 selector contract; consent is checked at selection, not atomically through delivery.
+-- No automatic migration run, GitHub push, Web Push delivery, or provider activation is authorized here.
 BEGIN;
 
 DO $preflight$
